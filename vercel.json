@@ -2,11 +2,7 @@
   "version": 2,
   "framework": "vite",
   "functions": {
-    "api/chat.js": {
-      "runtime": "nodejs20.x"
-    },
-    "api/salary.js": {
-      "runtime": "nodejs20.x"
-    }
+    "api/chat.js": {},
+    "api/salary.js": {}
   }
 }
