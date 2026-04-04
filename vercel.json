@@ -1,8 +1,4 @@
 {
-  "version": 2,
-  "framework": "vite",
-  "functions": {
-    "api/chat.js": {},
-    "api/salary.js": {}
-  }
+  "version": 2
+ 
 }
