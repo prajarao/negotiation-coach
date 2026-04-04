@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
+// ─── System prompt ────────────────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
 Your coaching philosophy:
@@ -18,228 +19,160 @@ Your coaching style:
 - Role-play as a recruiter when the user wants to practice
 - Write ready-to-send negotiation emails and call scripts on request
 
-When evaluating an offer, always consider:
-- Base salary (vs. market rate for role/level/location)
-- Equity (RSUs, options, vesting schedule, cliff)
-- Signing bonus (one-time vs. recurring value)
-- Annual bonus (target %, guaranteed vs. discretionary)
-- Benefits (health, 401k match, PTO, remote flexibility)
-- Growth trajectory and title
+Always end your responses with a clear next step the user should take.
+Format responses with clear sections when giving structured advice.`;
 
-Always end your responses with a clear "Next Step" the user should take.
-
-Format responses with clear sections when giving structured advice. Be conversational but precise. Never give generic advice like "do your research" without telling them exactly HOW.`;
-
+// ─── Welcome message ──────────────────────────────────────────────────────────
 const WELCOME_MESSAGE = {
   role: "assistant",
-  content: `# Welcome to your AI Negotiation Coach 💼
+  content: `# Welcome to NegotiateAI 💼
 
-I'm here to help you negotiate the compensation you deserve. I've coached professionals across tech, finance, consulting, and beyond — and I'll give you the same sharp, specific advice top executives pay thousands for.
+I'm your personal salary negotiation coach — the same sharp, specific advice top executives pay thousands for.
 
-**Here's what I can help you with:**
-- 📊 **Evaluate your offer** — Is it fair? Where's the leverage?
-- 🎯 **Build your strategy** — Anchoring, counteroffers, and timing
-- 🎭 **Role-play the conversation** — Practice with me as the recruiter
-- ✉️ **Write your negotiation email or script** — Copy-paste ready
+**Tell me about your situation to get started:**
+- What role and company is the offer for?
+- What's the current offer (base, bonus, equity)?
+- Any competing offers or context I should know?
 
-**To get started, tell me:**
-1. What role and company is the offer for?
-2. What's the current offer (base, bonus, equity if any)?
-3. What's your experience level and any competing offers?
-
-*The more context you share, the sharper my coaching gets.*`,
+*The more you share, the sharper my coaching gets.*`,
 };
 
-const SUGGESTED_STARTERS = [
-  "I have an offer I want to evaluate",
-  "Help me write a negotiation email",
-  "Role-play: you're the recruiter",
-  "Is my offer below market rate?",
+// ─── Step definitions ─────────────────────────────────────────────────────────
+const STEPS = [
+  { id: 1, label: "Share Offer", icon: "📋", desc: "Tell me about your offer" },
+  { id: 2, label: "Benchmark", icon: "📊", desc: "Compare to market data" },
+  { id: 3, label: "Calculate", icon: "🧮", desc: "Build your counter-offer" },
+  { id: 4, label: "Practice", icon: "🎭", desc: "Role-play the conversation" },
+  { id: 5, label: "Log Win", icon: "🏆", desc: "Record your result" },
 ];
 
+// ─── Contextual prompts per step ──────────────────────────────────────────────
+const CONTEXTUAL_PROMPTS = {
+  1: [
+    "I have a job offer I want to evaluate",
+    "I want to negotiate a raise at my current job",
+    "I have two competing offers to compare",
+    "Help me understand my total comp package",
+  ],
+  2: [
+    "Is my offer above or below market rate?",
+    "What's the going rate for my role in my city?",
+    "How does my equity compare to industry standards?",
+    "What percentile is my offer at?",
+  ],
+  3: [
+    "What should I counter with?",
+    "How much more should I ask for?",
+    "Should I negotiate base or equity first?",
+    "What's my 4-year gain if I negotiate?",
+  ],
+  4: [
+    "Role-play: you're the recruiter, I'll practice",
+    "What do I say when they ask my salary expectations?",
+    "How do I respond if they say the offer is firm?",
+    "Write me a negotiation email I can send today",
+  ],
+  5: [
+    "I successfully negotiated — help me log my win",
+    "They didn't budge — what did I learn?",
+    "I got more equity instead of base — how do I record this?",
+    "What should I do differently next time?",
+  ],
+};
+
+// ─── Markdown renderer ────────────────────────────────────────────────────────
 function MarkdownText({ text }) {
   const renderLine = (line, i) => {
-    if (line.startsWith("# ")) return <h1 key={i} style={{ fontSize: "1.4rem", fontWeight: 700, margin: "0.5rem 0 0.75rem", color: "#e2e8f0", fontFamily: "'Playfair Display', serif" }}>{line.slice(2)}</h1>;
-    if (line.startsWith("## ")) return <h2 key={i} style={{ fontSize: "1.1rem", fontWeight: 600, margin: "1rem 0 0.4rem", color: "#94a3b8", letterSpacing: "0.05em", textTransform: "uppercase", fontSize: "0.8rem" }}>{line.slice(3)}</h2>;
-    if (line.startsWith("### ")) return <h3 key={i} style={{ fontSize: "1rem", fontWeight: 600, margin: "0.75rem 0 0.3rem", color: "#cbd5e1" }}>{line.slice(4)}</h3>;
+    if (line.startsWith("# ")) return <h1 key={i} style={{ fontSize: "1.3rem", fontWeight: 700, margin: "0.4rem 0 0.6rem", color: "#e2e8f0", fontFamily: "'Playfair Display', serif" }}>{line.slice(2)}</h1>;
+    if (line.startsWith("## ")) return <h2 key={i} style={{ fontSize: "0.72rem", fontWeight: 600, margin: "0.9rem 0 0.35rem", color: "#64748b", letterSpacing: "0.08em", textTransform: "uppercase" }}>{line.slice(3)}</h2>;
+    if (line.startsWith("### ")) return <h3 key={i} style={{ fontSize: "0.95rem", fontWeight: 600, margin: "0.6rem 0 0.25rem", color: "#cbd5e1" }}>{line.slice(4)}</h3>;
     if (line.startsWith("- ")) {
-      const content = line.slice(2).replace(/\*\*(.*?)\*\*/g, (_, t) => `<strong style="color:#f1f5f9">${t}</strong>`).replace(/\*(.*?)\*/g, (_, t) => `<em>${t}</em>`);
-      return <li key={i} style={{ margin: "0.3rem 0", color: "#94a3b8", listStyle: "none", paddingLeft: "1rem", borderLeft: "2px solid #334155" }} dangerouslySetInnerHTML={{ __html: content }} />;
+      const c = line.slice(2).replace(/\*\*(.*?)\*\*/g, (_, t) => `<strong style="color:#f1f5f9">${t}</strong>`);
+      return <li key={i} style={{ margin: "0.25rem 0", color: "#94a3b8", listStyle: "none", paddingLeft: "0.9rem", borderLeft: "2px solid #1e293b" }} dangerouslySetInnerHTML={{ __html: c }} />;
     }
     if (line.match(/^\d+\./)) {
-      const content = line.replace(/^\d+\.\s*/, "").replace(/\*\*(.*?)\*\*/g, (_, t) => `<strong style="color:#f1f5f9">${t}</strong>`);
-      return <li key={i} style={{ margin: "0.3rem 0", color: "#94a3b8", marginLeft: "1.2rem" }} dangerouslySetInnerHTML={{ __html: content }} />;
+      const c = line.replace(/^\d+\.\s*/, "").replace(/\*\*(.*?)\*\*/g, (_, t) => `<strong style="color:#f1f5f9">${t}</strong>`);
+      return <li key={i} style={{ margin: "0.25rem 0", color: "#94a3b8", marginLeft: "1rem" }} dangerouslySetInnerHTML={{ __html: c }} />;
     }
     if (line.trim() === "") return <br key={i} />;
-    if (line.startsWith("**") && line.endsWith("**") && line.split("**").length === 3) {
-      return <p key={i} style={{ margin: "0.5rem 0", color: "#e2e8f0", fontWeight: 600 }}>{line.slice(2, -2)}</p>;
-    }
-    const content = line.replace(/\*\*(.*?)\*\*/g, (_, t) => `<strong style="color:#f1f5f9">${t}</strong>`).replace(/\*(.*?)\*/g, (_, t) => `<em style="color:#7dd3fc">${t}</em>`).replace(/`(.*?)`/g, (_, t) => `<code style="background:#1e293b;padding:2px 6px;border-radius:4px;font-family:monospace;color:#7dd3fc;font-size:0.85em">${t}</code>`);
-    return <p key={i} style={{ margin: "0.35rem 0", color: "#94a3b8", lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: content }} />;
+    const c = line.replace(/\*\*(.*?)\*\*/g, (_, t) => `<strong style="color:#f1f5f9">${t}</strong>`).replace(/\*(.*?)\*/g, (_, t) => `<em style="color:#7dd3fc">${t}</em>`).replace(/`(.*?)`/g, (_, t) => `<code style="background:#1e293b;padding:1px 5px;border-radius:3px;font-family:monospace;color:#7dd3fc;font-size:0.82em">${t}</code>`);
+    return <p key={i} style={{ margin: "0.3rem 0", color: "#94a3b8", lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: c }} />;
   };
-
-  return <div>{text.split("\n").map((line, i) => renderLine(line, i))}</div>;
+  return <div>{text.split("\n").map((l, i) => renderLine(l, i))}</div>;
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function NegotiationCoach() {
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState("coach"); // coach | roleplay
+  const [mode, setMode] = useState("coach");
+  const [currentStep, setCurrentStep] = useState(1);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+
+  // Panel visibility
+  const [showSalary, setShowSalary] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
+  const [showTracker, setShowTracker] = useState(false);
+
+  // Salary state
   const [salaryData, setSalaryData] = useState(null);
   const [salaryLoading, setSalaryLoading] = useState(false);
-  const [showSalary, setShowSalary] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
   const [jobLocation, setJobLocation] = useState("");
   const [offeredSalary, setOfferedSalary] = useState("");
-  const [showCalculator, setShowCalculator] = useState(false);
+
+  // Calculator state
   const [calcLoading, setCalcLoading] = useState(false);
   const [counterResult, setCounterResult] = useState(null);
-  const [offer, setOffer] = useState({
-    base: "",
-    bonus: "",
-    equity: "",
-    equityYears: "4",
-    signing: "", 
-    pto: "15",
-  });
-  const [showTracker, setShowTracker] = useState(false);
- const [outcomes, setOutcomes] = useState([]);
- const [trackerLoading, setTrackerLoading] = useState(false);
- const [outcomeSaved, setOutcomeSaved] = useState(false);
- const [newOutcome, setNewOutcome] = useState({
-   role: "",
-   industry: "",
-   offeredBase: "",
-   finalBase: "",
-   offeredTotal: "",
-   finalTotal: "",
-   timeToNegotiate: "",
-   tactic: "",
-   note: "",
- });
- const [stats, setStats] = useState({
-  totalUsers: 0,
-  totalGained: 0,
-  avgGain: 0,
-  topIndustry: "",
- });
+  const [offer, setOffer] = useState({ base: "", bonus: "", equity: "", equityYears: "4", signing: "", pto: "15" });
+
+  // Tracker state
+  const [outcomes, setOutcomes] = useState([]);
+  const [trackerLoading, setTrackerLoading] = useState(false);
+  const [outcomeSaved, setOutcomeSaved] = useState(false);
+  const [newOutcome, setNewOutcome] = useState({ role: "", industry: "", offeredBase: "", finalBase: "", offeredTotal: "", finalTotal: "", tactic: "", note: "" });
+  const [stats, setStats] = useState({ totalUsers: 0, totalGained: 0, avgGain: 0, topIndustry: "" });
+
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+
+  // ── On mount ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const seen = localStorage.getItem("negotiateai_onboarding_seen");
+    if (!seen) setShowOnboarding(true);
+    loadOutcomes();
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
-  useEffect(() => {
-	loadOutcomes();
-	}, []);
-  // ── Storage helpers ─────────────────────────────────────────
-const STORAGE_KEY = "negotiation_outcomes";
 
-const loadOutcomes = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const data = JSON.parse(stored);
-      setOutcomes(data.outcomes || []);
-      computeStats(data.outcomes || []);
-    }
-  } catch (e) {
-    console.log("No saved outcomes yet");
-    setOutcomes([]);
-  }
-};
+  // ── Storage ─────────────────────────────────────────────────────────────────
+  const STORAGE_KEY = "negotiation_outcomes";
 
-const computeStats = (outcomeList) => {
-  if (!outcomeList.length) return;
-  const totalGained = outcomeList.reduce((sum, o) => {
-    return sum + (parseFloat(o.finalTotal || o.finalBase || 0) -
-      parseFloat(o.offeredTotal || o.offeredBase || 0));
-  }, 0);
-  const avgGain = totalGained / outcomeList.length;
-
-  // Find top industry
-  const industryCounts = {};
-  outcomeList.forEach(o => {
-    if (o.industry) {
-      industryCounts[o.industry] = (industryCounts[o.industry] || 0) + 1;
-    }
-  });
-  const topIndustry = Object.entries(industryCounts)
-    .sort((a, b) => b[1] - a[1])[0]?.[0] || "";
-
-  setStats({
-    totalUsers: outcomeList.length,
-    totalGained: Math.round(totalGained),
-    avgGain: Math.round(avgGain),
-    topIndustry,
-  });
-};
-
-const saveOutcome = async () => {
-  if (!newOutcome.role || !newOutcome.finalBase) return;
-  setTrackerLoading(true);
-
-  try {
-    // Load existing outcomes from localStorage
-    let existing = [];
+  const loadOutcomes = () => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
-        existing = JSON.parse(stored).outcomes || [];
+        const data = JSON.parse(stored);
+        setOutcomes(data.outcomes || []);
+        computeStats(data.outcomes || []);
       }
-    } catch (e) { /* nothing saved yet */ }
+    } catch (e) { setOutcomes([]); }
+  };
 
-    // Build the new entry
-    const entry = {
-      ...newOutcome,
-      id: Date.now().toString(),
-      date: new Date().toLocaleDateString("en-US", {
-        month: "short", year: "numeric",
-      }),
-      gained: Math.round(
-        parseFloat(newOutcome.finalTotal || newOutcome.finalBase || 0) -
-        parseFloat(newOutcome.offeredTotal || newOutcome.offeredBase || 0)
-      ),
-    };
+  const computeStats = (list) => {
+    if (!list.length) return;
+    const totalGained = list.reduce((s, o) => s + (parseFloat(o.finalTotal || o.finalBase || 0) - parseFloat(o.offeredTotal || o.offeredBase || 0)), 0);
+    const industryCounts = {};
+    list.forEach(o => { if (o.industry) industryCounts[o.industry] = (industryCounts[o.industry] || 0) + 1; });
+    const topIndustry = Object.entries(industryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+    setStats({ totalUsers: list.length, totalGained: Math.round(totalGained), avgGain: Math.round(totalGained / list.length), topIndustry });
+  };
 
-    const updated = [entry, ...existing];
-
-    // Save to localStorage — works on localhost + Vercel
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ outcomes: updated }));
-
-    // Update UI
-    setOutcomes(updated);
-    computeStats(updated);
-    setOutcomeSaved(true);
-
-    // Reset form
-    setNewOutcome({
-      role: "", industry: "", offeredBase: "", finalBase: "",
-      offeredTotal: "", finalTotal: "", timeToNegotiate: "",
-      tactic: "", note: "",
-    });
-
-    // Fire celebration message into chat
-    await sendMessage(
-      `🎉 I just logged my negotiation win! Role: ${entry.role}, ` +
-      `Industry: ${entry.industry || "not specified"}. ` +
-      `I secured $${entry.gained > 0
-        ? entry.gained.toLocaleString()
-        : "a better package"} ` +
-      `more than the initial offer. What should I know for my next negotiation?`
-    );
-
-    setTimeout(() => setOutcomeSaved(false), 3000);
-
-  } catch (e) {
-    console.error("Save outcome error:", e);
-    alert("Could not save — check the console for details");
-  } finally {
-    setTrackerLoading(false);
-  }
-};
-
+  // ── Send message ────────────────────────────────────────────────────────────
   const sendMessage = async (text) => {
     const userText = text || input.trim();
     if (!userText || loading) return;
@@ -249,30 +182,29 @@ const saveOutcome = async () => {
     setMessages(newMessages);
     setLoading(true);
 
-    const apiMessages = newMessages
-      .filter((m) => m.role !== "assistant" || m !== WELCOME_MESSAGE)
-      .map((m) => ({ role: m.role, content: m.content }));
+    // Auto-advance step based on keywords
+    const lower = userText.toLowerCase();
+    if (lower.includes("offer") || lower.includes("salary") || lower.includes("comp")) setCurrentStep(s => Math.max(s, 1));
+    if (lower.includes("market") || lower.includes("benchmark") || lower.includes("percentile")) setCurrentStep(s => Math.max(s, 2));
+    if (lower.includes("counter") || lower.includes("calculate") || lower.includes("ask for")) setCurrentStep(s => Math.max(s, 3));
+    if (lower.includes("role-play") || lower.includes("practice") || lower.includes("email") || lower.includes("script")) setCurrentStep(s => Math.max(s, 4));
+    if (lower.includes("win") || lower.includes("negotiated") || lower.includes("accepted")) setCurrentStep(s => Math.max(s, 5));
 
+    const systemPrompt = mode === "roleplay"
+      ? SYSTEM_PROMPT + "\n\nIMPORTANT: You are now role-playing as a recruiter named Alex. Stay in character. Be realistic — push back on requests. After each exchange add a brief [Coach Note] with tactical feedback."
+      : SYSTEM_PROMPT;
+
+    const apiMessages = newMessages.filter(m => m !== WELCOME_MESSAGE && ["user", "assistant"].includes(m.role)).map(m => ({ role: m.role, content: m.content }));
     if (apiMessages[0]?.role === "assistant") apiMessages.shift();
 
     try {
-      const systemPrompt = mode === "roleplay"
-        ? SYSTEM_PROMPT + "\n\nIMPORTANT: The user wants to ROLE-PLAY. You are now acting as a recruiter/hiring manager named Alex from the company. Stay in character. Be realistic — push back on requests, ask clarifying questions a recruiter would ask. After each roleplay exchange, add a brief [Coach Note] in italics with tactical advice on how the user performed and what to do next."
-        : SYSTEM_PROMPT;
-
       const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        system: systemPrompt,
-        messages: apiMessages.length ? apiMessages : [{ role: "user", content: userText }],
-      }),
-    });
-
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ system: systemPrompt, messages: apiMessages.length ? apiMessages : [{ role: "user", content: userText }] }),
+      });
       const data = await response.json();
-      const reply = data.content?.map((b) => b.text || "").join("") || "I encountered an issue. Please try again.";
+      const reply = data.content?.[0]?.text || "Something went wrong. Please try again.";
       setMessages([...newMessages, { role: "assistant", content: reply }]);
     } catch (e) {
       setMessages([...newMessages, { role: "assistant", content: "Something went wrong. Please try again." }]);
@@ -282,1257 +214,508 @@ const saveOutcome = async () => {
     }
   };
 
-  const handleKey = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
+  const handleKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 
-  const toggleMode = () => {
-    const next = mode === "coach" ? "roleplay" : "coach";
-    setMode(next);
-    const modeMsg = next === "roleplay"
-      ? "🎭 **Role-play mode activated.** I'm now Alex, your recruiter. Start the conversation — tell me which company and role you're discussing, and I'll play the recruiter. I'll push back realistically and coach you after each exchange."
-      : "🎯 **Coach mode restored.** I'm back to pure strategy and advice. What do you want to work on?";
-    setMessages((prev) => [...prev, { role: "assistant", content: modeMsg }]);
-  };
-  
+  // ── Salary lookup ───────────────────────────────────────────────────────────
   const lookupSalary = async () => {
-  if (!jobTitle.trim()) return;
-  setSalaryLoading(true);
-  setSalaryData(null);
-  try {
-    const response = await fetch("/api/salary", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jobTitle: jobTitle.trim(),
-        location: jobLocation.trim() || "United States",
-        offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null,
-      }),
-    });
-    const data = await response.json();
-    setSalaryData(data);
-
-    // Auto-inject salary context into the chat
-    if (data.median) {
-      const contextMsg = `[Market Data Loaded] For ${data.occupation} in ${data.location}: 
-		25th percentile: $${data.p25?.toLocaleString()}, 
-		Median: $${data.median?.toLocaleString()}, 
-		75th percentile: $${data.p75?.toLocaleString()}. 
-		${offeredSalary ? `Their offer of $${parseFloat(offeredSalary).toLocaleString()} is ${data.percentileRating} — negotiation leverage is ${data.negotiationStrength}.` : ""}
-		Source: ${data.source}`;
-			  await sendMessage(contextMsg);
-			}
-		  } catch (e) {
-			console.error("Salary lookup failed:", e);
-		  } finally {
-			setSalaryLoading(false);
-		  }
-		};
-  
-  const calculateCounter = async () => {
-  if (!offer.base) return;
-  setCalcLoading(true);
-  setCounterResult(null);
-
-  try {
-    // ── Calculate current offer total value ──────────────────
-    const base = parseFloat(offer.base) || 0;
-    const bonusPct = parseFloat(offer.bonus) || 0;
-    const equityTotal = parseFloat(offer.equity) || 0;
-    const equityYears = parseFloat(offer.equityYears) || 4;
-    const signing = parseFloat(offer.signing) || 0;
-    const pto = parseFloat(offer.pto) || 15;
-
-    const annualBonus = base * (bonusPct / 100);
-    const annualEquity = equityTotal / equityYears;
-    const totalYear1 = base + annualBonus + annualEquity + signing;
-    const totalAnnual = base + annualBonus + annualEquity;
-    const total4Year = totalAnnual * 4 + signing;
-
-    // ── Generate smart counter targets ───────────────────────
-    // Standard negotiation: anchor 15-20% above on base
-    // Equity: push for 20-25% more
-    // Signing: ask for 10-15% of base if not offered, double if offered
-
-    const counterBase = Math.round(base * 1.15 / 1000) * 1000;
-    const counterBonus = bonusPct > 0 ? Math.min(bonusPct + 5, 30) : 0;
-    const counterEquity = equityTotal > 0
-      ? Math.round(equityTotal * 1.25 / 1000) * 1000
-      : 0;
-    const counterSigning = signing > 0
-      ? Math.round(signing * 1.5 / 1000) * 1000
-      : Math.round(base * 0.10 / 1000) * 1000;
-
-    const counterAnnualBonus = counterBase * (counterBonus / 100);
-    const counterAnnualEquity = counterEquity / equityYears;
-    const counterTotal4Year =
-      (counterBase + counterAnnualBonus + counterAnnualEquity) * 4 +
-      counterSigning;
-    const counterTotalAnnual =
-      counterBase + counterAnnualBonus + counterAnnualEquity;
-    const counterTotalYear1 =
-      counterBase + counterAnnualBonus + counterAnnualEquity + counterSigning;
-
-    const annualGap = counterTotalAnnual - totalAnnual;
-    const fourYearGap = counterTotal4Year - total4Year;
-
-    // ── Ask AI for negotiation narrative ─────────────────────
-    const aiResponse = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system: `You are an elite salary negotiation coach. 
-        Given offer details and counter-offer targets, write a sharp, 
-        specific negotiation strategy. Be direct. Give exact scripts. 
-        No fluff. Format your response in 3 short sections:
-        1. YOUR LEVERAGE (2-3 sentences on how strong their position is)
-        2. COUNTER SCRIPT (the exact words to say — 3-4 sentences)
-        3. FALLBACK MOVE (what to do if they say no to base — focus on equity/signing)`,
-        messages: [
-          {
-            role: "user",
-            content: `Current offer: Base $${base.toLocaleString()}, 
-Bonus ${bonusPct}%, Equity $${equityTotal.toLocaleString()} over ${equityYears} years, 
-Signing $${signing.toLocaleString()}.
-Total year 1: $${totalYear1.toLocaleString()}. 
-4-year value: $${total4Year.toLocaleString()}.
-
-My counter targets: Base $${counterBase.toLocaleString()}, 
-Bonus ${counterBonus}%, Equity $${counterEquity.toLocaleString()}, 
-Signing $${counterSigning.toLocaleString()}.
-Counter year 1: $${counterTotalYear1.toLocaleString()}.
-Counter 4-year: $${counterTotal4Year.toLocaleString()}.
-
-${salaryData?.median
-  ? `Market data: median is $${salaryData.median.toLocaleString()}, 
-75th percentile is $${salaryData.p75?.toLocaleString()}. 
-My offer is ${salaryData.percentileRating}.`
-  : "No market data loaded yet."}
-
-Give me my negotiation strategy.`,
-          },
-        ],
-      }),
-    });
-
-    const aiData = await aiResponse.json();
-    const strategy =
-      aiData.content?.[0]?.text || "Could not generate strategy.";
-
-    setCounterResult({
-      current: {
-        base, annualBonus, annualEquity, signing,
-        totalYear1, totalAnnual, total4Year, bonusPct,
-        equityTotal, equityYears, pto,
-      },
-      counter: {
-        base: counterBase,
-        bonusPct: counterBonus,
-        annualBonus: counterAnnualBonus,
-        equity: counterEquity,
-        annualEquity: counterAnnualEquity,
-        signing: counterSigning,
-        totalYear1: counterTotalYear1,
-        totalAnnual: counterTotalAnnual,
-        total4Year: counterTotal4Year,
-      },
-      gap: { annual: annualGap, fourYear: fourYearGap },
-      strategy,
-    });
-
-    // Auto-inject into chat so coach knows the full picture
-    await sendMessage(
-      `[Counter-Offer Calculated] Current offer total value: 
-$${totalAnnual.toLocaleString()}/year ($${total4Year.toLocaleString()} over 4 years). 
-Recommended counter: $${counterTotalAnnual.toLocaleString()}/year 
-($${counterTotal4Year.toLocaleString()} over 4 years). 
-That's $${fourYearGap.toLocaleString()} more over 4 years. 
-What's the best way to present this counter?`
-    );
-  } catch (e) {
-    console.error("Calculator error:", e);
-  } finally {
-    setCalcLoading(false);
-  }
-};
-
-  const reset = () => {
-    setMessages([WELCOME_MESSAGE]);
-    setMode("coach");
-    setInput("");
+    if (!jobTitle.trim()) return;
+    setSalaryLoading(true);
+    setSalaryData(null);
+    try {
+      const response = await fetch("/api/salary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobTitle: jobTitle.trim(), location: jobLocation.trim() || "United States", offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null }),
+      });
+      const data = await response.json();
+      setSalaryData(data);
+      setCurrentStep(s => Math.max(s, 2));
+      if (data.median) {
+        await sendMessage(`[Market Data] ${data.occupation} in ${data.location}: 25th=$${data.p25?.toLocaleString()}, Median=$${data.median?.toLocaleString()}, 75th=$${data.p75?.toLocaleString()}. ${offeredSalary ? `Offer of $${parseFloat(offeredSalary).toLocaleString()} is ${data.percentileRating} — ${data.negotiationStrength} leverage.` : ""} Source: ${data.source}`);
+      }
+    } catch (e) { console.error(e); }
+    finally { setSalaryLoading(false); }
   };
+
+  // ── Counter-offer calculator ─────────────────────────────────────────────────
+  const calculateCounter = async () => {
+    if (!offer.base) return;
+    setCalcLoading(true);
+    setCounterResult(null);
+    try {
+      const base = parseFloat(offer.base) || 0;
+      const bonusPct = parseFloat(offer.bonus) || 0;
+      const equityTotal = parseFloat(offer.equity) || 0;
+      const equityYears = parseFloat(offer.equityYears) || 4;
+      const signing = parseFloat(offer.signing) || 0;
+      const annualBonus = base * (bonusPct / 100);
+      const annualEquity = equityTotal / equityYears;
+      const totalYear1 = base + annualBonus + annualEquity + signing;
+      const totalAnnual = base + annualBonus + annualEquity;
+      const total4Year = totalAnnual * 4 + signing;
+      const counterBase = Math.round(base * 1.15 / 1000) * 1000;
+      const counterBonus = bonusPct > 0 ? Math.min(bonusPct + 5, 30) : 0;
+      const counterEquity = equityTotal > 0 ? Math.round(equityTotal * 1.25 / 1000) * 1000 : 0;
+      const counterSigning = signing > 0 ? Math.round(signing * 1.5 / 1000) * 1000 : Math.round(base * 0.10 / 1000) * 1000;
+      const counterAnnualBonus = counterBase * (counterBonus / 100);
+      const counterAnnualEquity = counterEquity / equityYears;
+      const counterTotal4Year = (counterBase + counterAnnualBonus + counterAnnualEquity) * 4 + counterSigning;
+      const counterTotalAnnual = counterBase + counterAnnualBonus + counterAnnualEquity;
+      const counterTotalYear1 = counterBase + counterAnnualBonus + counterAnnualEquity + counterSigning;
+      const annualGap = counterTotalAnnual - totalAnnual;
+      const fourYearGap = counterTotal4Year - total4Year;
+
+      const aiResponse = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          system: `You are an elite salary negotiation coach. Given offer details write a sharp strategy in 3 short sections: 1. YOUR LEVERAGE 2. COUNTER SCRIPT (exact words) 3. FALLBACK MOVE`,
+          messages: [{ role: "user", content: `Offer: Base $${base.toLocaleString()}, Bonus ${bonusPct}%, Equity $${equityTotal.toLocaleString()}/${equityYears}yr, Signing $${signing.toLocaleString()}. Counter: Base $${counterBase.toLocaleString()}, Signing $${counterSigning.toLocaleString()}. 4yr gain: $${fourYearGap.toLocaleString()}. ${salaryData?.median ? `Market median: $${salaryData.median.toLocaleString()}.` : ""}` }],
+        }),
+      });
+      const aiData = await aiResponse.json();
+      setCounterResult({ current: { base, annualBonus, annualEquity, signing, totalYear1, totalAnnual, total4Year }, counter: { base: counterBase, bonusPct: counterBonus, annualBonus: counterAnnualBonus, equity: counterEquity, annualEquity: counterAnnualEquity, signing: counterSigning, totalYear1: counterTotalYear1, totalAnnual: counterTotalAnnual, total4Year: counterTotal4Year }, gap: { annual: annualGap, fourYear: fourYearGap }, strategy: aiData.content?.[0]?.text || "" });
+      setCurrentStep(s => Math.max(s, 3));
+      await sendMessage(`[Counter Calculated] Current: $${totalAnnual.toLocaleString()}/yr ($${total4Year.toLocaleString()} over 4yr). Counter: $${counterTotalAnnual.toLocaleString()}/yr ($${counterTotal4Year.toLocaleString()} over 4yr). That's $${fourYearGap.toLocaleString()} more. What's my best opening line?`);
+    } catch (e) { console.error(e); }
+    finally { setCalcLoading(false); }
+  };
+
+  // ── Save outcome ─────────────────────────────────────────────────────────────
+  const saveOutcome = async () => {
+    if (!newOutcome.role || !newOutcome.finalBase) return;
+    setTrackerLoading(true);
+    try {
+      let existing = [];
+      try { const s = localStorage.getItem(STORAGE_KEY); if (s) existing = JSON.parse(s).outcomes || []; } catch (e) { }
+      const entry = { ...newOutcome, id: Date.now().toString(), date: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }), gained: Math.round(parseFloat(newOutcome.finalTotal || newOutcome.finalBase || 0) - parseFloat(newOutcome.offeredTotal || newOutcome.offeredBase || 0)) };
+      const updated = [entry, ...existing];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ outcomes: updated }));
+      setOutcomes(updated);
+      computeStats(updated);
+      setOutcomeSaved(true);
+      setNewOutcome({ role: "", industry: "", offeredBase: "", finalBase: "", offeredTotal: "", finalTotal: "", tactic: "", note: "" });
+      setCurrentStep(5);
+      await sendMessage(`🎉 Win logged! ${entry.role}${entry.industry ? ` (${entry.industry})` : ""}. Secured $${entry.gained > 0 ? entry.gained.toLocaleString() : "a better package"} more. What should I know for my next negotiation?`);
+      setTimeout(() => setOutcomeSaved(false), 3000);
+    } catch (e) { console.error(e); }
+    finally { setTrackerLoading(false); }
+  };
+
+  // ── Onboarding slides ────────────────────────────────────────────────────────
+  const onboardingSlides = [
+    { icon: "💼", title: "Your AI Negotiation Coach", body: "Get the same sharp, specific coaching that top executives pay thousands for — in minutes, not days.", cta: "How does it work?" },
+    { icon: "📋", title: "Step 1 — Share your offer", body: "Tell the coach about your job offer, current salary, or raise request. The more context you give, the sharper the advice.", cta: "Got it" },
+    { icon: "📊", title: "Step 2 — Benchmark it", body: "Use the Salary Benchmark tool to see exactly where your offer sits — 25th, 50th, or 75th percentile for your role and city.", cta: "Makes sense" },
+    { icon: "🧮", title: "Step 3 — Calculate your counter", body: "The Counter-Offer Calculator shows your 4-year gain and generates a specific negotiation strategy with exact scripts.", cta: "Love it" },
+    { icon: "🎭", title: "Step 4 — Practice the conversation", body: "Switch to Role-Play mode and practice with the AI acting as your recruiter. Get real-time coaching after each exchange.", cta: "Let's go!" },
+  ];
+
+  const dismissOnboarding = () => {
+    setShowOnboarding(false);
+    localStorage.setItem("negotiateai_onboarding_seen", "true");
+  };
+
+  const inputStyle = { width: "100%", padding: "0.5rem 0.7rem", background: "#0d1424", border: "1px solid #1e293b", borderRadius: "8px", color: "#e2e8f0", fontSize: "0.8rem", fontFamily: "inherit", boxSizing: "border-box" };
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: "#0a0f1a",
-      display: "flex",
-      flexDirection: "column",
-      fontFamily: "'DM Sans', system-ui, sans-serif",
-      color: "#e2e8f0",
-    }}>
-      {/* Google Fonts */}
+    <div style={{ minHeight: "100vh", background: "#0a0f1a", display: "flex", flexDirection: "column", fontFamily: "'DM Sans', system-ui, sans-serif", color: "#e2e8f0" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
         * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 4px; }
-        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar { width: 3px; }
         ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
-        textarea:focus { outline: none; }
+        textarea:focus, input:focus, select:focus { outline: none; }
         textarea { resize: none; }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-        @keyframes slideUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes slideIn { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
+        .prompt-btn:hover { border-color: #3b82f6 !important; color: #93c5fd !important; background: rgba(59,130,246,0.06) !important; }
+        .step-btn:hover { background: rgba(255,255,255,0.04) !important; }
+        .panel-toggle:hover { opacity: 0.85; }
       `}</style>
 
-      {/* Header */}
-      <div style={{
-        padding: "1rem 1.5rem",
-        borderBottom: "1px solid #1e293b",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        background: "#0d1424",
-        position: "sticky",
-        top: 0,
-        zIndex: 10,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: "10px",
-            background: "linear-gradient(135deg, #1d4ed8, #7c3aed)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "1rem",
-          }}>💼</div>
-          <div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1.05rem", letterSpacing: "-0.01em" }}>NegotiateAI</div>
-            <div style={{ fontSize: "0.7rem", color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase" }}>Compensation Coach</div>
+      {/* ── Onboarding Modal ──────────────────────────────────────────────────── */}
+      {showOnboarding && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", animation: "fadeIn 0.2s ease" }}>
+          <div style={{ background: "#0d1424", border: "1px solid #1e293b", borderRadius: "20px", padding: "2rem", maxWidth: 420, width: "100%", animation: "slideIn 0.25s ease" }}>
+            {/* Progress dots */}
+            <div style={{ display: "flex", justifyContent: "center", gap: "6px", marginBottom: "1.75rem" }}>
+              {onboardingSlides.map((_, i) => (
+                <div key={i} style={{ width: i === onboardingStep ? 20 : 6, height: 6, borderRadius: "3px", background: i === onboardingStep ? "#3b82f6" : "#1e293b", transition: "all 0.3s" }} />
+              ))}
+            </div>
+
+            {/* Slide content */}
+            <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+              <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>{onboardingSlides[onboardingStep].icon}</div>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.4rem", fontWeight: 700, color: "#e2e8f0", marginBottom: "0.75rem" }}>
+                {onboardingSlides[onboardingStep].title}
+              </h2>
+              <p style={{ color: "#64748b", fontSize: "0.9rem", lineHeight: 1.7, margin: 0 }}>
+                {onboardingSlides[onboardingStep].body}
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <button
+                onClick={() => {
+                  if (onboardingStep < onboardingSlides.length - 1) setOnboardingStep(s => s + 1);
+                  else dismissOnboarding();
+                }}
+                style={{ padding: "0.75rem", borderRadius: "12px", border: "none", background: "linear-gradient(135deg, #1d4ed8, #2563eb)", color: "white", fontSize: "0.9rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                {onboardingSlides[onboardingStep].cta}
+              </button>
+              <button onClick={dismissOnboarding} style={{ padding: "0.5rem", borderRadius: "8px", border: "none", background: "transparent", color: "#334155", fontSize: "0.8rem", cursor: "pointer", fontFamily: "inherit" }}>
+                Skip intro
+              </button>
+            </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button onClick={toggleMode} style={{
-            padding: "0.4rem 0.9rem",
-            borderRadius: "20px",
-            border: `1px solid ${mode === "roleplay" ? "#7c3aed" : "#1e293b"}`,
-            background: mode === "roleplay" ? "rgba(124,58,237,0.15)" : "transparent",
-            color: mode === "roleplay" ? "#a78bfa" : "#64748b",
-            fontSize: "0.75rem",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontWeight: 500,
-            transition: "all 0.2s",
-          }}>
+      )}
+
+      {/* ── Header ───────────────────────────────────────────────────────────── */}
+      <div style={{ padding: "0.75rem 1.25rem", borderBottom: "1px solid #1e293b", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#0d1424", position: "sticky", top: 0, zIndex: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
+          <div style={{ width: 32, height: 32, borderRadius: "9px", background: "linear-gradient(135deg, #1d4ed8, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.85rem" }}>💼</div>
+          <div>
+            <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1rem" }}>NegotiateAI</div>
+            <div style={{ fontSize: "0.62rem", color: "#334155", letterSpacing: "0.07em", textTransform: "uppercase" }}>Compensation Coach</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+          {stats.totalUsers > 0 && (
+            <div style={{ fontSize: "0.7rem", color: "#34d399", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)", padding: "3px 8px", borderRadius: "10px", marginRight: "0.25rem" }}>
+              {stats.totalUsers} wins · ${(stats.totalGained / 1000).toFixed(0)}K secured
+            </div>
+          )}
+          <button onClick={() => { setMode(m => m === "roleplay" ? "coach" : "roleplay"); setMessages(p => [...p, { role: "assistant", content: mode === "coach" ? "🎭 **Role-play mode on.** I'm Alex, your recruiter. What role are we discussing?" : "🎯 **Coach mode restored.** What do you want to work on?" }]); }}
+            style={{ padding: "0.35rem 0.8rem", borderRadius: "20px", border: `1px solid ${mode === "roleplay" ? "#7c3aed" : "#1e293b"}`, background: mode === "roleplay" ? "rgba(124,58,237,0.12)" : "transparent", color: mode === "roleplay" ? "#a78bfa" : "#475569", fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
             {mode === "roleplay" ? "🎭 Role-play ON" : "🎭 Role-play"}
           </button>
-          <button onClick={reset} style={{
-            padding: "0.4rem 0.9rem",
-            borderRadius: "20px",
-            border: "1px solid #1e293b",
-            background: "transparent",
-            color: "#64748b",
-            fontSize: "0.75rem",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            fontWeight: 500,
-          }}>↺ Reset</button>
+          <button onClick={() => setShowOnboarding(true)} style={{ padding: "0.35rem 0.8rem", borderRadius: "20px", border: "1px solid #1e293b", background: "transparent", color: "#475569", fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit" }}>? Help</button>
         </div>
       </div>
 
-      {/* Messages */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "1.5rem 1rem" }}>
-        <div style={{ maxWidth: 740, margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+      {/* ── Step Progress Bar ─────────────────────────────────────────────────── */}
+      <div style={{ background: "#0d1424", borderBottom: "1px solid #1e293b", padding: "0.6rem 1rem", overflowX: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", maxWidth: 740, margin: "0 auto", gap: "0" }}>
+          {STEPS.map((step, idx) => {
+            const isActive = currentStep === step.id;
+            const isDone = currentStep > step.id;
+            const isNext = currentStep + 1 === step.id;
+            return (
+              <div key={step.id} style={{ display: "flex", alignItems: "center", flex: 1 }}>
+                <button
+                  className="step-btn"
+                  onClick={() => {
+                    setCurrentStep(step.id);
+                    if (step.id === 2) { setShowSalary(true); setShowCalculator(false); setShowTracker(false); }
+                    else if (step.id === 3) { setShowCalculator(true); setShowSalary(false); setShowTracker(false); }
+                    else if (step.id === 5) { setShowTracker(true); setShowSalary(false); setShowCalculator(false); }
+                    else { setShowSalary(false); setShowCalculator(false); setShowTracker(false); }
+                  }}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", padding: "0.3rem 0.4rem", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", flex: 1, opacity: isDone || isActive || isNext ? 1 : 0.35, transition: "all 0.2s" }}
+                  title={step.desc}
+                >
+                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: isDone ? "#059669" : isActive ? "linear-gradient(135deg, #1d4ed8, #2563eb)" : "#111827", border: `1.5px solid ${isDone ? "#059669" : isActive ? "#2563eb" : "#1e293b"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem", transition: "all 0.2s" }}>
+                    {isDone ? "✓" : step.icon}
+                  </div>
+                  <div style={{ fontSize: "0.6rem", color: isActive ? "#e2e8f0" : isDone ? "#34d399" : "#334155", fontWeight: isActive ? 600 : 400, whiteSpace: "nowrap" }}>
+                    {step.label}
+                  </div>
+                </button>
+                {idx < STEPS.length - 1 && (
+                  <div style={{ height: "1.5px", flex: 0.3, background: currentStep > step.id ? "#059669" : "#1e293b", transition: "background 0.3s" }} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Messages ──────────────────────────────────────────────────────────── */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
+        <div style={{ maxWidth: 740, margin: "0 auto", display: "flex", flexDirection: "column", gap: "1rem" }}>
           {messages.map((msg, i) => (
-            <div key={i} style={{
-              display: "flex",
-              justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
-              animation: "slideUp 0.25s ease",
-            }}>
+            <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", animation: "fadeIn 0.22s ease" }}>
               {msg.role === "assistant" && (
-                <div style={{
-                  width: 28, height: 28, borderRadius: "8px",
-                  background: "linear-gradient(135deg, #1d4ed8, #7c3aed)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "0.75rem", flexShrink: 0, marginRight: "0.65rem", marginTop: "0.1rem",
-                }}>💼</div>
+                <div style={{ width: 26, height: 26, borderRadius: "7px", background: "linear-gradient(135deg, #1d4ed8, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.7rem", flexShrink: 0, marginRight: "0.55rem", marginTop: "0.1rem" }}>💼</div>
               )}
-              <div style={{
-                maxWidth: "82%",
-                padding: msg.role === "user" ? "0.65rem 1rem" : "1rem 1.15rem",
-                borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "4px 18px 18px 18px",
-                background: msg.role === "user"
-                  ? "linear-gradient(135deg, #1d4ed8, #2563eb)"
-                  : "#111827",
-                border: msg.role === "assistant" ? "1px solid #1e293b" : "none",
-                color: msg.role === "user" ? "#e2e8f0" : "inherit",
-              }}>
-                {msg.role === "user"
-                  ? <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.9rem" }}>{msg.content}</p>
-                  : <MarkdownText text={msg.content} />
-                }
+              <div style={{ maxWidth: "82%", padding: msg.role === "user" ? "0.6rem 0.9rem" : "0.9rem 1.05rem", borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "4px 16px 16px 16px", background: msg.role === "user" ? "linear-gradient(135deg, #1d4ed8, #2563eb)" : "#111827", border: msg.role === "assistant" ? "1px solid #1e293b" : "none" }}>
+                {msg.role === "user" ? <p style={{ margin: 0, lineHeight: 1.6, fontSize: "0.88rem", color: "#e2e8f0" }}>{msg.content}</p> : <MarkdownText text={msg.content} />}
               </div>
             </div>
           ))}
 
           {loading && (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.65rem", animation: "slideUp 0.2s ease" }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: "8px",
-                background: "linear-gradient(135deg, #1d4ed8, #7c3aed)",
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.75rem",
-              }}>💼</div>
-              <div style={{ display: "flex", gap: "5px", padding: "0.8rem 1rem", background: "#111827", borderRadius: "4px 18px 18px 18px", border: "1px solid #1e293b" }}>
-                {[0, 1, 2].map(n => (
-                  <div key={n} style={{
-                    width: 7, height: 7, borderRadius: "50%", background: "#3b82f6",
-                    animation: `pulse 1.2s ease-in-out ${n * 0.2}s infinite`,
-                  }} />
-                ))}
+            <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", animation: "fadeIn 0.2s ease" }}>
+              <div style={{ width: 26, height: 26, borderRadius: "7px", background: "linear-gradient(135deg, #1d4ed8, #7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.7rem" }}>💼</div>
+              <div style={{ display: "flex", gap: "4px", padding: "0.7rem 0.9rem", background: "#111827", borderRadius: "4px 16px 16px 16px", border: "1px solid #1e293b" }}>
+                {[0, 1, 2].map(n => <div key={n} style={{ width: 6, height: 6, borderRadius: "50%", background: "#3b82f6", animation: `pulse 1.2s ease-in-out ${n * 0.2}s infinite` }} />)}
               </div>
             </div>
           )}
           <div ref={bottomRef} />
         </div>
       </div>
-	  {/* Salary Benchmark Panel */}
-<div style={{ padding: "0 1rem 0.5rem", maxWidth: 740, margin: "0 auto", width: "100%" }}>
-  <button
-    onClick={() => setShowSalary(!showSalary)}
-    style={{
-      width: "100%",
-      padding: "0.6rem 1rem",
-      borderRadius: "12px",
-      border: "1px solid #1e293b",
-      background: showSalary ? "#111827" : "transparent",
-      color: showSalary ? "#7dd3fc" : "#475569",
-      fontSize: "0.8rem",
-      cursor: "pointer",
-      fontFamily: "inherit",
-      textAlign: "left",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-    }}
-  >
-    <span>📊 Salary Benchmark — look up market data before negotiating</span>
-    <span>{showSalary ? "▲" : "▼"}</span>
-  </button>
 
-  {showSalary && (
-    <div style={{
-      marginTop: "0.5rem",
-      padding: "1rem",
-      background: "#111827",
-      borderRadius: "12px",
-      border: "1px solid #1e293b",
-    }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.75rem" }}>
-        <div>
-          <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "4px" }}>Job Title *</div>
-          <input
-            value={jobTitle}
-            onChange={e => setJobTitle(e.target.value)}
-            placeholder="e.g. Product Manager"
-            style={{
-              width: "100%", padding: "0.5rem 0.7rem",
-              background: "#0d1424", border: "1px solid #1e293b",
-              borderRadius: "8px", color: "#e2e8f0", fontSize: "0.8rem",
-              fontFamily: "inherit", boxSizing: "border-box",
-            }}
-          />
-        </div>
-        <div>
-          <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "4px" }}>Location</div>
-          <input
-            value={jobLocation}
-            onChange={e => setJobLocation(e.target.value)}
-            placeholder="e.g. Austin, TX"
-            style={{
-              width: "100%", padding: "0.5rem 0.7rem",
-              background: "#0d1424", border: "1px solid #1e293b",
-              borderRadius: "8px", color: "#e2e8f0", fontSize: "0.8rem",
-              fontFamily: "inherit", boxSizing: "border-box",
-            }}
-          />
-        </div>
-        <div>
-          <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "4px" }}>Offered Salary ($)</div>
-          <input
-            value={offeredSalary}
-            onChange={e => setOfferedSalary(e.target.value)}
-            placeholder="e.g. 95000"
-            type="number"
-            style={{
-              width: "100%", padding: "0.5rem 0.7rem",
-              background: "#0d1424", border: "1px solid #1e293b",
-              borderRadius: "8px", color: "#e2e8f0", fontSize: "0.8rem",
-              fontFamily: "inherit", boxSizing: "border-box",
-            }}
-          />
-        </div>
-      </div>
+      {/* ── Salary Benchmark Panel ────────────────────────────────────────────── */}
+      <div style={{ padding: "0 1rem 0.4rem", maxWidth: 740, margin: "0 auto", width: "100%" }}>
+        <button className="panel-toggle" onClick={() => { setShowSalary(s => !s); setCurrentStep(p => Math.max(p, 2)); }}
+          style={{ width: "100%", padding: "0.55rem 1rem", borderRadius: "10px", border: `1px solid ${showSalary ? "#1d4ed8" : "#1e293b"}`, background: showSalary ? "rgba(29,78,216,0.08)" : "transparent", color: showSalary ? "#7dd3fc" : "#475569", fontSize: "0.78rem", cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "all 0.2s" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.9rem" }}>📊</span>
+            <span><strong style={{ color: showSalary ? "#7dd3fc" : "#64748b" }}>Step 2 — Salary Benchmark</strong> <span style={{ color: "#334155" }}>· Compare your offer to market data</span></span>
+          </span>
+          <span style={{ fontSize: "0.7rem", color: "#334155" }}>{showSalary ? "▲ collapse" : "▼ open"}</span>
+        </button>
 
-      <button
-        onClick={lookupSalary}
-        disabled={!jobTitle.trim() || salaryLoading}
-        style={{
-          padding: "0.5rem 1.2rem",
-          borderRadius: "8px", border: "none",
-          background: jobTitle.trim() && !salaryLoading ? "linear-gradient(135deg, #1d4ed8, #2563eb)" : "#1e293b",
-          color: jobTitle.trim() && !salaryLoading ? "white" : "#475569",
-          fontSize: "0.8rem", cursor: jobTitle.trim() && !salaryLoading ? "pointer" : "not-allowed",
-          fontFamily: "inherit", fontWeight: 500,
-        }}
-      >
-        {salaryLoading ? "Looking up..." : "Get Market Data →"}
-      </button>
-
-      {/* Results */}
-      {salaryData && !salaryLoading && (
-        <div style={{ marginTop: "1rem", borderTop: "1px solid #1e293b", paddingTop: "1rem" }}>
-          <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "0.75rem" }}>
-            {salaryData.occupation} · {salaryData.location} · {salaryData.source}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.75rem" }}>
-            {[
-              { label: "25th Percentile", value: salaryData.p25, color: "#f59e0b" },
-              { label: "Median (50th)", value: salaryData.median, color: "#3b82f6" },
-              { label: "75th Percentile", value: salaryData.p75, color: "#10b981" },
-            ].map(({ label, value, color }) => (
-              <div key={label} style={{
-                padding: "0.6rem 0.75rem", background: "#0d1424",
-                borderRadius: "8px", border: `1px solid ${color}33`,
-              }}>
-                <div style={{ fontSize: "0.65rem", color: "#64748b", marginBottom: "2px" }}>{label}</div>
-                <div style={{ fontSize: "1rem", fontWeight: 600, color }}>
-                  {value ? `$${value.toLocaleString()}` : "—"}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Offer comparison bar */}
-          {salaryData.offeredSalary && salaryData.p25 && salaryData.p75 && (
-            <div>
-              <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "6px" }}>
-                Your offer: <span style={{ color: "#e2e8f0", fontWeight: 600 }}>
-                  ${salaryData.offeredSalary.toLocaleString()}
-                </span> — <span style={{ color: salaryData.negotiationStrength === "very strong" || salaryData.negotiationStrength === "strong" ? "#10b981" : "#f59e0b" }}>
-                  {salaryData.percentileRating} · {salaryData.negotiationStrength} negotiation leverage
-                </span>
-              </div>
-              <div style={{ height: "6px", background: "#1e293b", borderRadius: "3px", position: "relative", marginBottom: "0.5rem" }}>
-                {(() => {
-                  const min = salaryData.p25 * 0.85;
-                  const max = salaryData.p75 * 1.15;
-                  const range = max - min;
-                  const p25Pct = ((salaryData.p25 - min) / range) * 100;
-                  const p75Pct = ((salaryData.p75 - min) / range) * 100;
-                  const offerPct = Math.min(100, Math.max(0, ((salaryData.offeredSalary - min) / range) * 100));
-                  return (
-                    <>
-                      <div style={{ position: "absolute", left: `${p25Pct}%`, right: `${100 - p75Pct}%`, height: "100%", background: "#1d4ed8", borderRadius: "3px" }} />
-                      <div style={{ position: "absolute", left: `${offerPct}%`, top: "-3px", width: "12px", height: "12px", background: "#f59e0b", borderRadius: "50%", transform: "translateX(-50%)", border: "2px solid #0d1424" }} />
-                    </>
-                  );
-                })()}
-              </div>
-              <div style={{ fontSize: "0.65rem", color: "#334155", display: "flex", justifyContent: "space-between" }}>
-                <span>${(salaryData.p25 * 0.85 / 1000).toFixed(0)}K</span>
-                <span style={{ color: "#1d4ed8" }}>market range</span>
-                <span>${(salaryData.p75 * 1.15 / 1000).toFixed(0)}K</span>
-              </div>
-            </div>
-          )}
-
-          <div style={{ marginTop: "0.5rem", fontSize: "0.7rem", color: "#334155" }}>
-            ✓ Data loaded into your coaching session — ask the coach what to do next
-          </div>
-        </div>
-      )}
-    </div>
-  )}
-</div>
-{/* Counter-Offer Calculator Panel */}
-<div style={{
-  padding: "0 1rem 0.5rem",
-  maxWidth: 740,
-  margin: "0 auto",
-  width: "100%",
-}}>
-  <button
-    onClick={() => setShowCalculator(!showCalculator)}
-    style={{
-      width: "100%",
-      padding: "0.6rem 1rem",
-      borderRadius: "12px",
-      border: "1px solid #1e293b",
-      background: showCalculator ? "#111827" : "transparent",
-      color: showCalculator ? "#a78bfa" : "#475569",
-      fontSize: "0.8rem",
-      cursor: "pointer",
-      fontFamily: "inherit",
-      textAlign: "left",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-    }}
-  >
-    <span>🧮 Counter-Offer Calculator — see your 4-year gain</span>
-    <span>{showCalculator ? "▲" : "▼"}</span>
-  </button>
-
-  {showCalculator && (
-    <div style={{
-      marginTop: "0.5rem",
-      padding: "1rem",
-      background: "#111827",
-      borderRadius: "12px",
-      border: "1px solid #1e293b",
-    }}>
-
-      {/* Input grid */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr 1fr",
-        gap: "0.5rem",
-        marginBottom: "0.75rem",
-      }}>
-        {[
-          { key: "base", label: "Base Salary ($) *", placeholder: "e.g. 110000", type: "number" },
-          { key: "bonus", label: "Bonus Target (%)", placeholder: "e.g. 10", type: "number" },
-          { key: "equity", label: "Total Equity / RSUs ($)", placeholder: "e.g. 80000", type: "number" },
-          { key: "equityYears", label: "Equity Vesting (years)", placeholder: "4", type: "number" },
-          { key: "signing", label: "Signing Bonus ($)", placeholder: "e.g. 20000", type: "number" },
-          { key: "pto", label: "PTO Days", placeholder: "15", type: "number" },
-        ].map(({ key, label, placeholder, type }) => (
-          <div key={key}>
-            <div style={{
-              fontSize: "0.7rem",
-              color: "#64748b",
-              marginBottom: "4px",
-            }}>{label}</div>
-            <input
-              type={type}
-              value={offer[key]}
-              onChange={e => setOffer(prev => ({ ...prev, [key]: e.target.value }))}
-              placeholder={placeholder}
-              style={{
-                width: "100%",
-                padding: "0.5rem 0.7rem",
-                background: "#0d1424",
-                border: "1px solid #1e293b",
-                borderRadius: "8px",
-                color: "#e2e8f0",
-                fontSize: "0.8rem",
-                fontFamily: "inherit",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={calculateCounter}
-        disabled={!offer.base || calcLoading}
-        style={{
-          padding: "0.5rem 1.2rem",
-          borderRadius: "8px",
-          border: "none",
-          background: offer.base && !calcLoading
-            ? "linear-gradient(135deg, #6d28d9, #7c3aed)"
-            : "#1e293b",
-          color: offer.base && !calcLoading ? "white" : "#475569",
-          fontSize: "0.8rem",
-          cursor: offer.base && !calcLoading ? "pointer" : "not-allowed",
-          fontFamily: "inherit",
-          fontWeight: 500,
-        }}
-      >
-        {calcLoading ? "Calculating..." : "Calculate Counter-Offer →"}
-      </button>
-
-      {/* Results */}
-      {counterResult && !calcLoading && (
-        <div style={{
-          marginTop: "1rem",
-          borderTop: "1px solid #1e293b",
-          paddingTop: "1rem",
-        }}>
-
-          {/* Side by side comparison */}
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "0.75rem",
-            marginBottom: "1rem",
-          }}>
-            {/* Their offer */}
-            <div style={{
-              padding: "0.75rem",
-              background: "#0d1424",
-              borderRadius: "10px",
-              border: "1px solid #1e293b",
-            }}>
-              <div style={{
-                fontSize: "0.65rem",
-                color: "#64748b",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                marginBottom: "0.5rem",
-              }}>Their Offer</div>
-              {[
-                { label: "Base", value: `$${counterResult.current.base.toLocaleString()}` },
-                { label: "Annual Bonus", value: counterResult.current.annualBonus > 0 ? `$${Math.round(counterResult.current.annualBonus).toLocaleString()}` : "—" },
-                { label: "Annual Equity", value: counterResult.current.annualEquity > 0 ? `$${Math.round(counterResult.current.annualEquity).toLocaleString()}` : "—" },
-                { label: "Signing Bonus", value: counterResult.current.signing > 0 ? `$${counterResult.current.signing.toLocaleString()}` : "—" },
-              ].map(({ label, value }) => (
-                <div key={label} style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.75rem",
-                  marginBottom: "4px",
-                }}>
-                  <span style={{ color: "#64748b" }}>{label}</span>
-                  <span style={{ color: "#94a3b8" }}>{value}</span>
+        {showSalary && (
+          <div style={{ marginTop: "0.4rem", padding: "1rem", background: "#111827", borderRadius: "10px", border: "1px solid #1e293b", animation: "fadeIn 0.18s ease" }}>
+            <p style={{ fontSize: "0.75rem", color: "#475569", margin: "0 0 0.75rem", lineHeight: 1.5 }}>
+              💡 <strong style={{ color: "#64748b" }}>Tip:</strong> Enter your job title and the salary you were offered. We'll pull real government data to show exactly where your offer sits in the market.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.65rem" }}>
+              {[{ val: jobTitle, set: setJobTitle, ph: "e.g. Product Manager", label: "Job Title *" }, { val: jobLocation, set: setJobLocation, ph: "e.g. Austin, TX", label: "Location" }, { val: offeredSalary, set: setOfferedSalary, ph: "e.g. 95000", label: "Offered Salary ($)", type: "number" }].map(({ val, set, ph, label, type }) => (
+                <div key={label}>
+                  <div style={{ fontSize: "0.68rem", color: "#64748b", marginBottom: "3px" }}>{label}</div>
+                  <input value={val} onChange={e => set(e.target.value)} placeholder={ph} type={type || "text"} style={inputStyle} />
                 </div>
               ))}
-              <div style={{
-                borderTop: "1px solid #1e293b",
-                marginTop: "0.5rem",
-                paddingTop: "0.5rem",
-              }}>
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.8rem",
-                }}>
-                  <span style={{ color: "#64748b" }}>Year 1 Total</span>
-                  <span style={{ color: "#e2e8f0", fontWeight: 600 }}>
-                    ${Math.round(counterResult.current.totalYear1).toLocaleString()}
-                  </span>
+            </div>
+            <button onClick={lookupSalary} disabled={!jobTitle.trim() || salaryLoading}
+              style={{ padding: "0.45rem 1.1rem", borderRadius: "8px", border: "none", background: jobTitle.trim() && !salaryLoading ? "linear-gradient(135deg,#1d4ed8,#2563eb)" : "#1e293b", color: jobTitle.trim() && !salaryLoading ? "white" : "#475569", fontSize: "0.78rem", cursor: jobTitle.trim() && !salaryLoading ? "pointer" : "not-allowed", fontFamily: "inherit", fontWeight: 500 }}>
+              {salaryLoading ? "Looking up..." : "Get Market Data →"}
+            </button>
+
+            {salaryData && !salaryLoading && (
+              <div style={{ marginTop: "0.85rem", borderTop: "1px solid #1e293b", paddingTop: "0.85rem", animation: "fadeIn 0.2s ease" }}>
+                <div style={{ fontSize: "0.68rem", color: "#334155", marginBottom: "0.6rem" }}>{salaryData.occupation} · {salaryData.location} · {salaryData.source}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.4rem", marginBottom: "0.65rem" }}>
+                  {[{ label: "25th Percentile", value: salaryData.p25, color: "#f59e0b" }, { label: "Median (50th)", value: salaryData.median, color: "#3b82f6" }, { label: "75th Percentile", value: salaryData.p75, color: "#10b981" }].map(({ label, value, color }) => (
+                    <div key={label} style={{ padding: "0.55rem 0.7rem", background: "#0d1424", borderRadius: "8px", border: `1px solid ${color}22` }}>
+                      <div style={{ fontSize: "0.62rem", color: "#475569", marginBottom: "2px" }}>{label}</div>
+                      <div style={{ fontSize: "0.95rem", fontWeight: 600, color }}>{value ? `$${value.toLocaleString()}` : "—"}</div>
+                    </div>
+                  ))}
                 </div>
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.8rem",
-                  marginTop: "2px",
-                }}>
-                  <span style={{ color: "#64748b" }}>4-Year Total</span>
-                  <span style={{ color: "#e2e8f0", fontWeight: 600 }}>
-                    ${Math.round(counterResult.current.total4Year).toLocaleString()}
-                  </span>
-                </div>
+                {salaryData.offeredSalary && salaryData.p25 && salaryData.p75 && (
+                  <>
+                    <div style={{ fontSize: "0.72rem", color: "#64748b", marginBottom: "5px" }}>
+                      Your offer: <strong style={{ color: "#e2e8f0" }}>${salaryData.offeredSalary.toLocaleString()}</strong> —{" "}
+                      <span style={{ color: ["very strong", "strong"].includes(salaryData.negotiationStrength) ? "#10b981" : "#f59e0b" }}>
+                        {salaryData.percentileRating} · {salaryData.negotiationStrength} leverage
+                      </span>
+                    </div>
+                    <div style={{ height: "5px", background: "#1e293b", borderRadius: "3px", position: "relative", marginBottom: "0.4rem" }}>
+                      {(() => {
+                        const min = salaryData.p25 * 0.85, max = salaryData.p75 * 1.15, range = max - min;
+                        const p25p = ((salaryData.p25 - min) / range) * 100, p75p = ((salaryData.p75 - min) / range) * 100;
+                        const op = Math.min(100, Math.max(0, ((salaryData.offeredSalary - min) / range) * 100));
+                        return (<>
+                          <div style={{ position: "absolute", left: `${p25p}%`, right: `${100 - p75p}%`, height: "100%", background: "#1d4ed8", borderRadius: "3px" }} />
+                          <div style={{ position: "absolute", left: `${op}%`, top: "-4px", width: "13px", height: "13px", background: "#f59e0b", borderRadius: "50%", transform: "translateX(-50%)", border: "2px solid #0d1424" }} />
+                        </>);
+                      })()}
+                    </div>
+                  </>
+                )}
+                <div style={{ fontSize: "0.68rem", color: "#1e293b", marginTop: "0.3rem" }}>✓ Data loaded into your coaching session</div>
               </div>
-            </div>
-
-            {/* Your counter */}
-            <div style={{
-              padding: "0.75rem",
-              background: "#0d1424",
-              borderRadius: "10px",
-              border: "1px solid #6d28d9",
-            }}>
-              <div style={{
-                fontSize: "0.65rem",
-                color: "#a78bfa",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                marginBottom: "0.5rem",
-              }}>Your Counter</div>
-              {[
-                { label: "Base", value: `$${counterResult.counter.base.toLocaleString()}`, highlight: true },
-                { label: "Annual Bonus", value: counterResult.counter.annualBonus > 0 ? `$${Math.round(counterResult.counter.annualBonus).toLocaleString()}` : "—", highlight: true },
-                { label: "Annual Equity", value: counterResult.counter.annualEquity > 0 ? `$${Math.round(counterResult.counter.annualEquity).toLocaleString()}` : "—", highlight: true },
-                { label: "Signing Bonus", value: `$${counterResult.counter.signing.toLocaleString()}`, highlight: true },
-              ].map(({ label, value, highlight }) => (
-                <div key={label} style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.75rem",
-                  marginBottom: "4px",
-                }}>
-                  <span style={{ color: "#64748b" }}>{label}</span>
-                  <span style={{ color: highlight ? "#a78bfa" : "#94a3b8" }}>{value}</span>
-                </div>
-              ))}
-              <div style={{
-                borderTop: "1px solid #1e293b",
-                marginTop: "0.5rem",
-                paddingTop: "0.5rem",
-              }}>
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.8rem",
-                }}>
-                  <span style={{ color: "#64748b" }}>Year 1 Total</span>
-                  <span style={{ color: "#a78bfa", fontWeight: 600 }}>
-                    ${Math.round(counterResult.counter.totalYear1).toLocaleString()}
-                  </span>
-                </div>
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.8rem",
-                  marginTop: "2px",
-                }}>
-                  <span style={{ color: "#64748b" }}>4-Year Total</span>
-                  <span style={{ color: "#a78bfa", fontWeight: 600 }}>
-                    ${Math.round(counterResult.counter.total4Year).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* 4-year gain highlight */}
-          <div style={{
-            padding: "0.75rem 1rem",
-            background: "rgba(109,40,217,0.1)",
-            border: "1px solid #6d28d9",
-            borderRadius: "10px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "1rem",
-          }}>
-            <div>
-              <div style={{ fontSize: "0.7rem", color: "#a78bfa" }}>
-                If you negotiate successfully
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "2px" }}>
-                +${Math.round(counterResult.gap.annual).toLocaleString()}/year
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: "0.7rem", color: "#a78bfa" }}>
-                4-year gain
-              </div>
-              <div style={{
-                fontSize: "1.4rem",
-                fontWeight: 700,
-                color: "#a78bfa",
-                fontFamily: "'Playfair Display', serif",
-              }}>
-                +${Math.round(counterResult.gap.fourYear).toLocaleString()}
-              </div>
-            </div>
-          </div>
-
-          {/* AI strategy */}
-          <div style={{
-            padding: "0.75rem",
-            background: "#0d1424",
-            borderRadius: "10px",
-            border: "1px solid #1e293b",
-          }}>
-            <div style={{
-              fontSize: "0.65rem",
-              color: "#64748b",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              marginBottom: "0.5rem",
-            }}>Your Strategy</div>
-            <div style={{
-              fontSize: "0.78rem",
-              color: "#94a3b8",
-              lineHeight: 1.7,
-              whiteSpace: "pre-wrap",
-            }}>
-              {counterResult.strategy}
-            </div>
-          </div>
-
-          <div style={{
-            marginTop: "0.5rem",
-            fontSize: "0.7rem",
-            color: "#334155",
-          }}>
-            ✓ Counter-offer loaded into your session — continue the conversation above
-          </div>
-        </div>
-      )}
-    </div>
-  )}
-</div>
-
-{/* Outcome Tracker Panel */}
-<div style={{
-  padding: "0 1rem 0.5rem",
-  maxWidth: 740,
-  margin: "0 auto",
-  width: "100%",
-}}>
-  <button
-    onClick={() => setShowTracker(!showTracker)}
-    style={{
-      width: "100%",
-      padding: "0.6rem 1rem",
-      borderRadius: "12px",
-      border: "1px solid #1e293b",
-      background: showTracker ? "#111827" : "transparent",
-      color: showTracker ? "#34d399" : "#475569",
-      fontSize: "0.8rem",
-      cursor: "pointer",
-      fontFamily: "inherit",
-      textAlign: "left",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-    }}
-  >
-    <span>
-      🏆 Negotiation Wins — log your result, see community totals
-      {stats.totalUsers > 0 && (
-        <span style={{
-          marginLeft: "0.75rem",
-          background: "rgba(52,211,153,0.15)",
-          color: "#34d399",
-          padding: "2px 8px",
-          borderRadius: "10px",
-          fontSize: "0.7rem",
-        }}>
-          {stats.totalUsers} wins · ${(stats.totalGained / 1000).toFixed(0)}K secured
-        </span>
-      )}
-    </span>
-    <span>{showTracker ? "▲" : "▼"}</span>
-  </button>
-
-  {showTracker && (
-    <div style={{
-      marginTop: "0.5rem",
-      padding: "1rem",
-      background: "#111827",
-      borderRadius: "12px",
-      border: "1px solid #1e293b",
-    }}>
-
-      {/* Community Stats Bar */}
-      {stats.totalUsers > 0 && (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr 1fr",
-          gap: "0.5rem",
-          marginBottom: "1rem",
-        }}>
-          {[
-            { label: "Total Wins", value: stats.totalUsers.toString(), color: "#34d399" },
-            {
-              label: "Total Secured",
-              value: stats.totalGained >= 1000000
-                ? `$${(stats.totalGained / 1000000).toFixed(1)}M`
-                : `$${(stats.totalGained / 1000).toFixed(0)}K`,
-              color: "#34d399",
-            },
-            {
-              label: "Avg Per Win",
-              value: `$${(stats.avgGain / 1000).toFixed(0)}K`,
-              color: "#a78bfa",
-            },
-            {
-              label: "Top Industry",
-              value: stats.topIndustry || "—",
-              color: "#7dd3fc",
-            },
-          ].map(({ label, value, color }) => (
-            <div key={label} style={{
-              padding: "0.6rem 0.75rem",
-              background: "#0d1424",
-              borderRadius: "8px",
-              border: "1px solid #1e293b",
-              textAlign: "center",
-            }}>
-              <div style={{ fontSize: "0.65rem", color: "#64748b", marginBottom: "2px" }}>
-                {label}
-              </div>
-              <div style={{ fontSize: "0.9rem", fontWeight: 600, color }}>
-                {value}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Log a Win Form */}
-      <div style={{
-        padding: "0.75rem",
-        background: "#0d1424",
-        borderRadius: "10px",
-        border: "1px solid #1e293b",
-        marginBottom: "1rem",
-      }}>
-        <div style={{
-          fontSize: "0.7rem",
-          color: "#34d399",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          marginBottom: "0.75rem",
-        }}>
-          Log Your Win
-        </div>
-
-        {/* Row 1 */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "0.5rem",
-          marginBottom: "0.5rem",
-        }}>
-          <div>
-            <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "4px" }}>
-              Job Title *
-            </div>
-            <input
-              value={newOutcome.role}
-              onChange={e => setNewOutcome(p => ({ ...p, role: e.target.value }))}
-              placeholder="e.g. Product Manager"
-              style={{
-                width: "100%", padding: "0.5rem 0.7rem",
-                background: "#111827", border: "1px solid #1e293b",
-                borderRadius: "8px", color: "#e2e8f0", fontSize: "0.8rem",
-                fontFamily: "inherit", boxSizing: "border-box",
-              }}
-            />
-          </div>
-          <div>
-            <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "4px" }}>
-              Industry
-            </div>
-            <select
-              value={newOutcome.industry}
-              onChange={e => setNewOutcome(p => ({ ...p, industry: e.target.value }))}
-              style={{
-                width: "100%", padding: "0.5rem 0.7rem",
-                background: "#111827", border: "1px solid #1e293b",
-                borderRadius: "8px", color: "#e2e8f0", fontSize: "0.8rem",
-                fontFamily: "inherit", boxSizing: "border-box",
-              }}
-            >
-              <option value="">Select industry</option>
-              {[
-                "Technology", "Finance", "Healthcare", "Marketing",
-                "Consulting", "Education", "Legal", "Sales",
-                "Engineering", "Design", "Other",
-              ].map(i => <option key={i} value={i}>{i}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {/* Row 2 — Salary numbers */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr 1fr 1fr",
-          gap: "0.5rem",
-          marginBottom: "0.5rem",
-        }}>
-          {[
-            { key: "offeredBase", label: "Offered Base ($)" },
-            { key: "finalBase", label: "Final Base ($) *" },
-            { key: "offeredTotal", label: "Offered Total ($)" },
-            { key: "finalTotal", label: "Final Total ($)" },
-          ].map(({ key, label }) => (
-            <div key={key}>
-              <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "4px" }}>
-                {label}
-              </div>
-              <input
-                type="number"
-                value={newOutcome[key]}
-                onChange={e => setNewOutcome(p => ({ ...p, [key]: e.target.value }))}
-                placeholder="0"
-                style={{
-                  width: "100%", padding: "0.5rem 0.7rem",
-                  background: "#111827", border: "1px solid #1e293b",
-                  borderRadius: "8px", color: "#e2e8f0", fontSize: "0.8rem",
-                  fontFamily: "inherit", boxSizing: "border-box",
-                }}
-              />
-            </div>
-          ))}
-        </div>
-
-        {/* Row 3 — Tactic + note */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "0.5rem",
-          marginBottom: "0.75rem",
-        }}>
-          <div>
-            <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "4px" }}>
-              Key tactic that worked
-            </div>
-            <select
-              value={newOutcome.tactic}
-              onChange={e => setNewOutcome(p => ({ ...p, tactic: e.target.value }))}
-              style={{
-                width: "100%", padding: "0.5rem 0.7rem",
-                background: "#111827", border: "1px solid #1e293b",
-                borderRadius: "8px", color: "#e2e8f0", fontSize: "0.8rem",
-                fontFamily: "inherit", boxSizing: "border-box",
-              }}
-            >
-              <option value="">Select tactic</option>
-              {[
-                "Competing offer", "Market data / research",
-                "Anchoring high", "Silence / patience",
-                "Bundling (equity + signing)", "Delay tactic",
-                "Walking away", "Email negotiation", "Other",
-              ].map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div>
-            <div style={{ fontSize: "0.7rem", color: "#64748b", marginBottom: "4px" }}>
-              One-line note (optional)
-            </div>
-            <input
-              value={newOutcome.note}
-              onChange={e => setNewOutcome(p => ({ ...p, note: e.target.value }))}
-              placeholder="e.g. They matched my competing offer"
-              style={{
-                width: "100%", padding: "0.5rem 0.7rem",
-                background: "#111827", border: "1px solid #1e293b",
-                borderRadius: "8px", color: "#e2e8f0", fontSize: "0.8rem",
-                fontFamily: "inherit", boxSizing: "border-box",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Gain preview */}
-        {newOutcome.finalBase && newOutcome.offeredBase && (
-          <div style={{
-            padding: "0.5rem 0.75rem",
-            background: "rgba(52,211,153,0.08)",
-            border: "1px solid rgba(52,211,153,0.2)",
-            borderRadius: "8px",
-            marginBottom: "0.75rem",
-            fontSize: "0.78rem",
-            color: "#34d399",
-          }}>
-            🎉 You negotiated{" "}
-            <strong>
-              +${Math.max(0,
-                parseFloat(newOutcome.finalTotal || newOutcome.finalBase || 0) -
-                parseFloat(newOutcome.offeredTotal || newOutcome.offeredBase || 0)
-              ).toLocaleString()}
-            </strong>{" "}
-            more than the initial offer
+            )}
           </div>
         )}
-
-        <button
-          onClick={saveOutcome}
-          disabled={!newOutcome.role || !newOutcome.finalBase || trackerLoading}
-          style={{
-            padding: "0.5rem 1.2rem",
-            borderRadius: "8px",
-            border: "none",
-            background: newOutcome.role && newOutcome.finalBase && !trackerLoading
-              ? "linear-gradient(135deg, #059669, #10b981)"
-              : "#1e293b",
-            color: newOutcome.role && newOutcome.finalBase && !trackerLoading
-              ? "white"
-              : "#475569",
-            fontSize: "0.8rem",
-            cursor: newOutcome.role && newOutcome.finalBase && !trackerLoading
-              ? "pointer"
-              : "not-allowed",
-            fontFamily: "inherit",
-            fontWeight: 500,
-            transition: "all 0.2s",
-          }}
-        >
-          {trackerLoading ? "Saving..." : outcomeSaved ? "✓ Win Logged!" : "Log My Win →"}
-        </button>
       </div>
 
-      {/* Recent wins feed */}
-      {outcomes.length > 0 && (
-        <div>
-          <div style={{
-            fontSize: "0.7rem",
-            color: "#64748b",
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            marginBottom: "0.5rem",
-          }}>
-            Recent Wins
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-            {outcomes.slice(0, 5).map((o) => (
-              <div key={o.id} style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0.5rem 0.75rem",
-                background: "#0d1424",
-                borderRadius: "8px",
-                border: "1px solid #1e293b",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-                  <div style={{
-                    width: 28, height: 28, borderRadius: "8px",
-                    background: "rgba(52,211,153,0.1)",
-                    display: "flex", alignItems: "center",
-                    justifyContent: "center", fontSize: "0.75rem",
-                  }}>🏆</div>
-                  <div>
-                    <div style={{ fontSize: "0.78rem", color: "#e2e8f0" }}>
-                      {o.role}
-                      {o.industry && (
-                        <span style={{
-                          marginLeft: "6px",
-                          fontSize: "0.65rem",
-                          color: "#64748b",
-                          background: "#1e293b",
-                          padding: "1px 6px",
-                          borderRadius: "4px",
-                        }}>
-                          {o.industry}
-                        </span>
-                      )}
-                    </div>
-                    {o.tactic && (
-                      <div style={{ fontSize: "0.65rem", color: "#475569", marginTop: "1px" }}>
-                        via {o.tactic}
-                      </div>
-                    )}
-                  </div>
+      {/* ── Counter-Offer Calculator Panel ───────────────────────────────────── */}
+      <div style={{ padding: "0 1rem 0.4rem", maxWidth: 740, margin: "0 auto", width: "100%" }}>
+        <button className="panel-toggle" onClick={() => { setShowCalculator(s => !s); setCurrentStep(p => Math.max(p, 3)); }}
+          style={{ width: "100%", padding: "0.55rem 1rem", borderRadius: "10px", border: `1px solid ${showCalculator ? "#6d28d9" : "#1e293b"}`, background: showCalculator ? "rgba(109,40,217,0.08)" : "transparent", color: showCalculator ? "#a78bfa" : "#475569", fontSize: "0.78rem", cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "all 0.2s" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.9rem" }}>🧮</span>
+            <span><strong style={{ color: showCalculator ? "#a78bfa" : "#64748b" }}>Step 3 — Counter-Offer Calculator</strong> <span style={{ color: "#334155" }}>· See your 4-year gain</span></span>
+          </span>
+          <span style={{ fontSize: "0.7rem", color: "#334155" }}>{showCalculator ? "▲ collapse" : "▼ open"}</span>
+        </button>
+
+        {showCalculator && (
+          <div style={{ marginTop: "0.4rem", padding: "1rem", background: "#111827", borderRadius: "10px", border: "1px solid #1e293b", animation: "fadeIn 0.18s ease" }}>
+            <p style={{ fontSize: "0.75rem", color: "#475569", margin: "0 0 0.75rem", lineHeight: 1.5 }}>
+              💡 <strong style={{ color: "#64748b" }}>Tip:</strong> Enter every component of your offer — base, bonus %, equity, and signing. Most people only negotiate base and leave thousands on the table.
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.65rem" }}>
+              {[{ key: "base", label: "Base Salary ($) *", ph: "e.g. 110000" }, { key: "bonus", label: "Bonus Target (%)", ph: "e.g. 10" }, { key: "equity", label: "Total Equity ($)", ph: "e.g. 80000" }, { key: "equityYears", label: "Vesting Years", ph: "4" }, { key: "signing", label: "Signing Bonus ($)", ph: "e.g. 20000" }, { key: "pto", label: "PTO Days", ph: "15" }].map(({ key, label, ph }) => (
+                <div key={key}>
+                  <div style={{ fontSize: "0.68rem", color: "#64748b", marginBottom: "3px" }}>{label}</div>
+                  <input type="number" value={offer[key]} onChange={e => setOffer(p => ({ ...p, [key]: e.target.value }))} placeholder={ph} style={inputStyle} />
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{
-                    fontSize: "0.85rem",
-                    fontWeight: 600,
-                    color: o.gained > 0 ? "#34d399" : "#64748b",
-                  }}>
-                    {o.gained > 0 ? `+$${o.gained.toLocaleString()}` : "Better package"}
+              ))}
+            </div>
+            <button onClick={calculateCounter} disabled={!offer.base || calcLoading}
+              style={{ padding: "0.45rem 1.1rem", borderRadius: "8px", border: "none", background: offer.base && !calcLoading ? "linear-gradient(135deg,#6d28d9,#7c3aed)" : "#1e293b", color: offer.base && !calcLoading ? "white" : "#475569", fontSize: "0.78rem", cursor: offer.base && !calcLoading ? "pointer" : "not-allowed", fontFamily: "inherit", fontWeight: 500 }}>
+              {calcLoading ? "Calculating..." : "Calculate Counter-Offer →"}
+            </button>
+
+            {counterResult && !calcLoading && (
+              <div style={{ marginTop: "0.85rem", borderTop: "1px solid #1e293b", paddingTop: "0.85rem", animation: "fadeIn 0.2s ease" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem", marginBottom: "0.75rem" }}>
+                  {[{ title: "Their Offer", c: counterResult.current, color: "#64748b", border: "#1e293b" }, { title: "Your Counter", c: counterResult.counter, color: "#a78bfa", border: "#6d28d9" }].map(({ title, c, color, border }) => (
+                    <div key={title} style={{ padding: "0.7rem", background: "#0d1424", borderRadius: "8px", border: `1px solid ${border}` }}>
+                      <div style={{ fontSize: "0.62rem", color, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>{title}</div>
+                      {[["Base", `$${c.base.toLocaleString()}`], ["Bonus", c.annualBonus > 0 ? `$${Math.round(c.annualBonus).toLocaleString()}` : "—"], ["Equity/yr", c.annualEquity > 0 ? `$${Math.round(c.annualEquity).toLocaleString()}` : "—"], ["Signing", c.signing > 0 ? `$${c.signing.toLocaleString()}` : "—"]].map(([l, v]) => (
+                        <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.73rem", marginBottom: "3px" }}>
+                          <span style={{ color: "#475569" }}>{l}</span><span style={{ color }}>{v}</span>
+                        </div>
+                      ))}
+                      <div style={{ borderTop: "1px solid #1e293b", marginTop: "0.4rem", paddingTop: "0.4rem", display: "flex", justifyContent: "space-between", fontSize: "0.78rem" }}>
+                        <span style={{ color: "#475569" }}>4-Year</span>
+                        <span style={{ color, fontWeight: 600 }}>${Math.round(c.total4Year).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: "0.65rem 0.9rem", background: "rgba(109,40,217,0.08)", border: "1px solid #6d28d9", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                  <div style={{ fontSize: "0.72rem", color: "#a78bfa" }}>If you negotiate successfully</div>
+                  <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "#a78bfa", fontFamily: "'Playfair Display', serif" }}>+${Math.round(counterResult.gap.fourYear).toLocaleString()}</div>
+                </div>
+                {counterResult.strategy && (
+                  <div style={{ padding: "0.7rem", background: "#0d1424", borderRadius: "8px", border: "1px solid #1e293b" }}>
+                    <div style={{ fontSize: "0.62rem", color: "#334155", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>Your Strategy</div>
+                    <div style={{ fontSize: "0.76rem", color: "#64748b", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{counterResult.strategy}</div>
                   </div>
-                  <div style={{ fontSize: "0.65rem", color: "#334155" }}>
-                    {o.date}
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Outcome Tracker Panel ─────────────────────────────────────────────── */}
+      <div style={{ padding: "0 1rem 0.4rem", maxWidth: 740, margin: "0 auto", width: "100%" }}>
+        <button className="panel-toggle" onClick={() => { setShowTracker(s => !s); setCurrentStep(p => Math.max(p, 5)); }}
+          style={{ width: "100%", padding: "0.55rem 1rem", borderRadius: "10px", border: `1px solid ${showTracker ? "#059669" : "#1e293b"}`, background: showTracker ? "rgba(5,150,105,0.08)" : "transparent", color: showTracker ? "#34d399" : "#475569", fontSize: "0.78rem", cursor: "pointer", fontFamily: "inherit", textAlign: "left", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "all 0.2s" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.9rem" }}>🏆</span>
+            <span><strong style={{ color: showTracker ? "#34d399" : "#64748b" }}>Step 5 — Log Your Win</strong> <span style={{ color: "#334155" }}>· Track your negotiation result</span></span>
+            {stats.totalUsers > 0 && <span style={{ fontSize: "0.65rem", background: "rgba(52,211,153,0.1)", color: "#34d399", padding: "1px 6px", borderRadius: "8px", border: "1px solid rgba(52,211,153,0.15)" }}>{stats.totalUsers} wins</span>}
+          </span>
+          <span style={{ fontSize: "0.7rem", color: "#334155" }}>{showTracker ? "▲ collapse" : "▼ open"}</span>
+        </button>
+
+        {showTracker && (
+          <div style={{ marginTop: "0.4rem", padding: "1rem", background: "#111827", borderRadius: "10px", border: "1px solid #1e293b", animation: "fadeIn 0.18s ease" }}>
+            <p style={{ fontSize: "0.75rem", color: "#475569", margin: "0 0 0.75rem", lineHeight: 1.5 }}>
+              💡 <strong style={{ color: "#64748b" }}>Tip:</strong> Log your result — win or not. It feeds into your coaching session and helps you see patterns across negotiations.
+            </p>
+            {stats.totalUsers > 0 && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.4rem", marginBottom: "0.75rem" }}>
+                {[{ label: "Total Wins", value: stats.totalUsers.toString(), color: "#34d399" }, { label: "Total Secured", value: stats.totalGained >= 1000000 ? `$${(stats.totalGained / 1000000).toFixed(1)}M` : `$${(stats.totalGained / 1000).toFixed(0)}K`, color: "#34d399" }, { label: "Avg Per Win", value: `$${(stats.avgGain / 1000).toFixed(0)}K`, color: "#a78bfa" }].map(({ label, value, color }) => (
+                  <div key={label} style={{ padding: "0.5rem 0.65rem", background: "#0d1424", borderRadius: "7px", border: "1px solid #1e293b", textAlign: "center" }}>
+                    <div style={{ fontSize: "0.62rem", color: "#475569", marginBottom: "2px" }}>{label}</div>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 600, color }}>{value}</div>
                   </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", marginBottom: "0.4rem" }}>
+              <div>
+                <div style={{ fontSize: "0.68rem", color: "#64748b", marginBottom: "3px" }}>Job Title *</div>
+                <input value={newOutcome.role} onChange={e => setNewOutcome(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Product Manager" style={inputStyle} />
+              </div>
+              <div>
+                <div style={{ fontSize: "0.68rem", color: "#64748b", marginBottom: "3px" }}>Industry</div>
+                <select value={newOutcome.industry} onChange={e => setNewOutcome(p => ({ ...p, industry: e.target.value }))} style={{ ...inputStyle, background: "#0d1424" }}>
+                  <option value="">Select industry</option>
+                  {["Technology", "Finance", "Healthcare", "Marketing", "Consulting", "Education", "Legal", "Sales", "Engineering", "Design", "Other"].map(i => <option key={i} value={i}>{i}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.4rem", marginBottom: "0.4rem" }}>
+              {[{ key: "offeredBase", label: "Offered Base ($)" }, { key: "finalBase", label: "Final Base ($) *" }, { key: "offeredTotal", label: "Offered Total ($)" }, { key: "finalTotal", label: "Final Total ($)" }].map(({ key, label }) => (
+                <div key={key}>
+                  <div style={{ fontSize: "0.68rem", color: "#64748b", marginBottom: "3px" }}>{label}</div>
+                  <input type="number" value={newOutcome[key]} onChange={e => setNewOutcome(p => ({ ...p, [key]: e.target.value }))} placeholder="0" style={inputStyle} />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", marginBottom: "0.65rem" }}>
+              <div>
+                <div style={{ fontSize: "0.68rem", color: "#64748b", marginBottom: "3px" }}>Key tactic</div>
+                <select value={newOutcome.tactic} onChange={e => setNewOutcome(p => ({ ...p, tactic: e.target.value }))} style={{ ...inputStyle, background: "#0d1424" }}>
+                  <option value="">Select tactic</option>
+                  {["Competing offer", "Market data / research", "Anchoring high", "Silence / patience", "Bundling (equity + signing)", "Email negotiation", "Walking away", "Other"].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: "0.68rem", color: "#64748b", marginBottom: "3px" }}>Note</div>
+                <input value={newOutcome.note} onChange={e => setNewOutcome(p => ({ ...p, note: e.target.value }))} placeholder="e.g. They matched my competing offer" style={inputStyle} />
+              </div>
+            </div>
+            {newOutcome.finalBase && newOutcome.offeredBase && (
+              <div style={{ padding: "0.45rem 0.7rem", background: "rgba(52,211,153,0.07)", border: "1px solid rgba(52,211,153,0.15)", borderRadius: "7px", marginBottom: "0.6rem", fontSize: "0.75rem", color: "#34d399" }}>
+                🎉 You negotiated <strong>+${Math.max(0, parseFloat(newOutcome.finalTotal || newOutcome.finalBase || 0) - parseFloat(newOutcome.offeredTotal || newOutcome.offeredBase || 0)).toLocaleString()}</strong> more
+              </div>
+            )}
+            <button onClick={saveOutcome} disabled={!newOutcome.role || !newOutcome.finalBase || trackerLoading}
+              style={{ padding: "0.45rem 1.1rem", borderRadius: "8px", border: "none", background: newOutcome.role && newOutcome.finalBase && !trackerLoading ? "linear-gradient(135deg,#059669,#10b981)" : "#1e293b", color: newOutcome.role && newOutcome.finalBase && !trackerLoading ? "white" : "#475569", fontSize: "0.78rem", cursor: newOutcome.role && newOutcome.finalBase && !trackerLoading ? "pointer" : "not-allowed", fontFamily: "inherit", fontWeight: 500 }}>
+              {trackerLoading ? "Saving..." : outcomeSaved ? "✓ Win Logged!" : "Log My Win →"}
+            </button>
+            {outcomes.length > 0 && (
+              <div style={{ marginTop: "0.75rem", borderTop: "1px solid #1e293b", paddingTop: "0.75rem" }}>
+                <div style={{ fontSize: "0.65rem", color: "#334155", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.4rem" }}>Recent Wins</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                  {outcomes.slice(0, 4).map(o => (
+                    <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.45rem 0.65rem", background: "#0d1424", borderRadius: "7px", border: "1px solid #1e293b" }}>
+                      <div>
+                        <span style={{ fontSize: "0.76rem", color: "#e2e8f0" }}>{o.role}</span>
+                        {o.industry && <span style={{ marginLeft: "5px", fontSize: "0.62rem", color: "#334155", background: "#1e293b", padding: "1px 5px", borderRadius: "4px" }}>{o.industry}</span>}
+                        {o.tactic && <div style={{ fontSize: "0.62rem", color: "#334155", marginTop: "1px" }}>via {o.tactic}</div>}
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: "0.82rem", fontWeight: 600, color: o.gained > 0 ? "#34d399" : "#475569" }}>{o.gained > 0 ? `+$${o.gained.toLocaleString()}` : "Better pkg"}</div>
+                        <div style={{ fontSize: "0.62rem", color: "#1e293b" }}>{o.date}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
           </div>
+        )}
+      </div>
 
-          {outcomes.length > 5 && (
-            <div style={{
-              textAlign: "center",
-              fontSize: "0.7rem",
-              color: "#334155",
-              marginTop: "0.5rem",
-            }}>
-              +{outcomes.length - 5} more wins logged
-            </div>
-          )}
+      {/* ── Contextual Prompt Bubbles ─────────────────────────────────────────── */}
+      <div style={{ padding: "0 1rem 0.5rem", maxWidth: 740, margin: "0 auto", width: "100%" }}>
+        <div style={{ marginBottom: "0.3rem", fontSize: "0.65rem", color: "#1e293b", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          {STEPS.find(s => s.id === currentStep)?.desc || "Suggested prompts"}
         </div>
-      )}
-
-      {outcomes.length === 0 && (
-        <div style={{
-          textAlign: "center",
-          padding: "1rem",
-          color: "#334155",
-          fontSize: "0.78rem",
-        }}>
-          No wins logged yet — be the first to share your result 🎯
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+          {(CONTEXTUAL_PROMPTS[currentStep] || CONTEXTUAL_PROMPTS[1]).map((prompt, i) => (
+            <button key={i} className="prompt-btn" onClick={() => sendMessage(prompt)}
+              style={{ padding: "0.38rem 0.8rem", borderRadius: "20px", border: "1px solid #1e293b", background: "transparent", color: "#475569", fontSize: "0.74rem", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}>
+              {prompt}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
-    </div>
-  )}
-</div>
-
-      {/* Suggested starters */}
-      {messages.length === 1 && (
-        <div style={{ padding: "0 1rem 0.75rem", maxWidth: 740, margin: "0 auto", width: "100%" }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-            {SUGGESTED_STARTERS.map((s, i) => (
-              <button key={i} onClick={() => sendMessage(s)} style={{
-                padding: "0.4rem 0.85rem",
-                borderRadius: "20px",
-                border: "1px solid #1e293b",
-                background: "#111827",
-                color: "#64748b",
-                fontSize: "0.78rem",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                transition: "all 0.15s",
-              }}
-                onMouseEnter={e => { e.target.style.borderColor = "#3b82f6"; e.target.style.color = "#93c5fd"; }}
-                onMouseLeave={e => { e.target.style.borderColor = "#1e293b"; e.target.style.color = "#64748b"; }}
-              >{s}</button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Input */}
-      <div style={{
-        padding: "0.75rem 1rem 1.25rem",
-        borderTop: "1px solid #1e293b",
-        background: "#0d1424",
-      }}>
+      {/* ── Input ────────────────────────────────────────────────────────────── */}
+      <div style={{ padding: "0.5rem 1rem 1.1rem", borderTop: "1px solid #1e293b", background: "#0d1424" }}>
         <div style={{ maxWidth: 740, margin: "0 auto" }}>
-          <div style={{
-            display: "flex", gap: "0.65rem", alignItems: "flex-end",
-            background: "#111827",
-            border: "1px solid #1e293b",
-            borderRadius: "16px",
-            padding: "0.65rem 0.65rem 0.65rem 1rem",
-            transition: "border-color 0.2s",
-          }}
+          <div style={{ display: "flex", gap: "0.55rem", alignItems: "flex-end", background: "#111827", border: "1px solid #1e293b", borderRadius: "14px", padding: "0.55rem 0.55rem 0.55rem 0.9rem", transition: "border-color 0.2s" }}
             onFocusCapture={e => e.currentTarget.style.borderColor = "#2563eb"}
-            onBlurCapture={e => e.currentTarget.style.borderColor = "#1e293b"}
-          >
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder={mode === "roleplay" ? "Speak to the recruiter..." : "Share your offer details or ask a question..."}
-              rows={1}
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                color: "#e2e8f0",
-                fontSize: "0.9rem",
-                fontFamily: "inherit",
-                lineHeight: 1.6,
-                maxHeight: 120,
-                overflowY: "auto",
-              }}
-              onInput={e => {
-                e.target.style.height = "auto";
-                e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
-              }}
-            />
-            <button
-              onClick={() => sendMessage()}
-              disabled={!input.trim() || loading}
-              style={{
-                width: 36, height: 36,
-                borderRadius: "10px",
-                border: "none",
-                background: input.trim() && !loading ? "linear-gradient(135deg, #1d4ed8, #2563eb)" : "#1e293b",
-                color: input.trim() && !loading ? "white" : "#475569",
-                cursor: input.trim() && !loading ? "pointer" : "not-allowed",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "1rem",
-                flexShrink: 0,
-                transition: "all 0.2s",
-              }}
-            >↑</button>
+            onBlurCapture={e => e.currentTarget.style.borderColor = "#1e293b"}>
+            <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
+              placeholder={mode === "roleplay" ? "Speak to the recruiter..." : "Describe your offer or ask anything..."}
+              rows={1} style={{ flex: 1, background: "transparent", border: "none", color: "#e2e8f0", fontSize: "0.88rem", fontFamily: "inherit", lineHeight: 1.6, maxHeight: 120, overflowY: "auto" }}
+              onInput={e => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} />
+            <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
+              style={{ width: 34, height: 34, borderRadius: "9px", border: "none", background: input.trim() && !loading ? "linear-gradient(135deg,#1d4ed8,#2563eb)" : "#1e293b", color: input.trim() && !loading ? "white" : "#334155", cursor: input.trim() && !loading ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.95rem", flexShrink: 0, transition: "all 0.2s" }}>↑</button>
           </div>
-          <p style={{ textAlign: "center", color: "#334155", fontSize: "0.68rem", marginTop: "0.5rem", letterSpacing: "0.03em" }}>
-            AI coaching — not a substitute for professional financial or legal advice
-          </p>
+          <p style={{ textAlign: "center", color: "#1e293b", fontSize: "0.62rem", marginTop: "0.4rem" }}>AI coaching — not a substitute for professional financial or legal advice</p>
         </div>
       </div>
     </div>
