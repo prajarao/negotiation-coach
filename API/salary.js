@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -6,9 +6,8 @@ export default async function handler(req, res) {
   try {
     const { jobTitle, location, offeredSalary } = req.body;
 
-    console.log(`📊 Salary lookup: "${jobTitle}" in "${location}"`);
+    console.log(`Salary lookup: "${jobTitle}" in "${location}"`);
 
-    // Step 1 — Map job title to BLS occupation code via AI
     const mappingResponse = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -25,8 +24,8 @@ export default async function handler(req, res) {
             {
               role: "system",
               content: `You are a job classification expert. Map job titles 
-              to BLS OES occupation codes. Return ONLY a JSON object, nothing 
-              else. No markdown, no backticks.
+              to BLS OES occupation codes. Return ONLY a JSON object, 
+              nothing else. No markdown, no backticks.
               Format: {"code": "15-1252", "title": "Software Developers", 
               "confidence": "high"}`,
             },
@@ -54,12 +53,11 @@ export default async function handler(req, res) {
       console.log("Could not parse occupation mapping, using default");
     }
 
-    // Step 2 — Fetch BLS wage data (free government API)
     const socClean = occupationCode.replace("-", "");
     const seriesIds = [
-      `OEUS0000000${socClean}04`, // 25th percentile
-      `OEUS0000000${socClean}03`, // median
-      `OEUS0000000${socClean}08`, // 75th percentile
+      `OEUS0000000${socClean}04`,
+      `OEUS0000000${socClean}03`,
+      `OEUS0000000${socClean}08`,
     ];
 
     let salaryData = {
@@ -91,7 +89,8 @@ export default async function handler(req, res) {
         for (const series of blsData.Results.series) {
           const value = series.data?.[0]?.value;
           if (!value || value === "-") continue;
-          const annual = parseFloat(value) * (parseFloat(value) < 500 ? 2080 : 1);
+          const annual =
+            parseFloat(value) * (parseFloat(value) < 500 ? 2080 : 1);
           const id = series.seriesID;
           if (id.endsWith("04")) salaryData.p25 = Math.round(annual);
           if (id.endsWith("03")) salaryData.median = Math.round(annual);
@@ -102,7 +101,6 @@ export default async function handler(req, res) {
       console.log("BLS fetch failed:", e.message);
     }
 
-    // Step 3 — Fallback to AI estimates if BLS returns nothing
     if (!salaryData.median) {
       const fallbackResponse = await fetch(
         "https://api.groq.com/openai/v1/chat/completions",
@@ -127,8 +125,8 @@ export default async function handler(req, res) {
               {
                 role: "user",
                 content: `Provide realistic 2024-2025 US salary percentiles 
-                (25th, 50th, 75th) for: "${jobTitle}" in "${location}". 
-                Consider location cost of living. Return only the JSON.`,
+                for: "${jobTitle}" in "${location}". 
+                Return only the JSON.`,
               },
             ],
           }),
@@ -144,13 +142,11 @@ export default async function handler(req, res) {
         salaryData.median = fb.median;
         salaryData.p75 = fb.p75;
         salaryData.source = "AI-estimated market data";
-        salaryData.note = fb.note;
       } catch (e) {
         console.log("Fallback parsing failed");
       }
     }
 
-    // Step 4 — Calculate percentile position of their offer
     let percentileRating = null;
     let negotiationStrength = null;
 
@@ -171,7 +167,7 @@ export default async function handler(req, res) {
       }
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       ...salaryData,
       offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null,
       percentileRating,
@@ -181,6 +177,6 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error("Salary error:", error);
-    res.status(500).json({ error: "Could not fetch salary data" });
+    return res.status(500).json({ error: "Could not fetch salary data" });
   }
-}
+};

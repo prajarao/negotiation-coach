@@ -1,5 +1,4 @@
-export default async function handler(req, res) {
-  // Only allow POST requests
+module.exports = async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -41,10 +40,10 @@ export default async function handler(req, res) {
       data.choices?.[0]?.message?.content ||
       "Could not generate a response. Please try again.";
 
-    res.status(200).json({ content: [{ text: replyText }] });
+    return res.status(200).json({ content: [{ text: replyText }] });
 
   } catch (error) {
     console.error("Chat error:", error);
-    res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error" });
   }
-}
+};
