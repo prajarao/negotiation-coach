@@ -358,20 +358,34 @@ export default function NegotiationCoach() {
             </div>
 
             {/* Buttons */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <button
-                onClick={() => {
-                  if (onboardingStep < onboardingSlides.length - 1) setOnboardingStep(s => s + 1);
-                  else dismissOnboarding();
-                }}
-                style={{ padding: "0.75rem", borderRadius: "12px", border: "none", background: "linear-gradient(135deg, #1d4ed8, #2563eb)", color: "white", fontSize: "0.9rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
-              >
-                {onboardingSlides[onboardingStep].cta}
-              </button>
-              <button onClick={dismissOnboarding} style={{ padding: "0.5rem", borderRadius: "8px", border: "none", background: "transparent", color: "#334155", fontSize: "0.8rem", cursor: "pointer", fontFamily: "inherit" }}>
-                Skip intro
-              </button>
-            </div>
+           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+  <button
+    onClick={() => {
+      if (onboardingStep < onboardingSlides.length - 1) setOnboardingStep(s => s + 1);
+      else dismissOnboarding();
+    }}
+    style={{ padding: "0.75rem", borderRadius: "12px", border: "none", background: "linear-gradient(135deg, #1d4ed8, #2563eb)", color: "white", fontSize: "0.9rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+  >
+    {onboardingSlides[onboardingStep].cta}
+  </button>
+
+  <div style={{ display: "flex", gap: "0.5rem" }}>
+    {onboardingStep > 0 && (
+      <button
+        onClick={() => setOnboardingStep(s => s - 1)}
+        style={{ flex: 1, padding: "0.5rem", borderRadius: "8px", border: "1px solid #1e293b", background: "transparent", color: "#64748b", fontSize: "0.8rem", cursor: "pointer", fontFamily: "inherit" }}
+      >
+        ← Back
+      </button>
+    )}
+    <button
+      onClick={dismissOnboarding}
+      style={{ flex: 1, padding: "0.5rem", borderRadius: "8px", border: "none", background: "transparent", color: "#334155", fontSize: "0.8rem", cursor: "pointer", fontFamily: "inherit" }}
+    >
+      Skip intro
+    </button>
+  </div>
+</div>
           </div>
         </div>
       )}
@@ -395,7 +409,7 @@ export default function NegotiationCoach() {
             style={{ padding: "0.35rem 0.8rem", borderRadius: "20px", border: `1px solid ${mode === "roleplay" ? "#7c3aed" : "#1e293b"}`, background: mode === "roleplay" ? "rgba(124,58,237,0.12)" : "transparent", color: mode === "roleplay" ? "#a78bfa" : "#475569", fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
             {mode === "roleplay" ? "🎭 Role-play ON" : "🎭 Role-play"}
           </button>
-          <button onClick={() => setShowOnboarding(true)} style={{ padding: "0.35rem 0.8rem", borderRadius: "20px", border: "1px solid #1e293b", background: "transparent", color: "#475569", fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit" }}>? Help</button>
+          <button onClick={() => { setShowOnboarding(true); setOnboardingStep(0); }} style={{ padding: "0.35rem 0.8rem", borderRadius: "20px", border: "1px solid #1e293b", background: "transparent", color: "#475569", fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit" }}>? Help</button>
         </div>
       </div>
 
