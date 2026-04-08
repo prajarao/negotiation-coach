@@ -550,7 +550,11 @@ export default function NegotiationCoach() {
                   {[{ label: "25th Percentile", value: salaryData.p25, color: "#f59e0b" }, { label: "Median (50th)", value: salaryData.median, color: "#3b82f6" }, { label: "75th Percentile", value: salaryData.p75, color: "#10b981" }].map(({ label, value, color }) => (
                     <div key={label} style={{ padding: "0.55rem 0.7rem", background: T.cardBg, borderRadius: "8px", border: `1px solid ${color}22` }}>
                       <div style={{ fontSize: "0.62rem", color: T.textMuted, marginBottom: "2px" }}>{label}</div>
-                      <div style={{ fontSize: "0.95rem", fontWeight: 600, color }}>{value ? `${salaryData.currency === "GBP" ? "£" : "$"}`${salaryData.currencySymbol || getCurrencySymbol(selectedCurrency)}${value.toLocaleString()}`` : "—"}</div>
+                      <div style={{ fontSize: "0.95rem", fontWeight: 600, color }}>
+						  {value
+							? `${salaryData.currencySymbol || getCurrencySymbol(selectedCurrency)}${value.toLocaleString()}`
+							: "—"}
+						</div>
                     </div>
                   ))}
                 </div>
