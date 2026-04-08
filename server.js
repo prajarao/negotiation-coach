@@ -42,116 +42,36 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// ─── NEW: salary benchmark route ─────────────────────────────
+// ─── UK location detection ───────────────────────────────────
+function detectUK(location) {
+  const ukTerms = [
+    "uk", "united kingdom", "england", "scotland", "wales",
+    "northern ireland", "london", "manchester", "birmingham",
+    "edinburgh", "glasgow", "bristol", "leeds", "liverpool",
+    "sheffield", "cambridge", "oxford", "cardiff", "belfast",
+    "nottingham", "newcastle", "brighton", "southampton",
+    "leicester", "coventry", "aberdeen", "dundee", "swansea",
+    "exeter", "york", "bath", "reading", "milton keynes",
+    "great britain", "gb",
+  ];
+  const lower = location.toLowerCase();
+  return ukTerms.some((term) => lower.includes(term));
+}
+
+// ─── salary benchmark route ─────────────────────────────────
 app.post("/api/salary", async (req, res) => {
   try {
     const { jobTitle, location, offeredSalary } = req.body;
+    const loc = (location || "").trim();
+    const isUK = detectUK(loc);
 
-    console.log(`📊 Salary lookup: "${jobTitle}" in "${location}"`);
+    console.log(`📊 Salary lookup: "${jobTitle}" in "${loc}" [${isUK ? "UK" : "US"}]`);
 
-    // Step 1 — Ask AI to map job title to a BLS occupation code
-    // BLS uses standard occupation codes (SOC) — we need the right one
-    const mappingResponse = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",
-          max_tokens: 200,
-          temperature: 0,
-          messages: [
-            {
-              role: "system",
-              content: `You are a job classification expert. Map job titles to 
-              BLS OES occupation codes. Return ONLY a JSON object, nothing else.
-              Format: {"code": "15-1252", "title": "Software Developers", 
-              "confidence": "high"}`,
-            },
-            {
-              role: "user",
-              content: `Map this job title to its closest BLS OES occupation 
-              code: "${jobTitle}". Return only the JSON.`,
-            },
-          ],
-        }),
-      }
-    );
+    if (isUK) {
+      // ── UK: ONS ASHE via Nomis API ──
 
-    const mappingData = await mappingResponse.json();
-    let occupationCode = "15-1252"; // default: Software Developers
-    let occupationTitle = "Software Developers";
-
-    try {
-      const mapped = JSON.parse(
-        mappingData.choices[0].message.content.trim()
-      );
-      occupationCode = mapped.code;
-      occupationTitle = mapped.title;
-      console.log(`✅ Mapped to BLS code: ${occupationCode} (${occupationTitle})`);
-    } catch (e) {
-      console.log("⚠️ Could not parse occupation mapping, using default");
-    }
-
-    // Step 2 — Fetch real wage data from BLS (completely free)
-    // Series format: OEUS000000[SOC code without hyphen]03 = median annual wage
-    const socClean = occupationCode.replace("-", "");
-    const seriesIds = [
-      `OEUS0000000${socClean}01`, // employment
-      `OEUS0000000${socClean}04`, // 25th percentile wage
-      `OEUS0000000${socClean}03`, // median (50th) wage  
-      `OEUS0000000${socClean}08`, // 75th percentile wage
-    ];
-
-    let blsData = null;
-    try {
-      const blsResponse = await fetch("https://api.bls.gov/publicAPI/v2/timeseries/data/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          seriesid: seriesIds,
-          startyear: "2023",
-          endyear: "2024",
-        }),
-      });
-      blsData = await blsResponse.json();
-      console.log("✅ BLS data fetched");
-    } catch (e) {
-      console.log("⚠️ BLS fetch failed:", e.message);
-    }
-
-    // Step 3 — Parse BLS response into clean salary figures
-    let salaryData = {
-      occupation: occupationTitle,
-      blsCode: occupationCode,
-      p25: null,
-      median: null,
-      p75: null,
-      source: "BLS Occupational Employment & Wage Statistics",
-      year: "2024",
-    };
-
-    if (blsData?.Results?.series) {
-      for (const series of blsData.Results.series) {
-        const value = series.data?.[0]?.value;
-        if (!value || value === "-") continue;
-        const annual = parseFloat(value) * (value < 500 ? 2080 : 1);
-        // BLS sometimes returns hourly, multiply by 2080 for annual
-        const id = series.seriesID;
-        if (id.endsWith("04")) salaryData.p25 = Math.round(annual);
-        if (id.endsWith("03")) salaryData.median = Math.round(annual);
-        if (id.endsWith("08")) salaryData.p75 = Math.round(annual);
-      }
-    }
-
-    // Step 4 — Use fallback curated data if BLS returns nothing
-    // This ensures the feature always works even if BLS API is down
-    if (!salaryData.median) {
-      console.log("⚠️ BLS returned no data, using AI-estimated ranges");
-      const fallbackResponse = await fetch(
+      // Step 1 — Map to UK SOC 2020
+      const mappingResponse = await fetch(
         "https://api.groq.com/openai/v1/chat/completions",
         {
           method: "POST",
@@ -161,73 +81,352 @@ app.post("/api/salary", async (req, res) => {
           },
           body: JSON.stringify({
             model: "llama-3.3-70b-versatile",
-            max_tokens: 300,
+            max_tokens: 200,
             temperature: 0,
             messages: [
               {
                 role: "system",
-                content: `You are a compensation data expert with deep knowledge 
-                of US salary markets. Return ONLY a JSON object, no other text.
-                Format: {"p25": 85000, "median": 105000, "p75": 130000, 
-                "note": "Based on market data for this role"}`,
+                content: `You are a UK job classification expert. Map job titles to
+                UK SOC 2020 occupation codes (4-digit). Return ONLY a JSON object,
+                nothing else. No markdown, no backticks.
+                Format: {"code": "2134", "title": "Programmers and software development professionals",
+                "confidence": "high"}`,
               },
               {
                 role: "user",
-                content: `Provide realistic 2024-2025 US salary percentiles 
-                (25th, 50th, 75th) for: "${jobTitle}" in "${location}". 
-                Consider the specific location's cost of living. 
-                Return only the JSON.`,
+                content: `Map this job title to its closest UK SOC 2020 occupation
+                code: "${jobTitle}". Return only the JSON object.`,
               },
             ],
           }),
         }
       );
-      const fallbackData = await fallbackResponse.json();
+
+      const mappingData = await mappingResponse.json();
+      let socCode = "2134";
+      let occupationTitle = "Programmers and software development professionals";
+
       try {
-        const fb = JSON.parse(
-          fallbackData.choices[0].message.content.trim()
-        );
-        salaryData.p25 = fb.p25;
-        salaryData.median = fb.median;
-        salaryData.p75 = fb.p75;
-        salaryData.source = "AI-estimated market data (BLS unavailable)";
-        salaryData.note = fb.note;
+        const raw = mappingData.choices[0].message.content.trim();
+        const mapped = JSON.parse(raw.replace(/```json|```/g, "").trim());
+        socCode = mapped.code;
+        occupationTitle = mapped.title;
+        console.log(`✅ Mapped to UK SOC: ${socCode} (${occupationTitle})`);
       } catch (e) {
-        console.log("⚠️ Fallback also failed");
+        console.log("⚠️ Could not parse UK SOC mapping, using default");
       }
-    }
 
-    // Step 5 — Calculate where their offer sits
-    let percentileRating = null;
-    let negotiationStrength = null;
+      // Step 2 — Fetch UK-wide baseline from Nomis ASHE
+      let asheBaseline = { p25: null, median: null, p75: null };
 
-    if (offeredSalary && salaryData.median) {
-      const offered = parseFloat(offeredSalary);
-      if (offered < salaryData.p25) {
-        percentileRating = "below 25th percentile";
-        negotiationStrength = "very strong";
-      } else if (offered < salaryData.median) {
-        percentileRating = "between 25th and 50th percentile";
-        negotiationStrength = "strong";
-      } else if (offered < salaryData.p75) {
-        percentileRating = "between 50th and 75th percentile";
-        negotiationStrength = "moderate";
-      } else {
-        percentileRating = "above 75th percentile";
-        negotiationStrength = "limited — already above market";
+      try {
+        const nomisUrl =
+          "https://www.nomisweb.co.uk/api/v01/dataset/NM_99_1.data.json" +
+          "?geography=2092957697&sex=8&pay=7&item=2,8,13&measures=20100" +
+          "&time=latest&select=item_name,obs_value";
+
+        const nomisResponse = await fetch(nomisUrl);
+        const nomisData = await nomisResponse.json();
+
+        if (nomisData.obs && nomisData.obs.length > 0) {
+          for (const obs of nomisData.obs) {
+            const itemName = obs.item_name || obs.item?.description || "";
+            const value = obs.obs_value?.value ?? obs.obs_value;
+            if (value == null) continue;
+            const numVal = parseFloat(value);
+            if (isNaN(numVal)) continue;
+
+            if (itemName.includes("25")) asheBaseline.p25 = Math.round(numVal);
+            else if (itemName.includes("Median") || itemName.includes("median"))
+              asheBaseline.median = Math.round(numVal);
+            else if (itemName.includes("75")) asheBaseline.p75 = Math.round(numVal);
+          }
+        }
+        console.log("✅ ASHE baseline:", asheBaseline);
+      } catch (e) {
+        console.log("⚠️ Nomis ASHE fetch failed:", e.message);
       }
+
+      // Step 3 — AI occupation-specific estimates using ASHE baseline
+      let salaryData = {
+        occupation: occupationTitle,
+        ukSocCode: socCode,
+        p25: null,
+        median: null,
+        p75: null,
+        source: "ONS ASHE via Nomis API + AI occupation estimate",
+        year: new Date().getFullYear().toString(),
+        currency: "GBP",
+      };
+
+      const baselineContext = asheBaseline.median
+        ? `The latest ONS ASHE data shows UK full-time workers earn: 25th=£${asheBaseline.p25?.toLocaleString()}, Median=£${asheBaseline.median?.toLocaleString()}, 75th=£${asheBaseline.p75?.toLocaleString()} annually.`
+        : "";
+
+      try {
+        const occResponse = await fetch(
+          "https://api.groq.com/openai/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+            },
+            body: JSON.stringify({
+              model: "llama-3.3-70b-versatile",
+              max_tokens: 300,
+              temperature: 0,
+              messages: [
+                {
+                  role: "system",
+                  content: `You are a UK compensation data expert with deep knowledge
+                  of UK salary markets. ${baselineContext}
+                  Use this baseline to calibrate your estimates for specific occupations.
+                  Return ONLY a JSON object, no other text, no markdown, no backticks.
+                  Format: {"p25": 35000, "median": 45000, "p75": 60000,
+                  "note": "Brief note about the estimate"}`,
+                },
+                {
+                  role: "user",
+                  content: `Provide realistic UK salary percentiles (25th, 50th, 75th)
+                  in GBP for: "${jobTitle}" (UK SOC: ${socCode} - ${occupationTitle})
+                  in "${loc}". Consider the specific location's cost of living
+                  within the UK. Return only the JSON.`,
+                },
+              ],
+            }),
+          }
+        );
+
+        const occData = await occResponse.json();
+        const parsed = JSON.parse(
+          occData.choices[0].message.content.trim().replace(/```json|```/g, "").trim()
+        );
+        salaryData.p25 = parsed.p25;
+        salaryData.median = parsed.median;
+        salaryData.p75 = parsed.p75;
+        if (parsed.note) salaryData.note = parsed.note;
+
+        if (asheBaseline.median) {
+          salaryData.asheBaseline = asheBaseline;
+          salaryData.source = "ONS ASHE via Nomis API + AI occupation estimate";
+        } else {
+          salaryData.source = "AI-estimated UK market data (ASHE unavailable)";
+        }
+        console.log("✅ UK salary data ready:", salaryData);
+      } catch (e) {
+        console.log("⚠️ UK occupation estimate failed");
+        if (asheBaseline.median) {
+          salaryData.p25 = asheBaseline.p25;
+          salaryData.median = asheBaseline.median;
+          salaryData.p75 = asheBaseline.p75;
+          salaryData.source = "ONS ASHE via Nomis API (UK-wide, all occupations)";
+        }
+      }
+
+      // Step 4 — Percentile rating
+      let percentileRating = null;
+      let negotiationStrength = null;
+
+      if (offeredSalary && salaryData.median) {
+        const offered = parseFloat(offeredSalary);
+        if (offered < salaryData.p25) {
+          percentileRating = "below 25th percentile";
+          negotiationStrength = "very strong";
+        } else if (offered < salaryData.median) {
+          percentileRating = "between 25th and 50th percentile";
+          negotiationStrength = "strong";
+        } else if (offered < salaryData.p75) {
+          percentileRating = "between 50th and 75th percentile";
+          negotiationStrength = "moderate";
+        } else {
+          percentileRating = "above 75th percentile";
+          negotiationStrength = "limited — already above market";
+        }
+      }
+
+      res.json({
+        ...salaryData,
+        offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null,
+        percentileRating,
+        negotiationStrength,
+        location: loc,
+      });
+
+    } else {
+      // ── US: BLS data (existing flow) ──
+
+      // Step 1 — Map to BLS SOC
+      const mappingResponse = await fetch(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            max_tokens: 200,
+            temperature: 0,
+            messages: [
+              {
+                role: "system",
+                content: `You are a job classification expert. Map job titles to
+                BLS OES occupation codes. Return ONLY a JSON object, nothing else.
+                Format: {"code": "15-1252", "title": "Software Developers",
+                "confidence": "high"}`,
+              },
+              {
+                role: "user",
+                content: `Map this job title to its closest BLS OES occupation
+                code: "${jobTitle}". Return only the JSON.`,
+              },
+            ],
+          }),
+        }
+      );
+
+      const mappingData = await mappingResponse.json();
+      let occupationCode = "15-1252";
+      let occupationTitle = "Software Developers";
+
+      try {
+        const mapped = JSON.parse(
+          mappingData.choices[0].message.content.trim().replace(/```json|```/g, "").trim()
+        );
+        occupationCode = mapped.code;
+        occupationTitle = mapped.title;
+        console.log(`✅ Mapped to BLS code: ${occupationCode} (${occupationTitle})`);
+      } catch (e) {
+        console.log("⚠️ Could not parse occupation mapping, using default");
+      }
+
+      // Step 2 — Fetch BLS data
+      const socClean = occupationCode.replace("-", "");
+      const seriesIds = [
+        `OEUS0000000${socClean}04`,
+        `OEUS0000000${socClean}03`,
+        `OEUS0000000${socClean}08`,
+      ];
+
+      let salaryData = {
+        occupation: occupationTitle,
+        blsCode: occupationCode,
+        p25: null,
+        median: null,
+        p75: null,
+        source: "BLS Occupational Employment & Wage Statistics",
+        year: "2024",
+        currency: "USD",
+      };
+
+      try {
+        const blsResponse = await fetch("https://api.bls.gov/publicAPI/v2/timeseries/data/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            seriesid: seriesIds,
+            startyear: "2023",
+            endyear: "2024",
+          }),
+        });
+        const blsData = await blsResponse.json();
+
+        if (blsData?.Results?.series) {
+          for (const series of blsData.Results.series) {
+            const value = series.data?.[0]?.value;
+            if (!value || value === "-") continue;
+            const annual = parseFloat(value) * (parseFloat(value) < 500 ? 2080 : 1);
+            const id = series.seriesID;
+            if (id.endsWith("04")) salaryData.p25 = Math.round(annual);
+            if (id.endsWith("03")) salaryData.median = Math.round(annual);
+            if (id.endsWith("08")) salaryData.p75 = Math.round(annual);
+          }
+        }
+        console.log("✅ BLS data fetched");
+      } catch (e) {
+        console.log("⚠️ BLS fetch failed:", e.message);
+      }
+
+      // Step 3 — AI fallback
+      if (!salaryData.median) {
+        console.log("⚠️ BLS returned no data, using AI-estimated ranges");
+        try {
+          const fallbackResponse = await fetch(
+            "https://api.groq.com/openai/v1/chat/completions",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+              },
+              body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                max_tokens: 300,
+                temperature: 0,
+                messages: [
+                  {
+                    role: "system",
+                    content: `You are a compensation data expert. Return ONLY
+                    a JSON object, no other text, no markdown, no backticks.
+                    Format: {"p25": 85000, "median": 105000, "p75": 130000,
+                    "note": "Based on market data"}`,
+                  },
+                  {
+                    role: "user",
+                    content: `Provide realistic 2024-2025 US salary percentiles
+                    for: "${jobTitle}" in "${loc || "United States"}".
+                    Return only the JSON.`,
+                  },
+                ],
+              }),
+            }
+          );
+          const fallbackData = await fallbackResponse.json();
+          const fb = JSON.parse(
+            fallbackData.choices[0].message.content.trim().replace(/```json|```/g, "").trim()
+          );
+          salaryData.p25 = fb.p25;
+          salaryData.median = fb.median;
+          salaryData.p75 = fb.p75;
+          salaryData.source = "AI-estimated market data (BLS unavailable)";
+        } catch (e) {
+          console.log("⚠️ Fallback also failed");
+        }
+      }
+
+      // Step 4 — Percentile rating
+      let percentileRating = null;
+      let negotiationStrength = null;
+
+      if (offeredSalary && salaryData.median) {
+        const offered = parseFloat(offeredSalary);
+        if (offered < salaryData.p25) {
+          percentileRating = "below 25th percentile";
+          negotiationStrength = "very strong";
+        } else if (offered < salaryData.median) {
+          percentileRating = "between 25th and 50th percentile";
+          negotiationStrength = "strong";
+        } else if (offered < salaryData.p75) {
+          percentileRating = "between 50th and 75th percentile";
+          negotiationStrength = "moderate";
+        } else {
+          percentileRating = "above 75th percentile";
+          negotiationStrength = "limited — already above market";
+        }
+      }
+
+      console.log("✅ Salary data ready:", salaryData);
+
+      res.json({
+        ...salaryData,
+        offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null,
+        percentileRating,
+        negotiationStrength,
+        location: loc,
+      });
     }
-
-    console.log("✅ Salary data ready:", salaryData);
-
-    res.json({
-      ...salaryData,
-      offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null,
-      percentileRating,
-      negotiationStrength,
-      location,
-    });
-
   } catch (error) {
     console.error("❌ Salary lookup error:", error);
     res.status(500).json({ error: "Could not fetch salary data" });

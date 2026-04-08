@@ -221,7 +221,8 @@ export default function NegotiationCoach() {
       const response = await fetch("/api/salary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobTitle: jobTitle.trim(), location: jobLocation.trim() || "United States", offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null }) });
       const data = await response.json();
       setSalaryData(data); setCurrentStep(s => Math.max(s, 2));
-      if (data.median) await sendMessage(`[Market Data] ${data.occupation} in ${data.location}: 25th=$${data.p25?.toLocaleString()}, Median=$${data.median?.toLocaleString()}, 75th=$${data.p75?.toLocaleString()}. ${offeredSalary ? `Offer of $${parseFloat(offeredSalary).toLocaleString()} is ${data.percentileRating} — ${data.negotiationStrength} leverage.` : ""} Source: ${data.source}`);
+      const sym = data.currency === "GBP" ? "£" : "$";
+      if (data.median) await sendMessage(`[Market Data] ${data.occupation} in ${data.location}: 25th=${sym}${data.p25?.toLocaleString()}, Median=${sym}${data.median?.toLocaleString()}, 75th=${sym}${data.p75?.toLocaleString()}. ${offeredSalary ? `Offer of ${sym}${parseFloat(offeredSalary).toLocaleString()} is ${data.percentileRating} — ${data.negotiationStrength} leverage.` : ""} Source: ${data.source}`);
     } catch (e) { console.error(e); } finally { setSalaryLoading(false); }
   };
 
@@ -425,10 +426,10 @@ export default function NegotiationCoach() {
         {showSalary && (
           <div style={{ marginTop: "0.4rem", padding: "1rem", background: T.panelBg, borderRadius: "10px", border: `1px solid ${T.border}`, animation: "fadeIn 0.18s ease" }}>
             <p style={{ fontSize: "0.75rem", color: T.textMuted, margin: "0 0 0.75rem", lineHeight: 1.5 }}>
-              💡 <strong style={{ color: T.textSecondary }}>Tip:</strong> Enter your job title and offered salary. We'll pull real government data to show exactly where your offer sits in the market.
+              💡 <strong style={{ color: T.textSecondary }}>Tip:</strong> Enter your job title and offered salary. We'll pull real government data (US: BLS, UK: ONS ASHE) to show exactly where your offer sits in the market.
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.65rem" }}>
-              {[{ val: jobTitle, set: setJobTitle, ph: "e.g. Product Manager", label: "Job Title *", type: "text" }, { val: jobLocation, set: setJobLocation, ph: "e.g. Austin, TX", label: "Location", type: "text" }, { val: offeredSalary, set: setOfferedSalary, ph: "e.g. 95000", label: "Offered Salary ($)", type: "number" }].map(({ val, set, ph, label, type }) => (
+              {[{ val: jobTitle, set: setJobTitle, ph: "e.g. Product Manager", label: "Job Title *", type: "text" }, { val: jobLocation, set: setJobLocation, ph: "e.g. Austin, TX or London, UK", label: "Location", type: "text" }, { val: offeredSalary, set: setOfferedSalary, ph: "e.g. 95000", label: "Offered Salary ($/£)", type: "number" }].map(({ val, set, ph, label, type }) => (
                 <div key={label}>
                   <div style={{ fontSize: "0.68rem", color: T.textMuted, marginBottom: "3px" }}>{label}</div>
                   <input value={val} onChange={e => set(e.target.value)} placeholder={ph} type={type} style={inputStyle} />
@@ -445,14 +446,14 @@ export default function NegotiationCoach() {
                   {[{ label: "25th Percentile", value: salaryData.p25, color: "#f59e0b" }, { label: "Median (50th)", value: salaryData.median, color: "#3b82f6" }, { label: "75th Percentile", value: salaryData.p75, color: "#10b981" }].map(({ label, value, color }) => (
                     <div key={label} style={{ padding: "0.55rem 0.7rem", background: T.cardBg, borderRadius: "8px", border: `1px solid ${color}22` }}>
                       <div style={{ fontSize: "0.62rem", color: T.textMuted, marginBottom: "2px" }}>{label}</div>
-                      <div style={{ fontSize: "0.95rem", fontWeight: 600, color }}>{value ? `$${value.toLocaleString()}` : "—"}</div>
+                      <div style={{ fontSize: "0.95rem", fontWeight: 600, color }}>{value ? `${salaryData.currency === "GBP" ? "£" : "$"}${value.toLocaleString()}` : "—"}</div>
                     </div>
                   ))}
                 </div>
                 {salaryData.offeredSalary && salaryData.p25 && salaryData.p75 && (
                   <>
                     <div style={{ fontSize: "0.72rem", color: T.textSecondary, marginBottom: "5px" }}>
-                      Your offer: <strong style={{ color: T.textPrimary }}>${salaryData.offeredSalary.toLocaleString()}</strong> — <span style={{ color: ["very strong", "strong"].includes(salaryData.negotiationStrength) ? "#10b981" : "#f59e0b" }}>{salaryData.percentileRating} · {salaryData.negotiationStrength} leverage</span>
+                      Your offer: <strong style={{ color: T.textPrimary }}>{salaryData.currency === "GBP" ? "£" : "$"}{salaryData.offeredSalary.toLocaleString()}</strong> — <span style={{ color: ["very strong", "strong"].includes(salaryData.negotiationStrength) ? "#10b981" : "#f59e0b" }}>{salaryData.percentileRating} · {salaryData.negotiationStrength} leverage</span>
                     </div>
                     <div style={{ height: "5px", background: T.border, borderRadius: "3px", position: "relative", marginBottom: "0.4rem" }}>
                       {(() => {
