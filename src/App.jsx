@@ -141,6 +141,7 @@ export default function NegotiationCoach() {
   const [jobTitle, setJobTitle] = useState("");
   const [jobLocation, setJobLocation] = useState("");
   const [offeredSalary, setOfferedSalary] = useState("");
+  const [selectedCurrency, setSelectedCurrency] = useState("USD");
   const [calcLoading, setCalcLoading] = useState(false);
   const [counterResult, setCounterResult] = useState(null);
   const [offer, setOffer] = useState({ base: "", bonus: "", equity: "", equityYears: "4", signing: "", pto: "15" });
@@ -149,7 +150,23 @@ export default function NegotiationCoach() {
   const [outcomeSaved, setOutcomeSaved] = useState(false);
   const [newOutcome, setNewOutcome] = useState({ role: "", industry: "", offeredBase: "", finalBase: "", offeredTotal: "", finalTotal: "", tactic: "", note: "" });
   const [stats, setStats] = useState({ totalUsers: 0, totalGained: 0, avgGain: 0, topIndustry: "" });
+  const [userRole, setUserRole] = useState("");
+  const [userLocation, setUserLocation] = useState("");
+  
+  const CURRENCIES = [
+	  { code: "USD", symbol: "$", label: "USD ($)" },
+	  { code: "GBP", symbol: "£", label: "GBP (£)" },
+	  { code: "INR", symbol: "₹", label: "INR (₹)" },
+	  { code: "EUR", symbol: "€", label: "EUR (€)" },
+	  { code: "CAD", symbol: "CA$", label: "CAD (CA$)" },
+	  { code: "AUD", symbol: "A$", label: "AUD (A$)" },
+	  { code: "SGD", symbol: "S$", label: "SGD (S$)" },
+	  { code: "AED", symbol: "د.إ", label: "AED (د.إ)" },
+	];
 
+  const getCurrencySymbol = (code) =>
+    CURRENCIES.find(c => c.code === code)?.symbol || "$";
+  
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -193,6 +210,11 @@ export default function NegotiationCoach() {
     setInput("");
     const newMessages = [...messages, { role: "user", content: userText }];
     setMessages(newMessages);
+	// Extract role and location hints from user messages
+   if (lower.includes("offer") || lower.includes("role") || lower.includes("position")) {
+     if (jobTitle) setUserRole(jobTitle);
+     if (jobLocation) setUserLocation(jobLocation);
+   }
     setLoading(true);
     const lower = userText.toLowerCase();
     if (lower.includes("offer") || lower.includes("salary") || lower.includes("comp")) setCurrentStep(s => Math.max(s, 1));
@@ -218,7 +240,18 @@ export default function NegotiationCoach() {
     if (!jobTitle.trim()) return;
     setSalaryLoading(true); setSalaryData(null);
     try {
-      const response = await fetch("/api/salary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobTitle: jobTitle.trim(), location: jobLocation.trim() || "United States", offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null }) });
+	  // Auto-detect currency from location
+		const locLower = jobLocation.toLowerCase();
+		const autoCurrency = locLower.includes("uk") || locLower.includes("london") ||
+		  locLower.includes("england") || locLower.includes("manchester") ? "GBP"
+		  : locLower.includes("india") || locLower.includes("bangalore") ||
+		  locLower.includes("mumbai") || locLower.includes("delhi") ? "INR"
+		  : locLower.includes("europe") || locLower.includes("germany") ||
+		  locLower.includes("france") ? "EUR"
+		  : selectedCurrency;
+		setSelectedCurrency(autoCurrency);
+	
+      const response = await fetch("/api/salary", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jobTitle: jobTitle.trim(), location: jobLocation.trim() || "United States", offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null, currency: autoCurrency }) });
       const data = await response.json();
       setSalaryData(data); setCurrentStep(s => Math.max(s, 2));
       const sym = data.currency === "GBP" ? "£" : "$";
@@ -409,6 +442,51 @@ export default function NegotiationCoach() {
               </div>
             </div>
           )}
+		  {/* LinkedIn job suggestions — shown after first AI response */}
+{messages.length > 2 && (userRole || jobTitle) && (
+  <div style={{
+    display: "flex",
+    justifyContent: "flex-start",
+    paddingLeft: "38px",
+    animation: "fadeIn 0.3s ease",
+  }}>
+    
+      href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(userRole || jobTitle)}&location=${encodeURIComponent(userLocation || jobLocation || "")}&f_TPR=r604800`}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "0.4rem 0.9rem",
+        borderRadius: "20px",
+        border: `1px solid ${T.border}`,
+        background: "transparent",
+        color: T.textMuted,
+        fontSize: "0.73rem",
+        textDecoration: "none",
+        fontFamily: "inherit",
+        transition: "all 0.15s",
+        cursor: "pointer",
+      }}
+      onMouseEnter={e => {
+        e.currentTarget.style.borderColor = "#0077b5";
+        e.currentTarget.style.color = "#0077b5";
+        e.currentTarget.style.background = "rgba(0,119,181,0.06)";
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.borderColor = T.border;
+        e.currentTarget.style.color = T.textMuted;
+        e.currentTarget.style.background = "transparent";
+      }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="#0077b5">
+        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+      </svg>
+      See jobs paying more for {userRole || jobTitle} →
+    </a>
+  </div>
+)}
           <div ref={bottomRef} />
         </div>
       </div>
@@ -428,14 +506,42 @@ export default function NegotiationCoach() {
             <p style={{ fontSize: "0.75rem", color: T.textMuted, margin: "0 0 0.75rem", lineHeight: 1.5 }}>
               💡 <strong style={{ color: T.textSecondary }}>Tip:</strong> Enter your job title and offered salary. We'll pull real government data (US: BLS, UK: ONS ASHE) to show exactly where your offer sits in the market.
             </p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.65rem" }}>
-              {[{ val: jobTitle, set: setJobTitle, ph: "e.g. Product Manager", label: "Job Title *", type: "text" }, { val: jobLocation, set: setJobLocation, ph: "e.g. Austin, TX or London, UK", label: "Location", type: "text" }, { val: offeredSalary, set: setOfferedSalary, ph: "e.g. 95000", label: "Offered Salary ($/£)", type: "number" }].map(({ val, set, ph, label, type }) => (
-                <div key={label}>
-                  <div style={{ fontSize: "0.68rem", color: T.textMuted, marginBottom: "3px" }}>{label}</div>
-                  <input value={val} onChange={e => set(e.target.value)} placeholder={ph} type={type} style={inputStyle} />
-                </div>
-              ))}
-            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.65rem" }}>
+  <div>
+    <div style={{ fontSize: "0.68rem", color: T.textMuted, marginBottom: "3px" }}>Job Title *</div>
+    <input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Product Manager" type="text" style={inputStyle} />
+  </div>
+  <div>
+    <div style={{ fontSize: "0.68rem", color: T.textMuted, marginBottom: "3px" }}>Location</div>
+    <input value={jobLocation} onChange={e => setJobLocation(e.target.value)} placeholder="e.g. London, UK or Bangalore, India" type="text" style={inputStyle} />
+  </div>
+</div>
+<div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "0.5rem", marginBottom: "0.65rem" }}>
+  <div>
+    <div style={{ fontSize: "0.68rem", color: T.textMuted, marginBottom: "3px" }}>Currency</div>
+    <select
+      value={selectedCurrency}
+      onChange={e => setSelectedCurrency(e.target.value)}
+      style={selectStyle}
+    >
+      {CURRENCIES.map(c => (
+        <option key={c.code} value={c.code}>{c.label}</option>
+      ))}
+    </select>
+  </div>
+  <div>
+    <div style={{ fontSize: "0.68rem", color: T.textMuted, marginBottom: "3px" }}>
+      Offered Salary ({getCurrencySymbol(selectedCurrency)})
+    </div>
+    <input
+      value={offeredSalary}
+      onChange={e => setOfferedSalary(e.target.value)}
+      placeholder={selectedCurrency === "INR" ? "e.g. 1200000 (12 LPA)" : "e.g. 95000"}
+      type="number"
+      style={inputStyle}
+    />
+  </div>
+</div>
             <button onClick={lookupSalary} disabled={!jobTitle.trim() || salaryLoading} style={primaryBtn(jobTitle.trim() && !salaryLoading)}>
               {salaryLoading ? "Looking up..." : "Get Market Data →"}
             </button>
@@ -446,14 +552,14 @@ export default function NegotiationCoach() {
                   {[{ label: "25th Percentile", value: salaryData.p25, color: "#f59e0b" }, { label: "Median (50th)", value: salaryData.median, color: "#3b82f6" }, { label: "75th Percentile", value: salaryData.p75, color: "#10b981" }].map(({ label, value, color }) => (
                     <div key={label} style={{ padding: "0.55rem 0.7rem", background: T.cardBg, borderRadius: "8px", border: `1px solid ${color}22` }}>
                       <div style={{ fontSize: "0.62rem", color: T.textMuted, marginBottom: "2px" }}>{label}</div>
-                      <div style={{ fontSize: "0.95rem", fontWeight: 600, color }}>{value ? `${salaryData.currency === "GBP" ? "£" : "$"}${value.toLocaleString()}` : "—"}</div>
+                      <div style={{ fontSize: "0.95rem", fontWeight: 600, color }}>{value ? `${salaryData.currency === "GBP" ? "£" : "$"}`${salaryData.currencySymbol || getCurrencySymbol(selectedCurrency)}${value.toLocaleString()}`` : "—"}</div>
                     </div>
                   ))}
                 </div>
                 {salaryData.offeredSalary && salaryData.p25 && salaryData.p75 && (
                   <>
                     <div style={{ fontSize: "0.72rem", color: T.textSecondary, marginBottom: "5px" }}>
-                      Your offer: <strong style={{ color: T.textPrimary }}>{salaryData.currency === "GBP" ? "£" : "$"}{salaryData.offeredSalary.toLocaleString()}</strong> — <span style={{ color: ["very strong", "strong"].includes(salaryData.negotiationStrength) ? "#10b981" : "#f59e0b" }}>{salaryData.percentileRating} · {salaryData.negotiationStrength} leverage</span>
+                      Your offer: <strong style={{ color: T.textPrimary }}>{salaryData.currency === "GBP" ? "£" : "$"}{salaryData.currencySymbol || getCurrencySymbol(selectedCurrency)}{salaryData.offeredSalary.toLocaleString()}</strong> — <span style={{ color: ["very strong", "strong"].includes(salaryData.negotiationStrength) ? "#10b981" : "#f59e0b" }}>{salaryData.percentileRating} · {salaryData.negotiationStrength} leverage</span>
                     </div>
                     <div style={{ height: "5px", background: T.border, borderRadius: "3px", position: "relative", marginBottom: "0.4rem" }}>
                       {(() => {
