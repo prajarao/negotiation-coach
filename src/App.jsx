@@ -23,9 +23,9 @@ Format responses with clear sections when giving structured advice.`;
 
 const WELCOME_MESSAGE = {
   role: "assistant",
-  content: `# Welcome to NegotiateAI 💼
+  content: `# Welcome to OfferAdvisor
 
-I'm your personal salary negotiation coach — the same sharp, specific advice top executives pay thousands for.
+I'm your personal offer negotiation coach — the same sharp, specific advice top executives pay thousands for.
 
 **Tell me about your situation to get started:**
 - What role and company is the offer for?
@@ -97,7 +97,7 @@ function MarkdownText({ text, textColor, primaryColor, mutedColor }) {
   const renderLine = (line, i) => {
     if (line.startsWith("# "))
       return (
-        <h1 key={i} style={{ fontSize: "1.3rem", fontWeight: 700, margin: "0.4rem 0 0.6rem", color: pc, fontFamily: "'Playfair Display', serif" }}>
+        <h1 key={i} style={{ fontSize: "1.3rem", fontWeight: 700, margin: "0.4rem 0 0.6rem", color: pc, fontFamily: "'DM Serif Display', serif" }}>
           {line.slice(2)}
         </h1>
       );
@@ -146,7 +146,7 @@ export default function NegotiationCoach() {
 
   // Theme
   const [isDark, setIsDark] = useState(() => {
-    const saved = localStorage.getItem("negotiateai_theme");
+    const saved = localStorage.getItem("offeradvisor_theme");
     return saved ? saved === "dark" : true;
   });
 
@@ -199,7 +199,7 @@ export default function NegotiationCoach() {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    const seen = localStorage.getItem("negotiateai_onboarding_seen");
+    const seen = localStorage.getItem("offeradvisor_onboarding_seen");
     if (!seen) setShowOnboarding(true);
     loadOutcomes();
   }, []);
@@ -211,7 +211,7 @@ export default function NegotiationCoach() {
   const toggleTheme = () => {
     const next = isDark ? "light" : "dark";
     setIsDark(!isDark);
-    localStorage.setItem("negotiateai_theme", next);
+    localStorage.setItem("offeradvisor_theme", next);
   };
 
   const STORAGE_KEY = "negotiation_outcomes";
@@ -446,11 +446,11 @@ export default function NegotiationCoach() {
 
   const dismissOnboarding = () => {
     setShowOnboarding(false);
-    localStorage.setItem("negotiateai_onboarding_seen", "true");
+    localStorage.setItem("offeradvisor_onboarding_seen", "true");
   };
 
   const onboardingSlides = [
-    { icon: "💼", title: "Your AI Negotiation Coach", body: "Get the same sharp, specific coaching that top executives pay thousands for — in minutes, not days.", cta: "How does it work?" },
+    { icon: "🎯", title: "Welcome to OfferAdvisor", body: "Get the same sharp, specific coaching that top executives pay thousands for — in minutes, not days.", cta: "How does it work?" },
     { icon: "📋", title: "Step 1 — Share your offer", body: "Tell the coach about your job offer, current salary, or raise request. The more context you give, the sharper the advice.", cta: "Got it" },
     { icon: "📊", title: "Step 2 — Benchmark it", body: "Use the Salary Benchmark tool to see exactly where your offer sits — 25th, 50th, or 75th percentile for your role and city.", cta: "Makes sense" },
     { icon: "🧮", title: "Step 3 — Calculate your counter", body: "The Counter-Offer Calculator shows your 4-year gain and generates a specific negotiation strategy with exact scripts.", cta: "Love it" },
@@ -467,7 +467,7 @@ export default function NegotiationCoach() {
   return (
     <div style={{ minHeight: "100vh", background: T.pageBg, display: "flex", flexDirection: "column", fontFamily: "'DM Sans', system-ui, sans-serif", color: T.textPrimary }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 3px; }
         ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
@@ -492,7 +492,7 @@ export default function NegotiationCoach() {
             </div>
             <div style={{ textAlign: "center", marginBottom: "2rem" }}>
               <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>{onboardingSlides[onboardingStep].icon}</div>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.4rem", fontWeight: 700, color: T.textPrimary, marginBottom: "0.75rem" }}>{onboardingSlides[onboardingStep].title}</h2>
+              <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.4rem", fontWeight: 700, color: T.textPrimary, marginBottom: "0.75rem" }}>{onboardingSlides[onboardingStep].title}</h2>
               <p style={{ color: T.textSecondary, fontSize: "0.9rem", lineHeight: 1.7, margin: 0 }}>{onboardingSlides[onboardingStep].body}</p>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
@@ -518,10 +518,17 @@ export default function NegotiationCoach() {
       {/* Header */}
       <div style={{ padding: "0.75rem 1.25rem", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: T.headerBg, position: "sticky", top: 0, zIndex: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}>
-          <div style={{ width: 32, height: 32, borderRadius: "9px", background: "linear-gradient(135deg,#1d4ed8,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.85rem" }}>💼</div>
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+            <rect width="32" height="32" rx="9" fill="#1d4ed8"/>
+            <path d="M8 20 L16 10 L24 20" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+            <circle cx="16" cy="10" r="2.2" fill="#60a5fa"/>
+            <line x1="10" y1="23" x2="22" y2="23" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>
+          </svg>
           <div>
-            <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700, fontSize: "1rem", color: T.textPrimary }}>NegotiateAI</div>
-            <div style={{ fontSize: "0.62rem", color: T.textMuted, letterSpacing: "0.07em", textTransform: "uppercase" }}>Compensation Coach</div>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "1rem", color: T.textPrimary, letterSpacing: "-0.01em" }}>
+              Offer<span style={{ color: "#2563eb" }}>Advisor</span>
+            </div>
+            <div style={{ fontSize: "0.62rem", color: T.textMuted, letterSpacing: "0.07em", textTransform: "uppercase" }}>AI Offer Coach</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
@@ -582,7 +589,12 @@ export default function NegotiationCoach() {
           {messages.map((msg, i) => (
             <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", animation: "fadeIn 0.22s ease" }}>
               {msg.role === "assistant" && (
-                <div style={{ width: 26, height: 26, borderRadius: "7px", background: "linear-gradient(135deg,#1d4ed8,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.7rem", flexShrink: 0, marginRight: "0.55rem", marginTop: "0.1rem" }}>💼</div>
+                <div style={{ width: 26, height: 26, borderRadius: "7px", background: "#1d4ed8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: "0.55rem", marginTop: "0.1rem" }}>
+                  <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
+                    <path d="M8 20 L16 10 L24 20" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    <circle cx="16" cy="10" r="2.2" fill="#60a5fa"/>
+                  </svg>
+                </div>
               )}
               <div style={{ maxWidth: "82%", padding: msg.role === "user" ? "0.6rem 0.9rem" : "0.9rem 1.05rem", borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "4px 16px 16px 16px", background: msg.role === "user" ? "linear-gradient(135deg,#1d4ed8,#2563eb)" : T.surfaceBg, border: msg.role === "assistant" ? `1px solid ${T.border}` : "none" }}>
                 {msg.role === "user"
@@ -594,7 +606,12 @@ export default function NegotiationCoach() {
 
           {loading && (
             <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", animation: "fadeIn 0.2s ease" }}>
-              <div style={{ width: 26, height: 26, borderRadius: "7px", background: "linear-gradient(135deg,#1d4ed8,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.7rem" }}>💼</div>
+            <div style={{ width: 26, height: 26, borderRadius: "7px", background: "#1d4ed8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
+                  <path d="M8 20 L16 10 L24 20" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                  <circle cx="16" cy="10" r="2.2" fill="#60a5fa"/>
+                </svg>
+              </div>
               <div style={{ display: "flex", gap: "4px", padding: "0.7rem 0.9rem", background: T.surfaceBg, borderRadius: "4px 16px 16px 16px", border: `1px solid ${T.border}` }}>
                 {[0, 1, 2].map((n) => <div key={n} style={{ width: 6, height: 6, borderRadius: "50%", background: "#3b82f6", animation: `pulse 1.2s ease-in-out ${n * 0.2}s infinite` }} />)}
               </div>
@@ -758,7 +775,7 @@ export default function NegotiationCoach() {
                 </div>
                 <div style={{ padding: "0.65rem 0.9rem", background: isDark ? "rgba(109,40,217,0.08)" : "rgba(124,58,237,0.05)", border: "1px solid #7c3aed", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
                   <div style={{ fontSize: "0.72rem", color: "#a78bfa" }}>If you negotiate successfully</div>
-                  <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "#a78bfa", fontFamily: "'Playfair Display', serif" }}>+${Math.round(counterResult.gap.fourYear).toLocaleString()}</div>
+                  <div style={{ fontSize: "1.3rem", fontWeight: 700, color: "#a78bfa", fontFamily: "'DM Serif Display', serif" }}>+${Math.round(counterResult.gap.fourYear).toLocaleString()}</div>
                 </div>
                 {counterResult.strategy && (
                   <div style={{ padding: "0.7rem", background: T.cardBg, borderRadius: "8px", border: `1px solid ${T.border}` }}>
