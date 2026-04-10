@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { useUser, useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/clerk-react";
+import AuthModal from "./AuthModal.jsx";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -34,6 +36,14 @@ I'm your personal offer negotiation coach — the same sharp, specific advice to
 
 *The more you share, the sharper my coaching gets.*`,
 };
+
+// Personalised version shown when we know the user's name
+const welcomeMessageFor = (name) => ({
+  role: "assistant",
+  content: `# Welcome back, ${name}
+
+Ready to negotiate? Tell me about your offer — role, company, and the numbers on the table. I'll give you the same sharp coaching top executives pay thousands for.`,
+});
 
 const TABS = [
   { id: "coach",     label: "Share offer", shortLabel: "Coach",     icon: "coach",     desc: "Tell me about your offer" },
@@ -84,6 +94,35 @@ const CURRENCIES = [
 ];
 const getCurrencySymbol = (code) => CURRENCIES.find((c) => c.code === code)?.symbol || "$";
 
+// ── Plan definitions ──────────────────────────────────────────────────────────
+// Source of truth: Clerk publicMetadata.plan
+// Set on sign-up (webhook) and updated after Stripe payment (coming in Step 6)
+const PLANS = {
+  free:   { label: "Free",         color: "#64748b" },
+  sprint: { label: "Offer Sprint", color: "#2563eb" },
+  pro:    { label: "Offer in Hand",color: "#7c3aed" },
+};
+
+// Features each plan can access
+const PLAN_FEATURES = {
+  free:   ["coach"],                                               // chat only
+  sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
+  pro:    ["coach", "benchmark", "calculate", "practice", "logwin"],
+};
+
+// Check if a plan can access a given tab
+const canAccess = (plan, tabId) => {
+  const allowed = PLAN_FEATURES[plan] || PLAN_FEATURES.free;
+  return allowed.includes(tabId);
+};
+
+// Usage limits per plan (checked server-side too, this is UI-only)
+const USAGE_LIMITS = {
+  free:   { sessions: 1,   emails: 1   },
+  sprint: { sessions: 999, emails: 999 },
+  pro:    { sessions: 999, emails: 999 },
+};
+
 // ── Logo mark SVG ────────────────────────────────────────────────────────────
 function LogoMark({ size = 26 }) {
   return (
@@ -124,7 +163,7 @@ function MarkdownText({ text, T, isDark }) {
 }
 
 // ── Lock screen for unpaid features ──────────────────────────────────────────
-function LockScreen({ title, description, T }) {
+function LockScreen({ title, description, T, onUpgrade, isSignedIn }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3rem 2rem", textAlign: "center" }}>
       <div style={{ width: 52, height: 52, borderRadius: "14px", background: T.cardBg, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
@@ -135,10 +174,13 @@ function LockScreen({ title, description, T }) {
       </div>
       <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.2rem", color: T.textPrimary, marginBottom: "0.6rem" }}>{title}</div>
       <p style={{ fontSize: "0.85rem", color: T.textSecondary, lineHeight: 1.65, maxWidth: 340, marginBottom: "1.5rem" }}>{description}</p>
-      <button style={{ padding: "0.6rem 1.5rem", borderRadius: "10px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.85rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-        Unlock for $29 →
+      <button onClick={onUpgrade}
+        style={{ padding: "0.6rem 1.5rem", borderRadius: "10px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.85rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
+        {isSignedIn ? "Unlock for $29 →" : "Sign up to unlock →"}
       </button>
-      <p style={{ fontSize: "0.72rem", color: T.textMuted, marginTop: "0.6rem" }}>One-time payment · 30 days full access</p>
+      <p style={{ fontSize: "0.72rem", color: T.textMuted, marginTop: "0.6rem" }}>
+        {isSignedIn ? "One-time payment · 30 days full access" : "Free account · then unlock for $29"}
+      </p>
     </div>
   );
 }
@@ -182,11 +224,52 @@ function ChatStrip({ onSend, loading, T, tabId }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function OfferAdvisor() {
+  // ── Clerk auth ───────────────────────────────────────────────────────────────
+  const { isLoaded, isSignedIn, user } = useUser();
+  const { signOut }                    = useAuth();
+
+  // User's plan comes from Clerk publicMetadata (set by webhook on sign-up,
+  // updated by Stripe webhook after payment)
+  const userPlan = (user?.publicMetadata?.plan) || "free";
+  const userName = user?.firstName || user?.username || null;
+
+  // Auth modal state
+  const [authModal, setAuthModal] = useState(null); // null | "signin" | "signup"
+
+  // Helper — open sign-in wall when a gated action is attempted
+  const requireAuth = (cb) => {
+    if (!isSignedIn) { setAuthModal("signin"); return; }
+    cb();
+  };
+
+  // Helper — open upgrade wall when a paid feature is attempted
+  const requirePlan = (tabId, cb) => {
+    if (!isSignedIn) { setAuthModal("signin"); return; }
+    if (!canAccess(userPlan, tabId)) {
+      // In Step 6 this will open Stripe checkout — for now, sign-up prompt
+      setAuthModal("upgrade");
+      return;
+    }
+    cb();
+  };
   const [activeTab, setActiveTab] = useState("coach");
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("coach");
+
+  // Personalise welcome message once Clerk has loaded the user
+  useEffect(() => {
+    if (isLoaded && isSignedIn && userName) {
+      setMessages(prev => {
+        // Only replace the initial welcome — don't touch if conversation has started
+        if (prev.length === 1 && prev[0] === WELCOME_MESSAGE) {
+          return [welcomeMessageFor(userName)];
+        }
+        return prev;
+      });
+    }
+  }, [isLoaded, isSignedIn, userName]);
 
   const [isDark, setIsDark] = useState(() => {
     const s = localStorage.getItem("offeradvisor_theme");
@@ -436,6 +519,27 @@ export default function OfferAdvisor() {
 
   // ── Render tab content ────────────────────────────────────────────────────────
   const renderTabContent = () => {
+    // For tool tabs: show LockScreen if user doesn't have access
+    if (activeTab !== "coach" && !canAccess(userPlan, activeTab)) {
+      const tab = TABS.find(t => t.id === activeTab);
+      return (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+          <LockScreen
+            title={tab?.label || "Premium feature"}
+            description={
+              !isSignedIn
+                ? "Create a free account to get started, then unlock all tools for $29."
+                : "Unlock all tools — salary benchmarking, counter calculator, role-play, and outcome tracking — for a one-time $29 payment."
+            }
+            T={T}
+            isSignedIn={isSignedIn}
+            onUpgrade={() => setAuthModal(isSignedIn ? "upgrade" : "signup")}
+          />
+          <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId={activeTab} />
+        </div>
+      );
+    }
+
     switch (activeTab) {
       // ── COACH TAB — full chat ─────────────────────────────────────────────
       case "coach": return (
@@ -481,7 +585,27 @@ export default function OfferAdvisor() {
             </div>
           </div>
 
-          {/* Prompt chips */}
+          {/* Sign-in nudge — shown to guests after they've had their first exchange */}
+          {!isSignedIn && messages.length >= 3 && (
+            <div style={{ margin: "0 1rem 0.75rem", maxWidth: 720, width: "calc(100% - 2rem)", alignSelf: "center" }}>
+              <div style={{ padding: "0.85rem 1rem", background: isDark ? "rgba(29,78,216,0.08)" : "#EFF6FF", border: "1px solid rgba(29,78,216,0.2)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: "0.82rem", fontWeight: 500, color: T.textPrimary, marginBottom: "2px" }}>Save your coaching session</div>
+                  <div style={{ fontSize: "0.74rem", color: T.textSecondary }}>Sign up free to continue — your conversation won't be lost.</div>
+                </div>
+                <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
+                  <button onClick={() => setAuthModal("signin")}
+                    style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: `1px solid ${T.border}`, background: "transparent", color: T.textSecondary, fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit" }}>
+                    Sign in
+                  </button>
+                  <button onClick={() => setAuthModal("signup")}
+                    style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
+                    Sign up free →
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div style={{ padding: "0 1rem 0.5rem", maxWidth: 720, margin: "0 auto", width: "100%" }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
               {PROMPTS.coach.map((p, i) => (
@@ -792,6 +916,9 @@ export default function OfferAdvisor() {
         *, *::before, *::after { transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
       `}</style>
 
+      {/* Auth modal — shown when user clicks sign-in / sign-up / hits a paywall */}
+      <AuthModal mode={authModal} onClose={() => setAuthModal(null)} T={T} />
+
       {/* Onboarding modal */}
       {showOnboarding && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem", animation: "fadeIn 0.2s ease" }}>
@@ -832,6 +959,7 @@ export default function OfferAdvisor() {
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+          {/* Community wins pill — always visible */}
           {stats.totalUsers > 0 ? (
             <div style={{ fontSize: "0.68rem", color: "#34d399", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: "10px" }}>
               {stats.totalUsers} wins · ${(stats.totalGained / 1000).toFixed(0)}K secured
@@ -841,24 +969,73 @@ export default function OfferAdvisor() {
               $169K secured this month
             </div>
           )}
+
           <button onClick={toggleTheme} style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
             {isDark ? "☀ Light" : "☾ Dark"}
           </button>
           <button onClick={() => { setShowOnboarding(true); setOnboardingStep(0); }} style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
             ? Help
           </button>
+
+          {/* Auth section */}
+          {!isLoaded ? null : isSignedIn ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+              {/* Plan badge */}
+              <div style={{ fontSize: "0.65rem", padding: "2px 7px", borderRadius: "8px", background: userPlan === "free" ? T.cardBg : "rgba(29,78,216,0.12)", color: userPlan === "free" ? T.textMuted : "#60a5fa", border: `1px solid ${userPlan === "free" ? T.border : "rgba(29,78,216,0.3)"}`, fontWeight: 500 }}>
+                {PLANS[userPlan]?.label || "Free"}
+              </div>
+              {/* Clerk's built-in user button — handles profile, sign-out, etc */}
+              <UserButton
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    avatarBox: { width: 28, height: 28 },
+                  },
+                }}
+              />
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: "0.3rem" }}>
+              <button onClick={() => setAuthModal("signin")}
+                style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
+                Sign in
+              </button>
+              <button onClick={() => setAuthModal("signup")}
+                style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
+                Sign up free
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tab nav */}
       <div style={{ background: T.headerBg, borderBottom: `1px solid ${T.border}`, display: "flex", padding: "0 1rem", overflowX: "auto", flexShrink: 0 }}>
-        {TABS.map((tab) => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            title={tab.desc}
-            style={{ padding: "0.65rem 0.9rem", fontSize: "0.78rem", fontWeight: activeTab === tab.id ? 500 : 400, color: activeTab === tab.id ? "#1d4ed8" : T.textMuted, border: "none", borderBottom: activeTab === tab.id ? "2px solid #1d4ed8" : "2px solid transparent", background: "transparent", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", transition: "color 0.15s, border-color 0.15s" }}>
-            {tab.label}
-          </button>
-        ))}
+        {TABS.map((tab) => {
+          const locked = !canAccess(userPlan, tab.id);
+          const isActive = activeTab === tab.id;
+          return (
+            <button key={tab.id}
+              onClick={() => {
+                if (locked) {
+                  // Not signed in → show sign-up; signed in but no plan → show upgrade
+                  if (!isSignedIn) setAuthModal("signup");
+                  else setAuthModal("upgrade");
+                } else {
+                  setActiveTab(tab.id);
+                }
+              }}
+              title={locked ? `Upgrade to access ${tab.label}` : tab.desc}
+              style={{ padding: "0.65rem 0.9rem", fontSize: "0.78rem", fontWeight: isActive ? 500 : 400, color: isActive ? "#1d4ed8" : locked ? T.textHint : T.textMuted, border: "none", borderBottom: isActive ? "2px solid #1d4ed8" : "2px solid transparent", background: "transparent", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "4px", opacity: locked ? 0.6 : 1 }}>
+              {tab.label}
+              {locked && (
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                  <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Tab content — fills remaining space */}
