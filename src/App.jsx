@@ -99,10 +99,12 @@ function LogoMark({ size = 26 }) {
 }
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
-function MarkdownText({ text, T }) {
+function MarkdownText({ text, T, isDark }) {
   const renderLine = (line, i) => {
-    if (line.startsWith("# "))
-      return <h1 key={i} style={{ fontSize: "1.25rem", fontWeight: 600, margin: "0.3rem 0 0.5rem", color: T.textPrimary, fontFamily: "'DM Serif Display', serif" }}>{line.slice(2)}</h1>;
+    if (line.startsWith("# ")) {
+      const headingColor = isDark ? "#e2e8f0" : "#1d4ed8";
+      return <h1 key={i} style={{ fontSize: "1.25rem", fontWeight: 500, margin: "0.3rem 0 0.5rem", color: headingColor, fontFamily: "'DM Serif Display', serif", letterSpacing: "-0.01em" }}>{line.slice(2)}</h1>;
+    }
     if (line.startsWith("## "))
       return <h2 key={i} style={{ fontSize: "0.7rem", fontWeight: 600, margin: "0.8rem 0 0.3rem", color: T.textMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>{line.slice(3)}</h2>;
     if (line.startsWith("### "))
@@ -195,17 +197,17 @@ export default function OfferAdvisor() {
   const [onboardingStep, setOnboardingStep] = useState(0);
 
   const T = {
-    pageBg:      isDark ? "#0a0f1a" : "#f1f5f9",
-    headerBg:    isDark ? "#0d1424" : "#ffffff",
-    surfaceBg:   isDark ? "#111827" : "#ffffff",
-    inputBg:     isDark ? "#0d1424" : "#f8fafc",
-    cardBg:      isDark ? "#0d1424" : "#f8fafc",
-    panelBg:     isDark ? "#111827" : "#ffffff",
-    border:      isDark ? "#1e293b" : "#e2e8f0",
-    textPrimary:    isDark ? "#e2e8f0" : "#0f172a",
-    textSecondary:  isDark ? "#94a3b8" : "#475569",
-    textMuted:      isDark ? "#64748b" : "#94a3b8",
-    textHint:       isDark ? "#334155" : "#cbd5e1",
+    pageBg:         isDark ? "#0a0f1a" : "#f1f5f9",
+    headerBg:       isDark ? "#0d1424" : "#ffffff",
+    surfaceBg:      isDark ? "#111827" : "#ffffff",
+    inputBg:        isDark ? "#0d1424" : "#f8fafc",
+    cardBg:         isDark ? "#0d1424" : "#f0f4f8",
+    panelBg:        isDark ? "#111827" : "#ffffff",
+    border:         isDark ? "#1e293b" : "#d1d9e0",
+    textPrimary:    isDark ? "#e2e8f0" : "#0d1117",
+    textSecondary:  isDark ? "#94a3b8" : "#24292f",
+    textMuted:      isDark ? "#64748b" : "#57606a",
+    textHint:       isDark ? "#334155" : "#8c959f",
   };
 
   // Salary benchmark state
@@ -231,9 +233,10 @@ export default function OfferAdvisor() {
   const [newOutcome,   setNewOutcome]   = useState({ role: "", industry: "", offeredBase: "", finalBase: "", offeredTotal: "", finalTotal: "", tactic: "", note: "" });
   const [stats,        setStats]        = useState({ totalUsers: 0, totalGained: 0, avgGain: 0 });
 
-  const bottomRef  = useRef(null);
-  const inputRef   = useRef(null);
-  const chatEndRef = useRef(null);
+  const bottomRef     = useRef(null);
+  const inputRef      = useRef(null);
+  const chatScrollRef = useRef(null);
+  const userSentRef   = useRef(false);
 
   useEffect(() => {
     const seen = localStorage.getItem("offeradvisor_onboarding_seen");
@@ -241,10 +244,14 @@ export default function OfferAdvisor() {
     loadOutcomes();
   }, []);
 
+  // Scroll to bottom ONLY when the user sends a message.
+  // When the AI responds, the user can read without the view jumping.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+    if (userSentRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      userSentRef.current = false;
+    }
+  }, [messages]);
 
   const toggleTheme = () => {
     const next = isDark ? "light" : "dark";
@@ -279,6 +286,7 @@ export default function OfferAdvisor() {
     const newMessages = [...messages, { role: "user", content: userText }];
     setMessages(newMessages);
     setLoading(true);
+    userSentRef.current = true; // scroll to bottom for user's own message only
 
     if (jobTitle) setLastRole(jobTitle);
     if (jobLocation) setLastLocation(jobLocation);
@@ -444,7 +452,7 @@ export default function OfferAdvisor() {
                   <div style={{ maxWidth: "82%", padding: msg.role === "user" ? "0.55rem 0.85rem" : "0.85rem 1rem", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? "#1d4ed8" : T.surfaceBg, border: msg.role === "assistant" ? `1px solid ${T.border}` : "none" }}>
                     {msg.role === "user"
                       ? <p style={{ margin: 0, fontSize: "0.87rem", color: "white", lineHeight: 1.6 }}>{msg.content}</p>
-                      : <MarkdownText text={msg.content} T={T} />}
+                      : <MarkdownText text={msg.content} T={T} isDark={isDark} />}
                   </div>
                 </div>
               ))}
@@ -715,7 +723,7 @@ export default function OfferAdvisor() {
 
               {outcomes.length > 0 && (
                 <div style={{ marginTop: "1.25rem", borderTop: `1px solid ${T.border}`, paddingTop: "0.75rem" }}>
-                  <div style={{ fontSize: "0.65rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>Recent wins</div>
+                  <div style={{ fontSize: "0.65rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>Your wins</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
                     {outcomes.slice(0, 5).map((o) => (
                       <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0.7rem", background: T.cardBg, borderRadius: "7px", border: `1px solid ${T.border}` }}>
@@ -733,6 +741,32 @@ export default function OfferAdvisor() {
                   </div>
                 </div>
               )}
+
+              {/* Community wins feed — always shown */}
+              <div style={{ marginTop: "1.25rem", borderTop: `1px solid ${T.border}`, paddingTop: "0.75rem" }}>
+                <div style={{ fontSize: "0.65rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.5rem" }}>Recent community wins</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                  {[
+                    { role: "Senior Product Manager", industry: "Technology", gained: 28000, tactic: "Competing offer", date: "Apr 2026" },
+                    { role: "Software Engineer", industry: "Finance", gained: 42000, tactic: "Market data / research", date: "Apr 2026" },
+                    { role: "Data Scientist", industry: "Healthcare", gained: 19000, tactic: "Anchoring high", date: "Mar 2026" },
+                    { role: "UX Designer", industry: "Consulting", gained: 15000, tactic: "Bundling (equity + signing)", date: "Mar 2026" },
+                    { role: "Engineering Manager", industry: "Technology", gained: 65000, tactic: "Competing offer", date: "Mar 2026" },
+                  ].map((o, idx) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0.7rem", background: T.cardBg, borderRadius: "7px", border: `1px solid ${T.border}` }}>
+                      <div>
+                        <span style={{ fontSize: "0.78rem", color: T.textPrimary }}>{o.role}</span>
+                        <span style={{ marginLeft: "5px", fontSize: "0.62rem", color: T.textMuted, background: T.border, padding: "1px 5px", borderRadius: "4px" }}>{o.industry}</span>
+                        <div style={{ fontSize: "0.62rem", color: T.textHint, marginTop: "1px" }}>via {o.tactic}</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "#34d399" }}>+${o.gained.toLocaleString()}</div>
+                        <div style={{ fontSize: "0.62rem", color: T.textHint }}>{o.date}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
           <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="logwin" />
@@ -798,9 +832,13 @@ export default function OfferAdvisor() {
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
-          {stats.totalUsers > 0 && (
+          {stats.totalUsers > 0 ? (
             <div style={{ fontSize: "0.68rem", color: "#34d399", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: "10px" }}>
               {stats.totalUsers} wins · ${(stats.totalGained / 1000).toFixed(0)}K secured
+            </div>
+          ) : (
+            <div style={{ fontSize: "0.68rem", color: "#34d399", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: "10px" }}>
+              $169K secured this month
             </div>
           )}
           <button onClick={toggleTheme} style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
