@@ -18,6 +18,8 @@ createRoot(document.getElementById("root")).render(
       publishableKey={PUBLISHABLE_KEY}
       afterSignInUrl="/"
       afterSignUpUrl="/"
+      signInFallbackRedirectUrl="/"
+      signUpFallbackRedirectUrl="/"
       appearance={{
         variables: {
           colorPrimary: "#1d4ed8",

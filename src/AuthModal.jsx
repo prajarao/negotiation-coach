@@ -131,7 +131,7 @@ export default function AuthModal({ mode, onClose, T }) {
         {mode === "signin" && (
           <div style={{ animation: "oa-slide-up 0.22s ease forwards", width: "100%", maxWidth: 420 }}>
             <SignIn
-              routing="hash"
+              fallbackRedirectUrl="/"
               appearance={{
                 variables: {
                   colorPrimary: "#1d4ed8",
@@ -158,7 +158,7 @@ export default function AuthModal({ mode, onClose, T }) {
         {mode === "signup" && (
           <div style={{ animation: "oa-slide-up 0.22s ease forwards", width: "100%", maxWidth: 420 }}>
             <SignUp
-              routing="hash"
+              fallbackRedirectUrl="/"
               appearance={{
                 variables: {
                   colorPrimary: "#1d4ed8",
