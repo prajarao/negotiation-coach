@@ -16,6 +16,8 @@ createRoot(document.getElementById("root")).render(
   <StrictMode>
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
+      afterSignInUrl="/"
+      afterSignUpUrl="/"
       appearance={{
         variables: {
           colorPrimary: "#1d4ed8",
@@ -38,10 +40,8 @@ createRoot(document.getElementById("root")).render(
           },
           formButtonPrimary: {
             backgroundColor: "#1d4ed8",
-            "&:hover": { backgroundColor: "#1e40af" },
           },
           footerActionLink: { color: "#3b82f6" },
-          identityPreviewText: { color: "#94a3b8" },
         },
       }}
     >
