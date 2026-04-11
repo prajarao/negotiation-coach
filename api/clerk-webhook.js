@@ -1,20 +1,20 @@
 /**
  * api/clerk-webhook.js
  * ---------------------
- * Receives Clerk webhook events and syncs user data.
- * Currently handles:
- *   user.created  — sets default plan to "free" in publicMetadata
+ * Receives Clerk webhook events and syncs user data to both
+ * Clerk publicMetadata AND the Supabase users table.
  *
  * Setup:
  *  1. In Clerk Dashboard → Webhooks → Add endpoint
  *     URL: https://offeradvisor.ai/api/clerk-webhook
  *     Events: user.created, user.updated
  *  2. Copy the Signing Secret into Vercel env as CLERK_WEBHOOK_SECRET
- *  3. npm install svix  (Clerk uses Svix for webhook verification)
+ *  3. Set SUPABASE_URL and SUPABASE_SERVICE_KEY in Vercel env
  */
 
 import { Webhook } from "svix";
 import { clerkClient } from "@clerk/clerk-sdk-node";
+import { supabase } from "./_supabase.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -68,8 +68,10 @@ export default async function handler(req, res) {
   // ── user.created ────────────────────────────────────────────────────────────
   if (type === "user.created") {
     const userId = data.id;
+    const email  = data.email_addresses?.[0]?.email_address || null;
+
     try {
-      // Set default plan in publicMetadata — readable client-side via useUser()
+      // 1. Set default plan in Clerk publicMetadata
       await clerkClient.users.updateUserMetadata(userId, {
         publicMetadata: {
           plan: "free",
@@ -78,20 +80,55 @@ export default async function handler(req, res) {
           emailCount: 0,
         },
       });
-      console.log(`New user ${userId} initialised with plan: free`);
+
+      // 2. Insert row into Supabase users table
+      const { error } = await supabase.from("users").upsert(
+        {
+          clerk_id:        userId,
+          email:           email,
+          plan:            "free",
+          usage_count:     0,
+          plan_expires_at: null,
+        },
+        { onConflict: "clerk_id" }
+      );
+
+      if (error) {
+        console.error(`Supabase insert failed for ${userId}:`, error.message);
+      } else {
+        console.log(`New user ${userId} synced to Supabase with plan: free`);
+      }
     } catch (err) {
-      console.error(`Failed to set metadata for user ${userId}:`, err.message);
-      return res.status(500).json({ error: "Failed to update user metadata" });
+      console.error(`Failed to process user.created for ${userId}:`, err.message);
+      return res.status(500).json({ error: "Failed to create user" });
     }
   }
 
   // ── user.updated ─────────────────────────────────────────────────────────────
-  // Triggered when plan is changed (e.g. after Stripe payment webhook updates it)
   if (type === "user.updated") {
     const userId = data.id;
-    const plan   = data.public_metadata?.plan;
-    console.log(`User ${userId} updated — plan: ${plan}`);
-    // Additional logic (e.g. send welcome email) can go here
+    const plan   = data.public_metadata?.plan || "free";
+    const email  = data.email_addresses?.[0]?.email_address || null;
+
+    try {
+      // Sync latest plan + email to Supabase
+      const { error } = await supabase.from("users").upsert(
+        {
+          clerk_id: userId,
+          email:    email,
+          plan:     plan,
+        },
+        { onConflict: "clerk_id" }
+      );
+
+      if (error) {
+        console.error(`Supabase update failed for ${userId}:`, error.message);
+      } else {
+        console.log(`User ${userId} updated in Supabase — plan: ${plan}`);
+      }
+    } catch (err) {
+      console.error(`Failed to process user.updated for ${userId}:`, err.message);
+    }
   }
 
   return res.status(200).json({ received: true });

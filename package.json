@@ -8,6 +8,7 @@
   "dependencies": {
     "@clerk/clerk-react": "^5.61.4",
     "@clerk/clerk-sdk-node": "^4.13.23",
+    "@supabase/supabase-js": "^2.103.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.0",
     "express": "^5.2.1",
