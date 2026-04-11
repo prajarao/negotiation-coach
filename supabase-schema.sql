@@ -58,7 +58,18 @@ create policy "Users can read own subscriptions"
   on public.subscriptions for select
   using (clerk_id = current_setting('request.jwt.claims', true)::json ->> 'sub');
 
--- 5. Auto-update updated_at on users table
+-- 5. RPC function to atomically increment usage_count
+create or replace function public.increment_usage(p_clerk_id text)
+returns void as $$
+begin
+  update public.users
+  set usage_count = usage_count + 1,
+      updated_at = now()
+  where clerk_id = p_clerk_id;
+end;
+$$ language plpgsql security definer;
+
+-- 6. Auto-update updated_at on users table
 create or replace function public.handle_updated_at()
 returns trigger as $$
 begin

@@ -226,12 +226,18 @@ function ChatStrip({ onSend, loading, T, tabId }) {
 export default function OfferAdvisor() {
   // ── Clerk auth ───────────────────────────────────────────────────────────────
   const { isLoaded, isSignedIn, user } = useUser();
-  const { signOut }                    = useAuth();
+  const { signOut, getToken }           = useAuth();
 
   // User's plan comes from Clerk publicMetadata (set by webhook on sign-up,
   // updated by Stripe webhook after payment)
   const userPlan = (user?.publicMetadata?.plan) || "free";
   const userName = user?.firstName || user?.username || null;
+
+  // Build auth headers for API calls
+  const authHeaders = async () => {
+    const token = await getToken().catch(() => null);
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
 
   // Auth modal state
   const [authModal, setAuthModal] = useState(null); // null | "signin" | "signup" | "upgrade"
@@ -385,11 +391,25 @@ export default function OfferAdvisor() {
     const messagesToSend = apiMessages.length > 0 ? apiMessages : [{ role: "user", content: userText }];
 
     try {
+      const auth = await authHeaders();
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ system: systemPrompt, messages: messagesToSend }),
       });
+      if (response.status === 403) {
+        const err = await response.json();
+        if (err.code === "USAGE_LIMIT") {
+          setMessages([...newMessages, { role: "assistant", content: "**You've reached the free plan limit.** Upgrade to Offer Sprint ($29) for unlimited coaching sessions, benchmarking, and all tools." }]);
+          setAuthModal("upgrade");
+        } else if (err.code === "PLAN_REQUIRED") {
+          setAuthModal(isSignedIn ? "upgrade" : "signup");
+        } else if (err.code === "AUTH_REQUIRED") {
+          setAuthModal("signin");
+        }
+        setLoading(false);
+        return;
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       const reply = data.content?.[0]?.text || "Something went wrong. Please try again.";
@@ -425,11 +445,18 @@ export default function OfferAdvisor() {
     setLastRole(jobTitle);
     setLastLocation(jobLocation);
     try {
+      const auth = await authHeaders();
       const res = await fetch("/api/salary", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ jobTitle: jobTitle.trim(), location: jobLocation.trim() || "United States", offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null, currency: autoCurrency }),
       });
+      if (res.status === 403 || res.status === 401) {
+        const err = await res.json();
+        setAuthModal(err.code === "AUTH_REQUIRED" ? "signin" : isSignedIn ? "upgrade" : "signup");
+        setSalaryLoading(false);
+        return;
+      }
       const data = await res.json();
       setSalaryData(data);
       if (data.median) {
@@ -464,9 +491,10 @@ export default function OfferAdvisor() {
       const counterTotalAnnual = counterBase + counterAnnualBonus + counterAnnualEquity;
       const counterTotal4Year = counterTotalAnnual * 4 + counterSigning;
       const fourYearGap = counterTotal4Year - total4Year;
+      const auth = await authHeaders();
       const aiRes = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...auth },
         body: JSON.stringify({ system: "You are an elite salary negotiation coach. Write a sharp strategy in 3 short sections: 1. YOUR LEVERAGE 2. COUNTER SCRIPT (exact words) 3. FALLBACK MOVE", messages: [{ role: "user", content: `Offer: Base $${base.toLocaleString()}, Bonus ${bonusPct}%, Equity $${equityTotal.toLocaleString()}/${equityYears}yr, Signing $${signing.toLocaleString()}. Counter: Base $${counterBase.toLocaleString()}, Signing $${counterSigning.toLocaleString()}. 4yr gain: $${fourYearGap.toLocaleString()}.` }] }),
       });
       const aiData = await aiRes.json();
