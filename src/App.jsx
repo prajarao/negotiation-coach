@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useUser, useAuth, UserButton } from "@clerk/clerk-react";
+import { useUser, useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/clerk-react";
 import AuthModal from "./AuthModal.jsx";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
@@ -226,21 +226,31 @@ function ChatStrip({ onSend, loading, T, tabId }) {
 export default function OfferAdvisor() {
   // ── Clerk auth ───────────────────────────────────────────────────────────────
   const { isLoaded, isSignedIn, user } = useUser();
-  const { signOut, getToken }           = useAuth();
+  const { signOut }                    = useAuth();
 
   // User's plan comes from Clerk publicMetadata (set by webhook on sign-up,
   // updated by Stripe webhook after payment)
   const userPlan = (user?.publicMetadata?.plan) || "free";
   const userName = user?.firstName || user?.username || null;
 
-  // Build auth headers for API calls
-  const authHeaders = async () => {
-    const token = await getToken().catch(() => null);
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
-
   // Auth modal state
   const [authModal, setAuthModal] = useState(null); // null | "signin" | "signup" | "upgrade"
+
+  // Stripe return — detect ?checkout=success in URL after payment
+  const [checkoutSuccess, setCheckoutSuccess] = useState(null); // null | "sprint" | "pro"
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("checkout");
+    const plan   = params.get("plan");
+    if (status === "success" && plan) {
+      setCheckoutSuccess(plan);
+      // Clean URL so refresh doesn't re-trigger
+      window.history.replaceState({}, "", window.location.pathname);
+      // Auto-dismiss after 8s
+      setTimeout(() => setCheckoutSuccess(null), 8000);
+    }
+  }, []);
 
   // Helper — open sign-in wall when a gated action is attempted
   const requireAuth = (cb) => {
@@ -252,6 +262,7 @@ export default function OfferAdvisor() {
   const requirePlan = (tabId, cb) => {
     if (!isSignedIn) { setAuthModal("signin"); return; }
     if (!canAccess(userPlan, tabId)) {
+      // In Step 6 this will open Stripe checkout — for now, sign-up prompt
       setAuthModal("upgrade");
       return;
     }
@@ -391,25 +402,11 @@ export default function OfferAdvisor() {
     const messagesToSend = apiMessages.length > 0 ? apiMessages : [{ role: "user", content: userText }];
 
     try {
-      const auth = await authHeaders();
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...auth },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ system: systemPrompt, messages: messagesToSend }),
       });
-      if (response.status === 403) {
-        const err = await response.json();
-        if (err.code === "USAGE_LIMIT") {
-          setMessages([...newMessages, { role: "assistant", content: "**You've reached the free plan limit.** Upgrade to Offer Sprint ($29) for unlimited coaching sessions, benchmarking, and all tools." }]);
-          setAuthModal("upgrade");
-        } else if (err.code === "PLAN_REQUIRED") {
-          setAuthModal(isSignedIn ? "upgrade" : "signup");
-        } else if (err.code === "AUTH_REQUIRED") {
-          setAuthModal("signin");
-        }
-        setLoading(false);
-        return;
-      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
       const reply = data.content?.[0]?.text || "Something went wrong. Please try again.";
@@ -445,18 +442,11 @@ export default function OfferAdvisor() {
     setLastRole(jobTitle);
     setLastLocation(jobLocation);
     try {
-      const auth = await authHeaders();
       const res = await fetch("/api/salary", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...auth },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobTitle: jobTitle.trim(), location: jobLocation.trim() || "United States", offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null, currency: autoCurrency }),
       });
-      if (res.status === 403 || res.status === 401) {
-        const err = await res.json();
-        setAuthModal(err.code === "AUTH_REQUIRED" ? "signin" : isSignedIn ? "upgrade" : "signup");
-        setSalaryLoading(false);
-        return;
-      }
       const data = await res.json();
       setSalaryData(data);
       if (data.median) {
@@ -491,10 +481,9 @@ export default function OfferAdvisor() {
       const counterTotalAnnual = counterBase + counterAnnualBonus + counterAnnualEquity;
       const counterTotal4Year = counterTotalAnnual * 4 + counterSigning;
       const fourYearGap = counterTotal4Year - total4Year;
-      const auth = await authHeaders();
       const aiRes = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...auth },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ system: "You are an elite salary negotiation coach. Write a sharp strategy in 3 short sections: 1. YOUR LEVERAGE 2. COUNTER SCRIPT (exact words) 3. FALLBACK MOVE", messages: [{ role: "user", content: `Offer: Base $${base.toLocaleString()}, Bonus ${bonusPct}%, Equity $${equityTotal.toLocaleString()}/${equityYears}yr, Signing $${signing.toLocaleString()}. Counter: Base $${counterBase.toLocaleString()}, Signing $${counterSigning.toLocaleString()}. 4yr gain: $${fourYearGap.toLocaleString()}.` }] }),
       });
       const aiData = await aiRes.json();
@@ -940,11 +929,48 @@ export default function OfferAdvisor() {
         @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
         @keyframes pulse  { 0%,100%{opacity:1} 50%{opacity:0.3} }
         @keyframes slideIn { from{opacity:0;transform:scale(0.96)} to{opacity:1;transform:scale(1)} }
+        @keyframes oa-slide-up { from{opacity:0;transform:translateX(-50%) translateY(-10px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
         *, *::before, *::after { transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
       `}</style>
 
       {/* Auth modal — shown when user clicks sign-in / sign-up / hits a paywall */}
       <AuthModal mode={authModal} onClose={() => setAuthModal(null)} T={T} />
+
+      {/* Stripe checkout success banner */}
+      {checkoutSuccess && (
+        <div style={{
+          position: "fixed",
+          top: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 9998,
+          background: "#052e16",
+          border: "1px solid #16a34a",
+          borderRadius: "12px",
+          padding: "0.75rem 1.25rem",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.65rem",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+          animation: "oa-slide-up 0.25s ease forwards",
+          maxWidth: "calc(100vw - 2rem)",
+          whiteSpace: "nowrap",
+        }}>
+          <span style={{ fontSize: "1.1rem" }}>🎉</span>
+          <div>
+            <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#4ade80" }}>
+              {checkoutSuccess === "sprint" ? "Offer Sprint" : "Offer in Hand"} unlocked!
+            </div>
+            <div style={{ fontSize: "0.72rem", color: "#86efac" }}>
+              All tools are now available. Start coaching below.
+            </div>
+          </div>
+          <button
+            onClick={() => setCheckoutSuccess(null)}
+            style={{ marginLeft: "0.5rem", background: "transparent", border: "none", color: "#4ade80", fontSize: "1rem", cursor: "pointer", lineHeight: 1, padding: 0 }}
+          >×</button>
+        </div>
+      )}
 
       {/* Onboarding modal */}
       {showOnboarding && (
@@ -1045,6 +1071,7 @@ export default function OfferAdvisor() {
             <button key={tab.id}
               onClick={() => {
                 if (locked) {
+                  // Not signed in → show sign-up; signed in but no plan → show upgrade
                   if (!isSignedIn) setAuthModal("signup");
                   else setAuthModal("upgrade");
                 } else {

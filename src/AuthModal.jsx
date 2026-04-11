@@ -1,16 +1,56 @@
-import { SignIn, SignUp } from "@clerk/clerk-react";
+import { useState } from "react";
+import { SignIn, SignUp, useUser } from "@clerk/clerk-react";
 
 /**
  * AuthModal
  * ---------
  * mode: "signin" | "signup" | "upgrade" | null
  * onClose: () => void
+ * T: theme object from parent
  */
-export default function AuthModal({ mode, onClose }) {
+export default function AuthModal({ mode, onClose, T }) {
+  const { user } = useUser();
+  const [checkoutLoading, setCheckoutLoading] = useState(null); // "sprint" | "pro" | null
+  const [checkoutError, setCheckoutError]     = useState(null);
+
   if (!mode) return null;
+
+  // ── Redirect to Stripe Checkout ─────────────────────────────────────────────
+  const handleCheckout = async (plan) => {
+    setCheckoutLoading(plan);
+    setCheckoutError(null);
+
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan,
+          clerkUserId: user?.id,
+          userEmail:   user?.primaryEmailAddress?.emailAddress || null,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.url) {
+        throw new Error(data.error || "Could not start checkout");
+      }
+
+      // Redirect to Stripe-hosted checkout page
+      window.location.href = data.url;
+
+    } catch (err) {
+      console.error("Checkout error:", err);
+      setCheckoutError(err.message || "Something went wrong. Please try again.");
+      setCheckoutLoading(null);
+    }
+  };
 
   return (
     <>
+      {/* Inline keyframes — needed because this component is outside the
+          main <style> block and won't inherit its @keyframes */}
       <style>{`
         @keyframes oa-fade-in {
           from { opacity: 0; }
@@ -18,8 +58,13 @@ export default function AuthModal({ mode, onClose }) {
         }
         @keyframes oa-slide-up {
           from { opacity: 0; transform: translateY(16px) scale(0.97); }
-          to   { opacity: 1; transform: translateY(0)   scale(1);    }
+          to   { opacity: 1; transform: translateY(0)   scale(1); }
         }
+        .oa-plan-card { transition: border-color 0.15s, background 0.15s; }
+        .oa-plan-card:hover { border-color: #2563eb !important; }
+        .oa-checkout-btn { transition: opacity 0.15s; }
+        .oa-checkout-btn:hover { opacity: 0.88; }
+        .oa-checkout-btn:disabled { opacity: 0.55; cursor: not-allowed; }
       `}</style>
 
       {/* Overlay */}
@@ -34,6 +79,7 @@ export default function AuthModal({ mode, onClose }) {
           alignItems: "center",
           justifyContent: "center",
           padding: "1rem",
+          overflowY: "auto",
           animation: "oa-fade-in 0.18s ease forwards",
         }}
       >
@@ -43,10 +89,8 @@ export default function AuthModal({ mode, onClose }) {
           aria-label="Close"
           style={{
             position: "fixed",
-            top: 16,
-            right: 16,
-            width: 36,
-            height: 36,
+            top: 16, right: 16,
+            width: 36, height: 36,
             borderRadius: "50%",
             border: "1px solid rgba(255,255,255,0.15)",
             background: "rgba(30,41,59,0.9)",
@@ -64,62 +108,108 @@ export default function AuthModal({ mode, onClose }) {
           ×
         </button>
 
-        {/* ── Upgrade pricing card ──────────────────────────────────── */}
+        {/* ── Upgrade modal ─────────────────────────────────────────────────── */}
         {mode === "upgrade" && (
           <div style={{
             background: "#0d1424",
             border: "1px solid #1e293b",
             borderRadius: "16px",
             padding: "2rem",
-            maxWidth: 440,
+            maxWidth: 520,
             width: "100%",
             animation: "oa-slide-up 0.22s ease forwards",
           }}>
-            <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
-              <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.4rem", color: "#e2e8f0", marginBottom: "0.5rem" }}>
+            {/* Header */}
+            <div style={{ textAlign: "center", marginBottom: "1.75rem" }}>
+              <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.45rem", color: "#e2e8f0", marginBottom: "0.45rem" }}>
                 Unlock all tools
               </div>
-              <p style={{ fontSize: "0.84rem", color: "#94a3b8", lineHeight: 1.65, margin: 0 }}>
-                Salary benchmarking, counter calculator, recruiter role-play, email scripts,
-                and outcome tracking — for 30 days.
+              <p style={{ fontSize: "0.83rem", color: "#94a3b8", lineHeight: 1.65, margin: 0 }}>
+                One-time payment. No subscription. Full access for 30 days.
               </p>
             </div>
-            <div style={{ border: "1.5px solid #1d4ed8", borderRadius: "12px", padding: "1.25rem", marginBottom: "1rem", background: "rgba(29,78,216,0.06)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
-                <div>
-                  <div style={{ fontSize: "1rem", fontWeight: 600, color: "#e2e8f0" }}>Offer Sprint</div>
-                  <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "2px" }}>One-time · 30 days full access</div>
+
+            {/* Plan cards — side by side */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
+
+              {/* Offer Sprint — $29 */}
+              <div className="oa-plan-card" style={{ border: "1.5px solid #1d4ed8", borderRadius: "12px", padding: "1.15rem", background: "rgba(29,78,216,0.06)", display: "flex", flexDirection: "column" }}>
+                <div style={{ marginBottom: "0.6rem" }}>
+                  <div style={{ fontSize: "0.68rem", color: "#60a5fa", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>Most popular</div>
+                  <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e2e8f0" }}>Offer Sprint</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginTop: "6px" }}>
+                    <span style={{ fontSize: "1.6rem", fontWeight: 700, color: "#e2e8f0" }}>$29</span>
+                    <span style={{ fontSize: "0.72rem", color: "#64748b" }}>one-time</span>
+                  </div>
+                  <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "2px" }}>30 days full access</div>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "1.5rem", fontWeight: 600, color: "#e2e8f0" }}>$29</div>
-                  <div style={{ fontSize: "0.7rem", color: "#64748b" }}>one time</div>
-                </div>
+                <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", flex: 1 }}>
+                  {["Unlimited sessions", "Salary benchmark", "Counter calculator", "Role-play mode", "Email scripts", "Outcome tracker"].map(f => (
+                    <li key={f} style={{ display: "flex", gap: "5px", fontSize: "0.75rem", color: "#94a3b8", marginBottom: "4px", alignItems: "center" }}>
+                      <span style={{ color: "#34d399", flexShrink: 0 }}>✓</span>{f}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  className="oa-checkout-btn"
+                  onClick={() => handleCheckout("sprint")}
+                  disabled={!!checkoutLoading}
+                  style={{ width: "100%", padding: "0.6rem", borderRadius: "8px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.8rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  {checkoutLoading === "sprint" ? "Redirecting…" : "Get Offer Sprint →"}
+                </button>
               </div>
-              {["Unlimited coaching sessions", "Salary benchmark (US, UK, India)", "Counter-offer calculator + 4yr view", "Recruiter role-play mode", "Email & script generator", "Outcome tracker"].map(f => (
-                <div key={f} style={{ display: "flex", gap: "6px", fontSize: "0.78rem", color: "#94a3b8", marginBottom: "4px", alignItems: "center" }}>
-                  <span style={{ color: "#34d399", flexShrink: 0 }}>✓</span> {f}
+
+              {/* Offer in Hand — $49 */}
+              <div className="oa-plan-card" style={{ border: "1px solid #2d1b69", borderRadius: "12px", padding: "1.15rem", background: "rgba(124,58,237,0.05)", display: "flex", flexDirection: "column" }}>
+                <div style={{ marginBottom: "0.6rem" }}>
+                  <div style={{ fontSize: "0.68rem", color: "#a78bfa", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>High-stakes offers</div>
+                  <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e2e8f0" }}>Offer in Hand</div>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginTop: "6px" }}>
+                    <span style={{ fontSize: "1.6rem", fontWeight: 700, color: "#e2e8f0" }}>$49</span>
+                    <span style={{ fontSize: "0.72rem", color: "#64748b" }}>one-time</span>
+                  </div>
+                  <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "2px" }}>30 days full access</div>
                 </div>
-              ))}
-              <button
-                onClick={() => {
-                  alert("Stripe checkout coming soon. Email hello@offeradvisor.ai to upgrade manually.");
-                  onClose();
-                }}
-                style={{ width: "100%", marginTop: "1rem", padding: "0.65rem", borderRadius: "10px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.85rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
-              >
-                Get Offer Sprint for $29 →
-              </button>
+                <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", flex: 1 }}>
+                  {["Everything in Sprint", "4-year comp projection", "Benefits valuation", "Comp report export", "Follow-up coaching", "Priority support"].map(f => (
+                    <li key={f} style={{ display: "flex", gap: "5px", fontSize: "0.75rem", color: "#94a3b8", marginBottom: "4px", alignItems: "center" }}>
+                      <span style={{ color: "#a78bfa", flexShrink: 0 }}>✓</span>{f}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  className="oa-checkout-btn"
+                  onClick={() => handleCheckout("pro")}
+                  disabled={!!checkoutLoading}
+                  style={{ width: "100%", padding: "0.6rem", borderRadius: "8px", border: "none", background: "#6d28d9", color: "white", fontSize: "0.8rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  {checkoutLoading === "pro" ? "Redirecting…" : "Get Offer in Hand →"}
+                </button>
+              </div>
             </div>
-            <p style={{ textAlign: "center", fontSize: "0.7rem", color: "#475569", margin: 0 }}>
-              Average user negotiates $12–18K more · 400× ROI on this purchase
-            </p>
+
+            {/* Error message */}
+            {checkoutError && (
+              <div style={{ padding: "0.6rem 0.85rem", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", borderRadius: "8px", fontSize: "0.78rem", color: "#fca5a5", marginBottom: "0.75rem" }}>
+                {checkoutError}
+              </div>
+            )}
+
+            {/* Trust signals */}
+            <div style={{ display: "flex", justifyContent: "center", gap: "1.25rem", flexWrap: "wrap" }}>
+              {["🔒 Secure checkout via Stripe", "↩ 30-day money-back guarantee", "📊 Avg user gains $12–18K"].map(t => (
+                <span key={t} style={{ fontSize: "0.68rem", color: "#475569" }}>{t}</span>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* ── Sign In ──────────────────────────────────────────────── */}
+        {/* ── Sign In ────────────────────────────────────────────────────────── */}
         {mode === "signin" && (
-          <div style={{ animation: "oa-slide-up 0.22s ease forwards", width: "100%", maxWidth: 420, display: "flex", justifyContent: "center" }}>
+          <div style={{ animation: "oa-slide-up 0.22s ease forwards", width: "100%", maxWidth: 420 }}>
             <SignIn
+              routing="hash"
               appearance={{
                 variables: {
                   colorPrimary: "#1d4ed8",
@@ -132,8 +222,7 @@ export default function AuthModal({ mode, onClose }) {
                   fontFamily: "'DM Sans', system-ui, sans-serif",
                 },
                 elements: {
-                  rootBox: { width: "100%" },
-                  card: { border: "1px solid #1e293b", boxShadow: "none", width: "100%" },
+                  card: { border: "1px solid #1e293b", boxShadow: "none" },
                   headerTitle: { fontFamily: "'DM Serif Display', serif", fontWeight: 500 },
                   formButtonPrimary: { backgroundColor: "#1d4ed8" },
                   footerActionLink: { color: "#3b82f6" },
@@ -143,10 +232,11 @@ export default function AuthModal({ mode, onClose }) {
           </div>
         )}
 
-        {/* ── Sign Up ──────────────────────────────────────────────── */}
+        {/* ── Sign Up ────────────────────────────────────────────────────────── */}
         {mode === "signup" && (
-          <div style={{ animation: "oa-slide-up 0.22s ease forwards", width: "100%", maxWidth: 420, display: "flex", justifyContent: "center" }}>
+          <div style={{ animation: "oa-slide-up 0.22s ease forwards", width: "100%", maxWidth: 420 }}>
             <SignUp
+              routing="hash"
               appearance={{
                 variables: {
                   colorPrimary: "#1d4ed8",
@@ -159,8 +249,7 @@ export default function AuthModal({ mode, onClose }) {
                   fontFamily: "'DM Sans', system-ui, sans-serif",
                 },
                 elements: {
-                  rootBox: { width: "100%" },
-                  card: { border: "1px solid #1e293b", boxShadow: "none", width: "100%" },
+                  card: { border: "1px solid #1e293b", boxShadow: "none" },
                   headerTitle: { fontFamily: "'DM Serif Display', serif", fontWeight: 500 },
                   formButtonPrimary: { backgroundColor: "#1d4ed8" },
                   footerActionLink: { color: "#3b82f6" },
