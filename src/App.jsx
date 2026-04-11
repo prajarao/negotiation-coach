@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useUser, useAuth, useClerk, UserButton } from "@clerk/clerk-react";
+import { useUser, useAuth, UserButton } from "@clerk/clerk-react";
 import AuthModal from "./AuthModal.jsx";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
@@ -227,30 +227,24 @@ export default function OfferAdvisor() {
   // ── Clerk auth ───────────────────────────────────────────────────────────────
   const { isLoaded, isSignedIn, user } = useUser();
   const { signOut }                    = useAuth();
-  const clerk                          = useClerk();
 
   // User's plan comes from Clerk publicMetadata (set by webhook on sign-up,
   // updated by Stripe webhook after payment)
   const userPlan = (user?.publicMetadata?.plan) || "free";
   const userName = user?.firstName || user?.username || null;
 
-  // Auth modal state — only used for the upgrade pricing card now.
-  // Sign-in / sign-up use Clerk's built-in modal (clerk.openSignIn / openSignUp).
-  const [authModal, setAuthModal] = useState(null); // null | "upgrade"
-
-  // Helpers to open Clerk's native sign-in / sign-up modals
-  const openSignIn = () => clerk.openSignIn({ fallbackRedirectUrl: "/" });
-  const openSignUp = () => clerk.openSignUp({ fallbackRedirectUrl: "/" });
+  // Auth modal state
+  const [authModal, setAuthModal] = useState(null); // null | "signin" | "signup" | "upgrade"
 
   // Helper — open sign-in wall when a gated action is attempted
   const requireAuth = (cb) => {
-    if (!isSignedIn) { openSignIn(); return; }
+    if (!isSignedIn) { setAuthModal("signin"); return; }
     cb();
   };
 
   // Helper — open upgrade wall when a paid feature is attempted
   const requirePlan = (tabId, cb) => {
-    if (!isSignedIn) { openSignIn(); return; }
+    if (!isSignedIn) { setAuthModal("signin"); return; }
     if (!canAccess(userPlan, tabId)) {
       setAuthModal("upgrade");
       return;
@@ -538,7 +532,7 @@ export default function OfferAdvisor() {
             }
             T={T}
             isSignedIn={isSignedIn}
-            onUpgrade={() => isSignedIn ? setAuthModal("upgrade") : openSignUp()}
+            onUpgrade={() => setAuthModal(isSignedIn ? "upgrade" : "signup")}
           />
           <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId={activeTab} />
         </div>
@@ -599,11 +593,11 @@ export default function OfferAdvisor() {
                   <div style={{ fontSize: "0.74rem", color: T.textSecondary }}>Sign up free to continue — your conversation won't be lost.</div>
                 </div>
                 <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-                  <button onClick={openSignIn}
+                  <button onClick={() => setAuthModal("signin")}
                     style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: `1px solid ${T.border}`, background: "transparent", color: T.textSecondary, fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit" }}>
                     Sign in
                   </button>
-                  <button onClick={openSignUp}
+                  <button onClick={() => setAuthModal("signup")}
                     style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
                     Sign up free →
                   </button>
@@ -1001,11 +995,11 @@ export default function OfferAdvisor() {
             </div>
           ) : (
             <div style={{ display: "flex", gap: "0.3rem" }}>
-              <button onClick={openSignIn}
+              <button onClick={() => setAuthModal("signin")}
                 style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
                 Sign in
               </button>
-              <button onClick={openSignUp}
+              <button onClick={() => setAuthModal("signup")}
                 style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
                 Sign up free
               </button>
@@ -1023,7 +1017,7 @@ export default function OfferAdvisor() {
             <button key={tab.id}
               onClick={() => {
                 if (locked) {
-                  if (!isSignedIn) openSignUp();
+                  if (!isSignedIn) setAuthModal("signup");
                   else setAuthModal("upgrade");
                 } else {
                   setActiveTab(tab.id);
