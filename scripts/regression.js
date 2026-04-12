@@ -1292,6 +1292,313 @@ const TESTS = [
       };
     },
   },
+
+  // ── 16. Stripe Checkout API ───────────────────────────────────────────────
+  {
+    id: "checkout-rejects-get",
+    category: "Stripe Checkout",
+    name: "Checkout API rejects GET requests (405)",
+    fn: async () => {
+      const url = `${BASE_URL}/api/checkout`;
+      const res = await fetch(url, { method: "GET" });
+      const pass405 = res.status === 405;
+      return {
+        pass: pass405,
+        message: pass405 ? "Correctly returns 405 for GET" : `Unexpected status ${res.status}`,
+      };
+    },
+  },
+
+  {
+    id: "checkout-rejects-missing-plan",
+    category: "Stripe Checkout",
+    name: "Checkout API rejects missing/invalid plan (400)",
+    fn: async () => {
+      const r = await post("/api/checkout", {
+        plan: "nonexistent",
+        clerkUserId: "user_test123",
+        userEmail: "test@example.com",
+      });
+      return {
+        pass: r.status === 400,
+        message: r.status === 400 ? `Correctly rejects invalid plan (400)` : `Expected 400, got ${r.status}`,
+        detail: JSON.stringify(r.data).slice(0, 120),
+      };
+    },
+  },
+
+  {
+    id: "checkout-rejects-missing-user",
+    category: "Stripe Checkout",
+    name: "Checkout API rejects missing clerkUserId (401)",
+    fn: async () => {
+      const r = await post("/api/checkout", {
+        plan: "sprint",
+        userEmail: "test@example.com",
+      });
+      return {
+        pass: r.status === 401,
+        message: r.status === 401 ? `Correctly rejects missing user (401)` : `Expected 401, got ${r.status}`,
+        detail: JSON.stringify(r.data).slice(0, 120),
+      };
+    },
+  },
+
+  {
+    id: "checkout-error-format",
+    category: "Stripe Checkout",
+    name: "Checkout error responses include error field",
+    fn: async () => {
+      const r = await post("/api/checkout", { plan: "bad" });
+      const hasError = typeof r.data?.error === "string" && r.data.error.length > 0;
+      return {
+        pass: hasError,
+        message: hasError ? `Error response well-formed: "${r.data.error.slice(0, 60)}"` : "Missing error field in response",
+        detail: JSON.stringify(r.data).slice(0, 150),
+      };
+    },
+  },
+
+  // ── 17. Stripe Webhook ────────────────────────────────────────────────────
+  {
+    id: "stripe-webhook-rejects-get",
+    category: "Stripe Webhook",
+    name: "Stripe webhook rejects GET requests (405)",
+    fn: async () => {
+      const url = `${BASE_URL}/api/stripe-webhook`;
+      const res = await fetch(url, { method: "GET" });
+      const pass405 = res.status === 405;
+      return {
+        pass: pass405,
+        message: pass405 ? "Correctly returns 405 for GET" : `Unexpected status ${res.status}`,
+      };
+    },
+  },
+
+  {
+    id: "stripe-webhook-rejects-unsigned",
+    category: "Stripe Webhook",
+    name: "Stripe webhook rejects POST without valid signature (400)",
+    fn: async () => {
+      const url = `${BASE_URL}/api/stripe-webhook`;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "stripe-signature": "t=0,v1=fake" },
+          body: JSON.stringify({ type: "checkout.session.completed" }),
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        const data = await res.json();
+        const blocked = res.status === 400;
+        return {
+          pass: blocked,
+          message: blocked ? `Correctly rejects unsigned webhook (400)` : `Expected 400, got ${res.status}`,
+          detail: JSON.stringify(data).slice(0, 120),
+        };
+      } catch (e) {
+        clearTimeout(timer);
+        return { pass: false, message: `Exception: ${e.message}` };
+      }
+    },
+  },
+
+  // ── 18. Checkout Source Validation ─────────────────────────────────────────
+  {
+    id: "checkout-source-stripe-config",
+    category: "Checkout Flow",
+    name: "api/checkout.js has correct Stripe session configuration",
+    fn: async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      let code = "";
+      try {
+        code = fs.readFileSync(path.resolve("api/checkout.js"), "utf8");
+      } catch (e) {
+        return { pass: false, message: "api/checkout.js not found" };
+      }
+      const hasPaymentMode   = code.includes('mode: "payment"');
+      const hasMetadata      = code.includes("clerkUserId") && code.includes("metadata");
+      const hasSuccessUrl    = code.includes("success_url") && code.includes("checkout=success");
+      const hasCancelUrl     = code.includes("cancel_url") && code.includes("checkout=cancelled");
+      const hasPriceIds      = code.includes("STRIPE_SPRINT_PRICE_ID") && code.includes("STRIPE_PRO_PRICE_ID");
+      const hasPromoCodes    = code.includes("allow_promotion_codes");
+      const allPresent = hasPaymentMode && hasMetadata && hasSuccessUrl && hasCancelUrl && hasPriceIds;
+      return {
+        pass: allPresent,
+        message: allPresent
+          ? `Stripe config: payment mode ✓ metadata ✓ redirects ✓ price IDs ✓ promo codes: ${hasPromoCodes}`
+          : `Missing — mode:${hasPaymentMode} meta:${hasMetadata} success:${hasSuccessUrl} cancel:${hasCancelUrl} prices:${hasPriceIds}`,
+      };
+    },
+  },
+
+  {
+    id: "checkout-source-webhook-config",
+    category: "Checkout Flow",
+    name: "api/stripe-webhook.js handles checkout.session.completed + updates Clerk",
+    fn: async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      let code = "";
+      try {
+        code = fs.readFileSync(path.resolve("api/stripe-webhook.js"), "utf8");
+      } catch (e) {
+        return { pass: false, message: "api/stripe-webhook.js not found" };
+      }
+      const handlesCompleted = code.includes("checkout.session.completed");
+      const handlesExpired   = code.includes("checkout.session.expired");
+      const verifiesSig      = code.includes("constructEvent") && code.includes("stripe-signature");
+      const updatesClerk     = code.includes("updateUserMetadata") && code.includes("clerkUserId");
+      const sets30Days       = code.includes("30") && code.includes("expiresAt");
+      const allPresent = handlesCompleted && verifiesSig && updatesClerk && sets30Days;
+      return {
+        pass: allPresent,
+        message: allPresent
+          ? `Webhook: completed ✓ expired:${handlesExpired} sig verify ✓ Clerk update ✓ 30-day expiry ✓`
+          : `Missing — completed:${handlesCompleted} sig:${verifiesSig} clerk:${updatesClerk} expiry:${sets30Days}`,
+      };
+    },
+  },
+
+  // ── 19. Pricing Modal UI ──────────────────────────────────────────────────
+  {
+    id: "pricing-dual-plans",
+    category: "Pricing Page",
+    name: "AuthModal has Sprint ($29) and Pro ($49) pricing cards",
+    fn: async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      let code = "";
+      try {
+        code = fs.readFileSync(path.resolve("src/AuthModal.jsx"), "utf8");
+      } catch (e) {
+        return { pass: false, message: "src/AuthModal.jsx not found" };
+      }
+      const hasSprint   = code.includes("Offer Sprint") && code.includes("$29");
+      const hasPro      = code.includes("Offer in Hand") && code.includes("$49");
+      const hasCheckout = code.includes("handleCheckout") && code.includes("/api/checkout");
+      const hasTrust    = code.includes("Stripe") && code.includes("money-back");
+      return {
+        pass: hasSprint && hasPro && hasCheckout,
+        message: hasSprint && hasPro && hasCheckout
+          ? `Sprint $29 ✓ Pro $49 ✓ Stripe checkout ✓ Trust signals: ${hasTrust}`
+          : `Missing — sprint:${hasSprint} pro:${hasPro} checkout:${hasCheckout}`,
+      };
+    },
+  },
+
+  {
+    id: "pricing-checkout-loading-states",
+    category: "Pricing Page",
+    name: "Checkout buttons have loading and error states",
+    fn: async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      let code = "";
+      try {
+        code = fs.readFileSync(path.resolve("src/AuthModal.jsx"), "utf8");
+      } catch (e) {
+        return { pass: false, message: "src/AuthModal.jsx not found" };
+      }
+      const hasLoading  = code.includes("checkoutLoading") && code.includes("Redirecting");
+      const hasError    = code.includes("checkoutError");
+      const hasDisabled = code.includes("disabled");
+      return {
+        pass: hasLoading && hasError && hasDisabled,
+        message: hasLoading && hasError && hasDisabled
+          ? "Loading state ✓ Error display ✓ Button disabled during checkout ✓"
+          : `Missing — loading:${hasLoading} error:${hasError} disabled:${hasDisabled}`,
+      };
+    },
+  },
+
+  {
+    id: "pricing-feature-lists",
+    category: "Pricing Page",
+    name: "Both plans list feature benefits with checkmarks",
+    fn: async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      let code = "";
+      try {
+        code = fs.readFileSync(path.resolve("src/AuthModal.jsx"), "utf8");
+      } catch (e) {
+        return { pass: false, message: "src/AuthModal.jsx not found" };
+      }
+      const sprintFeatures = ["Unlimited sessions", "Salary benchmark", "Counter calculator", "Role-play mode"].every(f => code.includes(f));
+      const proFeatures    = ["Everything in Sprint", "Priority support"].every(f => code.includes(f));
+      const hasCheckmarks  = code.includes("✓");
+      return {
+        pass: sprintFeatures && proFeatures && hasCheckmarks,
+        message: sprintFeatures && proFeatures
+          ? "Sprint features ✓ Pro features ✓ Checkmarks ✓"
+          : `Missing — sprint:${sprintFeatures} pro:${proFeatures}`,
+      };
+    },
+  },
+
+  // ── 20. Checkout Return URL Handling ───────────────────────────────────────
+  {
+    id: "return-url-success-handler",
+    category: "Checkout Flow",
+    name: "App.jsx detects ?checkout=success and shows confirmation",
+    fn: async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      let code = "";
+      try {
+        code = fs.readFileSync(path.resolve("src/App.jsx"), "utf8");
+      } catch (e) {
+        return { pass: false, message: "src/App.jsx not found" };
+      }
+      const detectsSuccess  = code.includes('checkout=success') || code.includes("checkout");
+      const readsParam      = code.includes("URLSearchParams") && code.includes('get("checkout")');
+      const cleanUrl        = code.includes("replaceState");
+      const autoDismiss     = code.includes("setTimeout") && code.includes("setCheckoutSuccess");
+      const showsBanner     = code.includes("checkoutSuccess");
+      const allPresent = detectsSuccess && readsParam && cleanUrl && showsBanner;
+      return {
+        pass: allPresent,
+        message: allPresent
+          ? `URL detection ✓ Param parsing ✓ URL cleanup ✓ Auto-dismiss: ${autoDismiss} Banner ✓`
+          : `Missing — detect:${detectsSuccess} parse:${readsParam} clean:${cleanUrl} banner:${showsBanner}`,
+      };
+    },
+  },
+
+  {
+    id: "return-url-success-page",
+    category: "Checkout Flow",
+    name: "Success return URL format matches Stripe config",
+    fn: async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      let checkoutCode = "";
+      let appCode = "";
+      try {
+        checkoutCode = fs.readFileSync(path.resolve("api/checkout.js"), "utf8");
+        appCode = fs.readFileSync(path.resolve("src/App.jsx"), "utf8");
+      } catch (e) {
+        return { pass: false, message: "Could not read source files" };
+      }
+      // Checkout sets: ?checkout=success&plan=${plan}&session_id={CHECKOUT_SESSION_ID}
+      const serverSendsSuccess = checkoutCode.includes("checkout=success") && checkoutCode.includes("plan=");
+      const serverSendsCancelled = checkoutCode.includes("checkout=cancelled");
+      // App reads: params.get("checkout") and params.get("plan")
+      const appReadsCheckout = appCode.includes('get("checkout")');
+      const appReadsPlan     = appCode.includes('get("plan")');
+      const allMatch = serverSendsSuccess && serverSendsCancelled && appReadsCheckout && appReadsPlan;
+      return {
+        pass: allMatch,
+        message: allMatch
+          ? "Server success URL ✓ Cancel URL ✓ App reads checkout param ✓ App reads plan param ✓"
+          : `Mismatch — serverSuccess:${serverSendsSuccess} cancel:${serverSendsCancelled} appCheckout:${appReadsCheckout} appPlan:${appReadsPlan}`,
+      };
+    },
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
