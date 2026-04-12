@@ -21,16 +21,6 @@
 
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-11-20",
-});
-
-// Map plan slugs to their Stripe Price IDs (set in env — not hardcoded)
-const PRICE_IDS = {
-  sprint: process.env.STRIPE_SPRINT_PRICE_ID, // $29
-  pro:    process.env.STRIPE_PRO_PRICE_ID,     // $49
-};
-
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://offeradvisor.ai";
 
 export default async function handler(req, res) {
@@ -41,7 +31,7 @@ export default async function handler(req, res) {
   const { plan, clerkUserId, userEmail } = req.body;
 
   // ── Validate inputs ─────────────────────────────────────────────────────────
-  if (!plan || !PRICE_IDS[plan]) {
+  if (!plan || !["sprint", "pro"].includes(plan)) {
     return res.status(400).json({
       error: `Invalid plan "${plan}". Must be "sprint" or "pro".`,
     });
@@ -51,13 +41,29 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: "User must be signed in to checkout." });
   }
 
-  if (!PRICE_IDS[plan]) {
+  // ── Validate env vars before calling Stripe ─────────────────────────────────
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeKey) {
+    console.error("STRIPE_SECRET_KEY is not set");
     return res.status(500).json({
-      error: `Price ID for plan "${plan}" not configured. Set STRIPE_${plan.toUpperCase()}_PRICE_ID in Vercel env vars.`,
+      error: "Payment system not configured. Please contact support.",
+      code: "STRIPE_NOT_CONFIGURED",
+    });
+  }
+
+  const priceEnvKey = plan === "sprint" ? "STRIPE_SPRINT_PRICE_ID" : "STRIPE_PRO_PRICE_ID";
+  const priceId = process.env[priceEnvKey];
+  if (!priceId) {
+    console.error(`${priceEnvKey} is not set`);
+    return res.status(500).json({
+      error: `Price for "${plan}" plan not configured. Please contact support.`,
+      code: "PRICE_NOT_CONFIGURED",
     });
   }
 
   try {
+    const stripe = new Stripe(stripeKey, { apiVersion: "2024-11-20" });
+
     // ── Create Stripe Checkout Session ──────────────────────────────────────────
     const session = await stripe.checkout.sessions.create({
       mode: "payment",                    // one-time payment, not subscription
@@ -65,7 +71,7 @@ export default async function handler(req, res) {
 
       line_items: [
         {
-          price: PRICE_IDS[plan],
+          price: priceId,
           quantity: 1,
         },
       ],
@@ -97,6 +103,9 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error("Stripe checkout error:", err.message);
-    return res.status(500).json({ error: "Could not create checkout session. Please try again." });
+    const userMessage = err.type === "StripeInvalidRequestError"
+      ? "Invalid payment configuration. Please contact support."
+      : "Could not create checkout session. Please try again.";
+    return res.status(500).json({ error: userMessage, code: "STRIPE_ERROR" });
   }
 }
