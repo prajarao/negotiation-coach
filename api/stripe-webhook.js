@@ -21,9 +21,7 @@
 import Stripe from "stripe";
 import { clerkClient } from "@clerk/clerk-sdk-node";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-11-20",
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Disable Vercel's default body parser — Stripe needs the raw body to verify signatures
 export const config = { api: { bodyParser: false } };
