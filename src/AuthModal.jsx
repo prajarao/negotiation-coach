@@ -31,10 +31,21 @@ export default function AuthModal({ mode, onClose, T }) {
         }),
       });
 
-      const data = await res.json();
+      // Parse the response — even on error it returns JSON
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Server returned ${res.status} with no JSON body`);
+      }
 
-      if (!res.ok || !data.url) {
-        throw new Error(data.error || "Could not start checkout");
+      if (!res.ok) {
+        // Surface the exact server error — not a generic message
+        throw new Error(data.error || `Server error ${res.status}`);
+      }
+
+      if (!data.url) {
+        throw new Error("Checkout session created but no URL returned");
       }
 
       // Redirect to Stripe-hosted checkout page
