@@ -106,7 +106,6 @@ export default async function handler(req, res) {
     return res.status(500).json({
       error: "Could not create checkout session. Please try again.",
       code: "STRIPE_ERROR",
-      debug: err.message,
     });
   }
 }
