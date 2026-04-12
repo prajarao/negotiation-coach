@@ -230,8 +230,35 @@ export default function OfferAdvisor() {
 
   // User's plan comes from Clerk publicMetadata (set by webhook on sign-up,
   // updated by Stripe webhook after payment)
-  const userPlan = (user?.publicMetadata?.plan) || "free";
-  const userName = user?.firstName || user?.username || null;
+  const clerkPlan = (user?.publicMetadata?.plan) || "free";
+
+  // ── Admin / test override ─────────────────────────────────────────────────
+  // Set via localStorage so you can test locked screens without real payments.
+  // Open browser console and run:
+  //   localStorage.setItem("oa_admin_plan", "pro")   → unlock everything
+  //   localStorage.setItem("oa_admin_plan", "sprint") → Offer Sprint
+  //   localStorage.setItem("oa_admin_plan", "free")  → back to free
+  //   localStorage.removeItem("oa_admin_plan")        → use real Clerk plan
+  const [adminPlan, setAdminPlan] = useState(() => localStorage.getItem("oa_admin_plan") || null);
+
+  // Admin toolbar state
+  const [showAdminBar, setShowAdminBar] = useState(() => !!localStorage.getItem("oa_admin_plan"));
+
+  const userPlan = adminPlan || clerkPlan;
+  const userName = adminPlan ? "Admin" : (user?.firstName || user?.username || null);
+
+  // Allow toggling plan from admin bar
+  const setTestPlan = (plan) => {
+    if (plan === "off") {
+      localStorage.removeItem("oa_admin_plan");
+      setAdminPlan(null);
+      setShowAdminBar(false);
+    } else {
+      localStorage.setItem("oa_admin_plan", plan);
+      setAdminPlan(plan);
+      setShowAdminBar(true);
+    }
+  };
 
   // Auth modal state
   const [authModal, setAuthModal] = useState(null); // null | "signin" | "signup" | "upgrade"
@@ -1001,7 +1028,25 @@ export default function OfferAdvisor() {
       )}
 
       {/* Header */}
-      <div style={{ padding: "0.7rem 1.25rem", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: T.headerBg, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
+      {/* ── Admin Test Bar ───────────────────────────────────────────────────── */}
+      {showAdminBar && (
+        <div style={{ background: "#1e1a2e", borderBottom: "1px solid #4c1d95", padding: "0.35rem 1rem", display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap", flexShrink: 0 }}>
+          <span style={{ fontSize: "0.65rem", color: "#a78bfa", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>🛠 Admin mode</span>
+          <span style={{ fontSize: "0.65rem", color: "#7c3aed" }}>Plan:</span>
+          {["free", "sprint", "pro"].map((p) => (
+            <button key={p} onClick={() => setTestPlan(p)}
+              style={{ padding: "2px 10px", borderRadius: "10px", border: `1px solid ${userPlan === p ? "#7c3aed" : "#4c1d95"}`, background: userPlan === p ? "#7c3aed" : "transparent", color: userPlan === p ? "white" : "#a78bfa", fontSize: "0.65rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
+              {p === "sprint" ? "Offer Sprint" : p === "pro" ? "Offer in Hand" : "Free"}
+            </button>
+          ))}
+          <button onClick={() => setTestPlan("off")}
+            style={{ marginLeft: "auto", padding: "2px 10px", borderRadius: "10px", border: "1px solid #4c1d95", background: "transparent", color: "#64748b", fontSize: "0.65rem", cursor: "pointer", fontFamily: "inherit" }}>
+            ✕ Exit admin
+          </button>
+        </div>
+      )}
+
+            <div style={{ padding: "0.7rem 1.25rem", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: T.headerBg, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
           <LogoMark size={30} />
           <div>
