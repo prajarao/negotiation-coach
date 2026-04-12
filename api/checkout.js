@@ -102,10 +102,11 @@ export default async function handler(req, res) {
     return res.status(200).json({ url: session.url });
 
   } catch (err) {
-    console.error("Stripe checkout error:", err.message);
-    const userMessage = err.type === "StripeInvalidRequestError"
-      ? "Invalid payment configuration. Please contact support."
-      : "Could not create checkout session. Please try again.";
-    return res.status(500).json({ error: userMessage, code: "STRIPE_ERROR" });
+    console.error("Stripe checkout error:", err.type, err.message);
+    return res.status(500).json({
+      error: "Could not create checkout session. Please try again.",
+      code: "STRIPE_ERROR",
+      debug: err.message,
+    });
   }
 }
