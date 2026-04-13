@@ -619,22 +619,51 @@ footer{
   <a href="/app" class="btn-primary" style="font-size:1.05rem;padding:.9rem 2.25rem">Review my offer now →</a>
 </section>
 
+<!-- Privacy Modal -->
+<div id="modal-privacy" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.75);overflow-y:auto;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="max-width:680px;margin:4rem auto;background:#0a1428;border:1px solid #1a2840;border-radius:14px;padding:2.5rem clamp(1.5rem,5vw,3rem);position:relative;">
+    <button onclick="document.getElementById('modal-privacy').style.display='none'" style="position:absolute;top:1.25rem;right:1.25rem;background:none;border:none;color:#8899b4;font-size:1.4rem;cursor:pointer;line-height:1;">×</button>
+    <h2 style="font-family:'DM Serif Display',serif;font-size:1.9rem;margin-bottom:1.5rem;color:#e8edf5;">Privacy Policy</h2>
+    <p style="font-size:.82rem;color:#4a5c78;margin-bottom:1.5rem;">Last updated: April 2025</p>
+    <div style="font-size:.92rem;color:#8899b4;line-height:1.75;display:flex;flex-direction:column;gap:1.25rem;">
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">What we collect</strong>Your name and email address when you create an account (via Clerk). Payment information is processed entirely by Stripe — we never see or store your card details. The content of your coaching sessions (salary figures, offer details) is sent to our AI provider to generate responses and is not stored long-term.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">How we use it</strong>To provide the service, send account-related emails (receipts, updates), and improve the product. We do not sell your data to third parties. We do not use your data for advertising.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Third-party services</strong>Clerk (authentication), Stripe (payments), Vercel (hosting), and Groq (AI inference). Each has their own privacy policy governing your data on their platforms.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Data retention</strong>Account data is retained while your account is active. You can request deletion at any time by contacting us via the support chat. We will delete your data within 30 days of a verified request.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Cookies</strong>We use session cookies for authentication only. No tracking cookies, no advertising pixels.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Your rights</strong>You have the right to access, correct, or delete your personal data. If you are located in the EU, UK, or California, additional rights may apply under GDPR, UK GDPR, or CCPA respectively. Contact us via the support chat to exercise these rights.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Changes</strong>We may update this policy occasionally. Continued use of OfferAdvisor after changes constitutes acceptance of the updated policy.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Terms Modal -->
+<div id="modal-terms" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.75);overflow-y:auto;" onclick="if(event.target===this)this.style.display='none'">
+  <div style="max-width:680px;margin:4rem auto;background:#0a1428;border:1px solid #1a2840;border-radius:14px;padding:2.5rem clamp(1.5rem,5vw,3rem);position:relative;">
+    <button onclick="document.getElementById('modal-terms').style.display='none'" style="position:absolute;top:1.25rem;right:1.25rem;background:none;border:none;color:#8899b4;font-size:1.4rem;cursor:pointer;line-height:1;">×</button>
+    <h2 style="font-family:'DM Serif Display',serif;font-size:1.9rem;margin-bottom:1.5rem;color:#e8edf5;">Terms of Service</h2>
+    <p style="font-size:.82rem;color:#4a5c78;margin-bottom:1.5rem;">Last updated: April 2025</p>
+    <div style="font-size:.92rem;color:#8899b4;line-height:1.75;display:flex;flex-direction:column;gap:1.25rem;">
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">The service</strong>OfferAdvisor provides AI-powered salary negotiation coaching tools. The service is intended for adults (18+) who are actively negotiating or planning to negotiate their compensation.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Not professional advice</strong>OfferAdvisor is an AI coaching tool — not a licensed financial advisor, employment attorney, or HR professional. The information provided is for educational and informational purposes only. Always use your own judgment and consult qualified professionals for decisions with significant financial or legal consequences.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Payment and refunds</strong>Paid plans (Offer Sprint at $29, Offer in Hand at $49) are one-time payments that grant 30 days of full access. We offer a 30-day money-back guarantee, no questions asked. To request a refund, contact us via the support chat and we will process it within 2 business days.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Acceptable use</strong>You agree not to misuse the service — including attempting to reverse-engineer the AI, scrape data, create multiple accounts to circumvent usage limits, or use the platform for any unlawful purpose.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Intellectual property</strong>The OfferAdvisor platform, brand, and underlying code are owned by OfferAdvisor. Content you input remains yours. AI-generated coaching output is provided for your personal use.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Limitation of liability</strong>OfferAdvisor is provided "as is." We are not liable for the outcome of any salary negotiation conducted using the platform. Results vary based on individual circumstances, employer policies, and market conditions.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Changes to terms</strong>We may update these terms from time to time. Continued use of OfferAdvisor after changes constitutes your acceptance of the updated terms.</div>
+    </div>
+  </div>
+</div>
+
 <!-- FOOTER -->
 <footer>
   <div class="footer-copy">© 2025 OfferAdvisor · Built with AI, for humans who want more</div>
   <div class="footer-links">
-    <a href="/privacy">Privacy</a>
-    <a href="/terms">Terms</a>
-    <a href="mailto:support@offeradvisor.ai">support@offeradvisor.ai</a>
+    <a href="#" onclick="event.preventDefault();document.getElementById('modal-privacy').style.display='block'">Privacy</a>
+    <a href="#" onclick="event.preventDefault();document.getElementById('modal-terms').style.display='block'">Terms</a>
   </div>
 </footer>
 
 <script>
 // Scroll-triggered reveals
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target); } });
-}, { threshold: 0.1 });
-document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-</script>
-</body>
-</html>
+const observer = new IntersectionObserver((entries
