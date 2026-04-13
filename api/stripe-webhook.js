@@ -20,6 +20,7 @@
 
 import Stripe from "stripe";
 import { clerkClient } from "@clerk/clerk-sdk-node";
+import { supabase } from "./_supabase.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -95,6 +96,20 @@ export default async function handler(req, res) {
             emailCount: 0,
           },
         });
+
+        // Update Supabase users table — this is what the server-side plan gate reads
+        const { error: sbError } = await supabase.from("users").upsert(
+          {
+            clerk_id:        clerkUserId,
+            plan,
+            usage_count:     0,
+            plan_expires_at: expiresAt.toISOString(),
+          },
+          { onConflict: "clerk_id" }
+        );
+        if (sbError) {
+          console.error(`Supabase update failed for ${clerkUserId}:`, sbError.message);
+        }
 
         console.log(
           `✅ User ${clerkUserId} upgraded to plan "${plan}" — expires ${expiresAt.toDateString()}`
