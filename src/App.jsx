@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useUser, useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/clerk-react";
 import AuthModal from "./AuthModal.jsx";
+import { sendSessionSummaryEmail } from "./utils/sessionEmail";
+import CrispChat from "./components/CrispChat";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -274,6 +276,10 @@ export default function OfferAdvisor() {
       setCheckoutSuccess(plan);
       // Clean URL so refresh doesn't re-trigger
       window.history.replaceState({}, "", window.location.pathname);
+      // Re-fetch Clerk user data so the plan badge + tab locks update immediately
+      if (user) {
+        setTimeout(() => user.reload(), 1500);
+      }
       // Auto-dismiss after 8s
       setTimeout(() => setCheckoutSuccess(null), 8000);
     }
@@ -300,7 +306,6 @@ export default function OfferAdvisor() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("coach");
-
   // Personalise welcome message once Clerk has loaded the user
   useEffect(() => {
     if (isLoaded && isSignedIn && userName) {
@@ -479,6 +484,17 @@ export default function OfferAdvisor() {
       if (data.median) {
         const sym = data.currencySymbol || getCurrencySymbol(autoCurrency);
         await sendMessage(`[Market Data] ${data.occupation} in ${data.location}: 25th=${sym}${data.p25?.toLocaleString()}, Median=${sym}${data.median?.toLocaleString()}, 75th=${sym}${data.p75?.toLocaleString()}. ${offeredSalary ? `Offer of ${sym}${parseFloat(offeredSalary).toLocaleString()} is ${data.percentileRating} — ${data.negotiationStrength} leverage. ` : ""}Source: ${data.source}`);
+        // Send benchmark email summary
+        if (isSignedIn && user?.emailAddresses?.[0]?.emailAddress) {
+          sendSessionSummaryEmail({
+            userEmail: user.emailAddresses[0].emailAddress,
+            userName: user.firstName || "User",
+            sessionType: "benchmark",
+            role: jobTitle,
+            location: jobLocation || "United States",
+            data: { average: data.median, p25: data.p25, p75: data.p75 },
+          }).catch(e => console.error("Benchmark email error:", e));
+        }
       }
     } catch (e) { console.error("Salary error:", e); }
     finally { setSalaryLoading(false); }
@@ -515,6 +531,23 @@ export default function OfferAdvisor() {
       });
       const aiData = await aiRes.json();
       setCounterResult({ current: { base, annualBonus, annualEquity, signing, totalAnnual, total4Year }, counter: { base: counterBase, annualBonus: counterAnnualBonus, annualEquity: counterAnnualEquity, signing: counterSigning, totalAnnual: counterTotalAnnual, total4Year: counterTotal4Year }, gap: { annual: counterTotalAnnual - totalAnnual, fourYear: fourYearGap }, strategy: aiData.content?.[0]?.text || "" });
+      // Send counter-offer email summary
+      if (isSignedIn && user?.emailAddresses?.[0]?.emailAddress) {
+        sendSessionSummaryEmail({
+          userEmail: user.emailAddresses[0].emailAddress,
+          userName: user.firstName || "User",
+          sessionType: "counter_offer",
+          baseOffer: base,
+          proposedCounter: counterBase,
+          fourYearProjection: [
+            { salary: counterTotalAnnual, cumulative: counterTotalAnnual },
+            { salary: counterTotalAnnual, cumulative: counterTotalAnnual * 2 },
+            { salary: counterTotalAnnual, cumulative: counterTotalAnnual * 3 },
+            { salary: counterTotalAnnual, cumulative: counterTotalAnnual * 4 + counterSigning },
+          ],
+          totalAdditionalCompensation: fourYearGap,
+        }).catch(e => console.error("Counter-offer email error:", e));
+      }
       await sendMessage(`[Counter Calculated] Current: $${totalAnnual.toLocaleString()}/yr. Counter: $${counterTotalAnnual.toLocaleString()}/yr. That's $${fourYearGap.toLocaleString()} more over 4 years. What's my best opening line?`);
     } catch (e) { console.error("Calc error:", e); }
     finally { setCalcLoading(false); }
@@ -816,6 +849,17 @@ export default function OfferAdvisor() {
                   const next = mode === "roleplay" ? "coach" : "roleplay";
                   setMode(next);
                   setMessages((p) => [...p, { role: "assistant", content: next === "roleplay" ? "**Role-play mode on.** I'm Alex, your recruiter. Which role and company are we discussing? I'll push back the way a real recruiter would." : "**Coach mode restored.** Great practice. What would you like to refine?" }]);
+                  // Send role-play recap email when ending the session
+                  if (next === "coach" && isSignedIn && user?.emailAddresses?.[0]?.emailAddress) {
+                    sendSessionSummaryEmail({
+                      userEmail: user.emailAddresses[0].emailAddress,
+                      userName: user.firstName || "User",
+                      sessionType: "recruiter",
+                      scenario: lastRole ? `${lastRole} negotiation role-play` : "Salary negotiation role-play",
+                      keyTakeaways: ["Practice makes perfect — review your responses", "Focus on value, not need", "Stay calm under pressure"],
+                      commonObjections: ["Budget constraints", "Competing candidates", "Internal equity limits"],
+                    }).catch(e => console.error("Role-play email error:", e));
+                  }
                 }}
                   style={{ padding: "0.45rem 1rem", borderRadius: "8px", border: "none", background: mode === "roleplay" ? "rgba(124,58,237,0.12)" : "#1d4ed8", color: mode === "roleplay" ? "#a78bfa" : "white", fontSize: "0.78rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500, border: mode === "roleplay" ? "1px solid #7c3aed" : "none" }}>
                   {mode === "roleplay" ? "Stop role-play" : "Start role-play with Alex →"}
@@ -960,6 +1004,8 @@ export default function OfferAdvisor() {
         *, *::before, *::after { transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease; }
       `}</style>
 
+      <CrispChat />
+
       {/* Auth modal — shown when user clicks sign-in / sign-up / hits a paywall */}
       <AuthModal mode={authModal} onClose={() => setAuthModal(null)} T={T} />
 
@@ -1079,7 +1125,14 @@ export default function OfferAdvisor() {
           {!isLoaded ? null : isSignedIn ? (
             <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
               {/* Plan badge */}
-              <div style={{ fontSize: "0.65rem", padding: "2px 7px", borderRadius: "8px", background: userPlan === "free" ? T.cardBg : "rgba(29,78,216,0.12)", color: userPlan === "free" ? T.textMuted : "#60a5fa", border: `1px solid ${userPlan === "free" ? T.border : "rgba(29,78,216,0.3)"}`, fontWeight: 500 }}>
+              <div style={{
+                fontSize: "0.65rem", padding: "2px 8px", borderRadius: "8px", fontWeight: 600, letterSpacing: "0.02em",
+                ...(userPlan === "pro"
+                  ? { background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#fff", border: "1px solid #7c3aed", boxShadow: "0 0 8px rgba(124,58,237,0.35)" }
+                  : userPlan === "sprint"
+                  ? { background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#fff", border: "1px solid #2563eb", boxShadow: "0 0 8px rgba(37,99,235,0.35)" }
+                  : { background: T.cardBg, color: T.textMuted, border: `1px solid ${T.border}` }),
+              }}>
                 {PLANS[userPlan]?.label || "Free"}
               </div>
               {/* Clerk's built-in user button — handles profile, sign-out, etc */}

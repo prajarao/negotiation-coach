@@ -98,12 +98,35 @@ export default async function handler(req, res) {
       } else {
         console.log(`New user ${userId} synced to Supabase with plan: free`);
       }
+
+      // Send welcome email (non-critical — don't fail user creation if email fails)
+      try {
+        const welcomeRes = await fetch(
+          `https://${process.env.VERCEL_URL || "offeradvisor.ai"}/api/send-plan-confirmation`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userEmail: email,
+              userName: data.first_name || data.username || null,
+              plan: "free",
+              checkoutSessionId: null,
+            }),
+          }
+        );
+        if (!welcomeRes.ok) {
+          console.error("Failed to send welcome email:", await welcomeRes.text());
+        } else {
+          console.log(`📧 Welcome email sent to ${email}`);
+        }
+      } catch (emailErr) {
+        console.error("Welcome email error:", emailErr.message);
+      }
     } catch (err) {
       console.error(`Failed to process user.created for ${userId}:`, err.message);
       return res.status(500).json({ error: "Failed to create user" });
     }
   }
-
   // ── user.updated ─────────────────────────────────────────────────────────────
   if (type === "user.updated") {
     const userId = data.id;

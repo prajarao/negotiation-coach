@@ -97,6 +97,36 @@ export default async function handler(req, res) {
           },
         });
 
+        // Fetch Clerk user for email and name (used by both emails below)
+        const clerkUser = await clerkClient.users.getUser(clerkUserId);
+        const userEmail = clerkUser.emailAddresses?.[0]?.emailAddress || session.customer_email;
+
+		// Send plan confirmation email
+		try {
+		  const emailRes = await fetch(
+			`https://${process.env.VERCEL_URL || "offeradvisor.ai"}/api/send-plan-confirmation`,
+			{
+			  method: "POST",
+			  headers: { "Content-Type": "application/json" },
+			  body: JSON.stringify({
+				userEmail: userEmail,
+				userName: clerkUser.firstName || "",
+				plan: plan,
+				checkoutSessionId: session.id,
+			  }),
+			}
+		  );
+
+		  if (!emailRes.ok) {
+			console.error("Failed to send plan confirmation email:", await emailRes.text());
+		  } else {
+			console.log(`✓ Plan confirmation email sent to ${userEmail}`);
+		  }
+		} catch (emailError) {
+		  console.error("Email send error:", emailError);
+		  // Don't fail webhook
+		}
+
         // Update Supabase users table — this is what the server-side plan gate reads
         const { error: sbError } = await supabase.from("users").upsert(
           {
@@ -109,6 +139,20 @@ export default async function handler(req, res) {
         );
         if (sbError) {
           console.error(`Supabase update failed for ${clerkUserId}:`, sbError.message);
+        }
+
+        // ── Send Stripe receipt email ──────────────────────────────────────────
+        // Set receipt_email on the PaymentIntent so Stripe sends its built-in receipt
+        try {
+          if (userEmail && session.payment_intent) {
+            await stripe.paymentIntents.update(session.payment_intent, {
+              receipt_email: userEmail,
+            });
+            console.log(`📧 Receipt email queued for ${userEmail}`);
+          }
+        } catch (emailErr) {
+          // Non-critical — don't fail the webhook if receipt fails
+          console.error("Failed to set receipt email:", emailErr.message);
         }
 
         console.log(

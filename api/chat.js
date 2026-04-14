@@ -56,7 +56,6 @@ export default async function handler(req, res) {
     }
 
     return res.status(200).json({ content: [{ text: replyText }] });
-
   } catch (error) {
     console.error("Chat error:", error);
     return res.status(500).json({ error: "Server error" });
