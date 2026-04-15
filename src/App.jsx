@@ -495,7 +495,10 @@ export default function OfferAdvisor() {
             sessionType: "benchmark",
             role: jobTitle,
             location: jobLocation || "United States",
-            data: { average: data.median, p25: data.p25, p75: data.p75 },
+            average: data.median,
+            p25: data.p25,
+            p75: data.p75,
+            currencySymbol: data.currencySymbol || sym,
           }).catch(e => console.error("Benchmark email error:", e));
         }
       }

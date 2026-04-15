@@ -591,7 +591,9 @@ function generateRecruiterRoleplayEmail(data, userName, userEmail) {
 }
 
 function generateBenchmarkEmail(data, userName, userEmail) {
-  const { role = "Your Role", location = "Your Location", data: benchmarkData } = data;
+  const { role = "Your Role", location = "Your Location", average = 0, p25 = 0, p75 = 0 } = data;
+
+  const currencySymbol = data.currencySymbol || "$";
 
   return `
     <!DOCTYPE html>
@@ -632,18 +634,25 @@ function generateBenchmarkEmail(data, userName, userEmail) {
             border-radius: 6px;
             padding: 20px;
             margin: 20px 0;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+          }
+          .benchmark-item {
+            text-align: center;
           }
           .benchmark-label {
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
             color: #1e40af;
             font-weight: 600;
             margin-bottom: 8px;
+            letter-spacing: 0.5px;
           }
           .benchmark-value {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 700;
-            color: #333;
+            color: #1e40af;
           }
           .cta-button {
             display: inline-block;
@@ -677,16 +686,26 @@ function generateBenchmarkEmail(data, userName, userEmail) {
             <p>Here's the market data for <strong>${role}</strong> in <strong>${location}</strong>:</p>
             
             <div class="benchmark-box">
-              <div class="benchmark-label">Market Average</div>
-              <div class="benchmark-value">$${Number(benchmarkData?.average || 0).toLocaleString()}</div>
+              <div class="benchmark-item">
+                <div class="benchmark-label">25th Percentile</div>
+                <div class="benchmark-value">${currencySymbol}${Number(p25 || 0).toLocaleString()}</div>
+              </div>
+              <div class="benchmark-item">
+                <div class="benchmark-label">Median (50th)</div>
+                <div class="benchmark-value">${currencySymbol}${Number(average || 0).toLocaleString()}</div>
+              </div>
+              <div class="benchmark-item">
+                <div class="benchmark-label">75th Percentile</div>
+                <div class="benchmark-value">${currencySymbol}${Number(p75 || 0).toLocaleString()}</div>
+              </div>
             </div>
             
-            <p style="color: #666; font-size: 14px;">
-              Use this data to anchor your negotiation. Knowing the market rate empowers you to ask with confidence.
+            <p style="color: #666; font-size: 14px; margin-top: 20px;">
+              <strong>💡 Tip:</strong> Use the <strong>median (50th percentile)</strong> as your initial anchor point. This is where the market values your role. If your offer is below this, you have strong negotiation leverage.
             </p>
             
             <a href="https://offeradvisor.ai/dashboard" class="cta-button">
-              View Full Report →
+              View Full Report & Calculator →
             </a>
           </div>
           
