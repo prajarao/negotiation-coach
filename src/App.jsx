@@ -228,7 +228,7 @@ function ChatStrip({ onSend, loading, T, tabId }) {
 export default function OfferAdvisor() {
   // ── Clerk auth ───────────────────────────────────────────────────────────────
   const { isLoaded, isSignedIn, user } = useUser();
-  const { signOut }                    = useAuth();
+  const { signOut, getToken }          = useAuth();
 
   // User's plan comes from Clerk publicMetadata (set by webhook on sign-up,
   // updated by Stripe webhook after payment)
@@ -474,6 +474,8 @@ export default function OfferAdvisor() {
     setLastRole(jobTitle);
     setLastLocation(jobLocation);
     try {
+      // Get the Clerk token before making the request
+      const token = await getToken();
       const res = await fetch("/api/salary", {
         method: "POST",
         headers: { "Content-Type": "application/json",
