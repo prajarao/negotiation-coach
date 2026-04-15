@@ -476,7 +476,8 @@ export default function OfferAdvisor() {
     try {
       const res = await fetch("/api/salary", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json",
+				"Authorization": `Bearer ${token}`		},
         body: JSON.stringify({ jobTitle: jobTitle.trim(), location: jobLocation.trim() || "United States", offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null, currency: autoCurrency }),
       });
       const data = await res.json();
