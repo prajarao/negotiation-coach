@@ -1215,7 +1215,7 @@ const TESTS = [
         return { pass: false, message: "src/App.jsx not found" };
       }
       const rootModal = code.includes("showPaywall") && code.includes("<PaywallModal />");
-      const calcPath = code.includes("showCalcPaywall") && code.includes("calcPaywallDismissed") && code.includes("blur(10px)");
+      const calcPath = code.includes("showCalcBlur") && code.includes("calcUpgradeModalDismissed") && code.includes("blur(10px)");
       const modalProps = code.includes("onDismissExtra") && code.includes("dismissLabel");
       const pass = rootModal && calcPath && modalProps;
       return {

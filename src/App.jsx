@@ -363,7 +363,14 @@ export default function OfferAdvisor() {
   // ── Paywall: signed-in free coach quota + modals ───────────────────────────
   const [showPaywall, setShowPaywall] = useState(false);
   const [freeCoachSessionsUsed, setFreeCoachSessionsUsed] = useState(0);
-  const [calcPaywallDismissed, setCalcPaywallDismissed] = useState(false);
+  /** When true, the calculate-tab upgrade modal is hidden; results stay blurred for guest/free until they upgrade or sign in. */
+  const [calcUpgradeModalDismissed, setCalcUpgradeModalDismissed] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (isSignedIn) sessionStorage.removeItem("offeradvisor_calc_guest_preview");
+    } catch (_) { /* ignore */ }
+  }, [isSignedIn]);
 
   useEffect(() => {
     if (!user?.id) {
@@ -405,7 +412,7 @@ export default function OfferAdvisor() {
   const [offer, setOffer] = useState({ base: "", bonus: "", equity: "", equityYears: "4", signing: "", pto: "15" });
 
   useEffect(() => {
-    if (!counterResult) setCalcPaywallDismissed(false);
+    if (!counterResult) setCalcUpgradeModalDismissed(false);
   }, [counterResult]);
 
   useEffect(() => {
@@ -584,6 +591,27 @@ export default function OfferAdvisor() {
   // ── Counter calculator ───────────────────────────────────────────────────────
   const calculateCounter = async () => {
     if (!offer.base) return;
+    let guestPreviewDone = false;
+    let freePreviewDone = false;
+    try {
+      guestPreviewDone = !isSignedIn && sessionStorage.getItem("offeradvisor_calc_guest_preview") === "1";
+    } catch (_) { guestPreviewDone = false; }
+    try {
+      freePreviewDone = Boolean(
+        isSignedIn
+        && userPlan === "free"
+        && user?.id
+        && localStorage.getItem(`offeradvisor_free_calc_preview_${user.id}`) === "1",
+      );
+    } catch (_) { freePreviewDone = false; }
+    if (guestPreviewDone) {
+      setAuthModal("signup");
+      return;
+    }
+    if (freePreviewDone) {
+      setAuthModal("upgrade");
+      return;
+    }
     setCalcLoading(true);
     setCounterResult(null);
     try {
@@ -612,6 +640,10 @@ export default function OfferAdvisor() {
       });
       const aiData = await aiRes.json();
       setCounterResult({ current: { base, annualBonus, annualEquity, signing, totalAnnual, total4Year }, counter: { base: counterBase, annualBonus: counterAnnualBonus, annualEquity: counterAnnualEquity, signing: counterSigning, totalAnnual: counterTotalAnnual, total4Year: counterTotal4Year }, gap: { annual: counterTotalAnnual - totalAnnual, fourYear: fourYearGap }, strategy: aiData.content?.[0]?.text || "" });
+      try {
+        if (!isSignedIn) sessionStorage.setItem("offeradvisor_calc_guest_preview", "1");
+        else if (userPlan === "free" && user?.id) localStorage.setItem(`offeradvisor_free_calc_preview_${user.id}`, "1");
+      } catch (_) { /* ignore quota / private mode */ }
       // Send counter-offer email summary
       if (isSignedIn && user?.emailAddresses?.[0]?.emailAddress) {
         sendSessionSummaryEmail({
@@ -1003,12 +1035,13 @@ export default function OfferAdvisor() {
 
       // ── CALCULATE TAB ─────────────────────────────────────────────────────
       case "calculate": {
-        const showCalcPaywall = Boolean(
-          counterResult
-          && !calcLoading
-          && (!isSignedIn || userPlan === "free")
-          && !calcPaywallDismissed,
-        );
+        let calcPreviewLocked = false;
+        try {
+          if (!isSignedIn) calcPreviewLocked = sessionStorage.getItem("offeradvisor_calc_guest_preview") === "1";
+          else if (userPlan === "free" && user?.id) calcPreviewLocked = localStorage.getItem(`offeradvisor_free_calc_preview_${user.id}`) === "1";
+        } catch (_) { calcPreviewLocked = false; }
+        const showCalcBlur = Boolean(counterResult && !calcLoading && (!isSignedIn || userPlan === "free"));
+        const showCalcUpgradeModal = showCalcBlur && !calcUpgradeModalDismissed;
         return (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
@@ -1024,16 +1057,47 @@ export default function OfferAdvisor() {
                   </div>
                 ))}
               </div>
-              <button onClick={calculateCounter} disabled={!offer.base || calcLoading} style={{ ...primaryBtn(offer.base && !calcLoading, "#6d28d9"), marginBottom: "0" }}>
-                {calcLoading ? "Calculating..." : "Calculate counter-offer →"}
+              <button
+                onClick={() => {
+                  if (calcPreviewLocked) {
+                    setAuthModal(!isSignedIn ? "signup" : "upgrade");
+                    return;
+                  }
+                  calculateCounter();
+                }}
+                disabled={!offer.base || calcLoading}
+                style={{ ...primaryBtn(offer.base && !calcLoading, "#6d28d9"), marginBottom: "0" }}
+              >
+                {calcLoading
+                  ? "Calculating..."
+                  : calcPreviewLocked
+                    ? (!isSignedIn ? "Sign up to run again →" : "Upgrade for unlimited runs →")
+                    : "Calculate counter-offer →"}
               </button>
+
+              {showCalcBlur && calcUpgradeModalDismissed && (
+                <div style={{
+                  marginTop: "0.85rem",
+                  padding: "0.55rem 0.75rem",
+                  borderRadius: "10px",
+                  border: `1px solid ${T.border}`,
+                  background: T.cardBg,
+                  fontSize: "0.76rem",
+                  color: T.textSecondary,
+                  lineHeight: 1.55,
+                }}>
+                  {!isSignedIn
+                    ? "You've seen your free preview. Create a free account to unlock the full breakdown and run more calculations."
+                    : "You've used your free preview. Upgrade to unlock full numbers and unlimited calculator runs."}
+                </div>
+              )}
 
               {counterResult && !calcLoading && (
                 <>
-                  {showCalcPaywall ? (
+                  {showCalcUpgradeModal ? (
                     <PaywallModal
-                      onDismissExtra={() => setCalcPaywallDismissed(true)}
-                      dismissLabel="Back to calculator"
+                      onDismissExtra={() => setCalcUpgradeModalDismissed(true)}
+                      dismissLabel="Hide"
                     />
                   ) : null}
                   <div style={{
@@ -1041,9 +1105,9 @@ export default function OfferAdvisor() {
                     borderTop: `1px solid ${T.border}`,
                     paddingTop: "1rem",
                     animation: "fadeIn 0.2s ease",
-                    filter: showCalcPaywall ? "blur(10px)" : "none",
-                    pointerEvents: showCalcPaywall ? "none" : "auto",
-                    userSelect: showCalcPaywall ? "none" : "auto",
+                    filter: showCalcBlur ? "blur(10px)" : "none",
+                    pointerEvents: showCalcBlur ? "none" : "auto",
+                    userSelect: showCalcBlur ? "none" : "auto",
                   }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem", marginBottom: "0.75rem" }}>
                       {[{ title: "Their offer", c: counterResult.current, color: T.textSecondary, border: T.border }, { title: "Your counter", c: counterResult.counter, color: "#a78bfa", border: "#7c3aed" }].map(({ title, c, color, border }) => (
