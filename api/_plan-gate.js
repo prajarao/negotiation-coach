@@ -20,7 +20,7 @@ import { supabase } from "./_supabase.js";
 
 // Which features each plan can access (mirrors frontend PLAN_FEATURES)
 const PLAN_FEATURES = {
-  free:   ["coach"],
+  free:   ["coach", "calculate"],
   sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
   pro:    ["coach", "benchmark", "calculate", "practice", "logwin"],
 };

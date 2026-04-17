@@ -15,6 +15,9 @@ const args = process.argv.slice(2);
 const ENV = args.includes("--env") ? args[args.indexOf("--env") + 1] : "local";
 const CUSTOM_URL = args.includes("--url") ? args[args.indexOf("--url") + 1] : null;
 const SAVE_REPORT = args.includes("--report");
+const AUTH_BEARER_TOKEN =
+  process.env.REGRESSION_AUTH_TOKEN ||
+  (args.includes("--token") ? args[args.indexOf("--token") + 1] : null);
 
 const BASE_URL =
   CUSTOM_URL ||
@@ -52,6 +55,33 @@ async function post(path, body, timeoutMs = 30000) {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    const data = await res.json();
+    return { ok: res.ok, status: res.status, data };
+  } catch (e) {
+    clearTimeout(timer);
+    if (e.name === "AbortError") throw new Error(`Request timed out after ${timeoutMs}ms`);
+    throw e;
+  }
+}
+
+async function authPost(path, body, timeoutMs = 30000) {
+  if (!AUTH_BEARER_TOKEN) {
+    return { ok: false, status: 0, data: { error: "Missing auth token", code: "MISSING_AUTH_TOKEN" } };
+  }
+  const url = ENV === "production" ? `${BASE_URL}${path}` : `${BASE_URL}${path}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${AUTH_BEARER_TOKEN}`,
+      },
       body: JSON.stringify(body),
       signal: controller.signal,
     });
@@ -273,13 +303,13 @@ const TESTS = [
     name: "US location uses BLS or AI data in USD",
     fn: async () => {
       if (!salaryApiHealthy) return { skip: true, message: "Skipped — salary API not healthy" };
-      const r = await post("/api/salary", {
+      if (!AUTH_BEARER_TOKEN) return { skip: true, message: "Skipped — set REGRESSION_AUTH_TOKEN for signed-in salary tests" };
+      const r = await authPost("/api/salary", {
         jobTitle: "Software Engineer",
         location: "Austin, Texas",
         offeredSalary: 110000,
         currency: "USD",
       });
-      if (r.status === 401) return { skip: true, message: "Skipped — requires auth (plan-gated)" };
       if (!r.ok) return { pass: false, message: `HTTP ${r.status}` };
       const d = r.data;
       const validRange = d.median > 60000 && d.median < 300000;
@@ -298,13 +328,13 @@ const TESTS = [
     category: "Salary Benchmark",
     name: "UK location returns GBP salary data",
     fn: async () => {
-      const r = await post("/api/salary", {
+      if (!AUTH_BEARER_TOKEN) return { skip: true, message: "Skipped — set REGRESSION_AUTH_TOKEN for signed-in salary tests" };
+      const r = await authPost("/api/salary", {
         jobTitle: "Product Manager",
         location: "London, UK",
         offeredSalary: 70000,
         currency: "GBP",
       });
-      if (r.status === 401) return { skip: true, message: "Skipped — requires auth (plan-gated)" };
       if (!r.ok) return { pass: false, message: `HTTP ${r.status}` };
       const d = r.data;
       const validRange = d.median > 30000 && d.median < 200000;
@@ -322,13 +352,13 @@ const TESTS = [
     category: "Salary Benchmark",
     name: "India location returns INR salary data",
     fn: async () => {
-      const r = await post("/api/salary", {
+      if (!AUTH_BEARER_TOKEN) return { skip: true, message: "Skipped — set REGRESSION_AUTH_TOKEN for signed-in salary tests" };
+      const r = await authPost("/api/salary", {
         jobTitle: "Software Engineer",
         location: "Bangalore, India",
         offeredSalary: 1200000,
         currency: "INR",
       });
-      if (r.status === 401) return { skip: true, message: "Skipped — requires auth (plan-gated)" };
       if (!r.ok) return { pass: false, message: `HTTP ${r.status}` };
       const d = r.data;
       const validRange = d.median > 400000 && d.median < 10000000;
@@ -346,13 +376,13 @@ const TESTS = [
     category: "Salary Benchmark",
     name: "Correctly flags offer below 25th percentile",
     fn: async () => {
-      const r = await post("/api/salary", {
+      if (!AUTH_BEARER_TOKEN) return { skip: true, message: "Skipped — set REGRESSION_AUTH_TOKEN for signed-in salary tests" };
+      const r = await authPost("/api/salary", {
         jobTitle: "Software Engineer",
         location: "San Francisco, CA",
         offeredSalary: 50000,
         currency: "USD",
       });
-      if (r.status === 401) return { skip: true, message: "Skipped — requires auth (plan-gated)" };
       if (!r.ok) return { pass: false, message: `HTTP ${r.status}` };
       const d = r.data;
       const isBelow = d.percentileRating?.includes("below 25th") || d.negotiationStrength === "very strong";
@@ -369,12 +399,12 @@ const TESTS = [
     category: "Salary Benchmark",
     name: "Returns benchmark without percentile when no offer given",
     fn: async () => {
-      const r = await post("/api/salary", {
+      if (!AUTH_BEARER_TOKEN) return { skip: true, message: "Skipped — set REGRESSION_AUTH_TOKEN for signed-in salary tests" };
+      const r = await authPost("/api/salary", {
         jobTitle: "Data Scientist",
         location: "New York",
         currency: "USD",
       });
-      if (r.status === 401) return { skip: true, message: "Skipped — requires auth (plan-gated)" };
       if (!r.ok) return { pass: false, message: `HTTP ${r.status}` };
       const d = r.data;
       const hasMedian = !!d.median;
@@ -979,6 +1009,49 @@ const TESTS = [
     },
   },
 
+  // ── 11b. Signed-in GTM Preflight (optional token-based) ───────────────────
+  {
+    id: "gtm-signedin-token-available",
+    category: "GTM Preflight",
+    name: "Signed-in preflight token is configured",
+    fn: async () => {
+      if (!AUTH_BEARER_TOKEN) {
+        return {
+          skip: true,
+          message: "Skipped — set REGRESSION_AUTH_TOKEN or pass --token to enable signed-in GTM tests",
+        };
+      }
+      return { pass: true, message: "Token configured for signed-in preflight" };
+    },
+  },
+  {
+    id: "gtm-signedin-benchmark-access",
+    category: "GTM Preflight",
+    name: "Signed-in user can access benchmark endpoint",
+    fn: async () => {
+      if (!AUTH_BEARER_TOKEN) {
+        return {
+          skip: true,
+          message: "Skipped — no signed-in token available",
+        };
+      }
+      const r = await authPost("/api/salary", {
+        jobTitle: "Software Engineer",
+        location: "United States",
+        offeredSalary: 120000,
+        currency: "USD",
+      });
+      const hasMarketData = r.ok && !!r.data?.median;
+      return {
+        pass: hasMarketData,
+        message: hasMarketData
+          ? `Benchmark access confirmed (median: ${r.data.median})`
+          : `Signed-in benchmark access failed (${r.status})`,
+        detail: JSON.stringify(r.data).slice(0, 200),
+      };
+    },
+  },
+
   {
     id: "acl-401-error-format",
     category: "Access Control",
@@ -1006,17 +1079,17 @@ const TESTS = [
     name: "PLAN_FEATURES correctly maps plans to features",
     fn: async () => {
       const PLAN_FEATURES = {
-        free:   ["coach"],
+        free:   ["coach", "calculate"],
         sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
         pro:    ["coach", "benchmark", "calculate", "practice", "logwin"],
       };
-      const freeOnlyCoach = PLAN_FEATURES.free.length === 1 && PLAN_FEATURES.free[0] === "coach";
+      const freeCoachCalc = PLAN_FEATURES.free.includes("coach") && PLAN_FEATURES.free.includes("calculate") && !PLAN_FEATURES.free.includes("benchmark");
       const sprintAll = ["coach", "benchmark", "calculate", "practice", "logwin"].every(f => PLAN_FEATURES.sprint.includes(f));
       const proAll    = ["coach", "benchmark", "calculate", "practice", "logwin"].every(f => PLAN_FEATURES.pro.includes(f));
       return {
-        pass: freeOnlyCoach && sprintAll && proAll,
-        message: freeOnlyCoach && sprintAll && proAll
-          ? "Free=coach only, Sprint/Pro=all 5 features"
+        pass: freeCoachCalc && sprintAll && proAll,
+        message: freeCoachCalc && sprintAll && proAll
+          ? "Free=coach+calculate, Sprint/Pro=all 5 features"
           : `Mapping incorrect — free:${PLAN_FEATURES.free} sprint:${PLAN_FEATURES.sprint.length} pro:${PLAN_FEATURES.pro.length}`,
         detail: `free:[${PLAN_FEATURES.free}] sprint:[${PLAN_FEATURES.sprint}] pro:[${PLAN_FEATURES.pro}]`,
       };
@@ -1029,7 +1102,7 @@ const TESTS = [
     name: "canAccess() correctly gates features by plan",
     fn: async () => {
       const PLAN_FEATURES = {
-        free:   ["coach"],
+        free:   ["coach", "calculate"],
         sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
         pro:    ["coach", "benchmark", "calculate", "practice", "logwin"],
       };
@@ -1040,7 +1113,7 @@ const TESTS = [
       const tests = [
         { plan: "free",   tab: "coach",     expected: true },
         { plan: "free",   tab: "benchmark", expected: false },
-        { plan: "free",   tab: "calculate", expected: false },
+        { plan: "free",   tab: "calculate", expected: true },
         { plan: "free",   tab: "practice",  expected: false },
         { plan: "free",   tab: "logwin",    expected: false },
         { plan: "sprint", tab: "coach",     expected: true },
@@ -1098,6 +1171,83 @@ const TESTS = [
         message: guestHasSignUp && signedInHasPrice
           ? "Guest sees 'Sign up', signed-in sees '$29' CTA"
           : `CTA mismatch — guest:${guestCTA} signedIn:${signedInCTA}`,
+      };
+    },
+  },
+
+  {
+    id: "app-paywall-free-coach-quota",
+    category: "Plan Gating",
+    name: "App.jsx enforces free coach session limit before chat send",
+    fn: async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      let code = "";
+      try {
+        code = fs.readFileSync(path.resolve("src/App.jsx"), "utf8");
+      } catch (e) {
+        return { pass: false, message: "src/App.jsx not found" };
+      }
+      const hasQuotaState = code.includes("freeCoachSessionsUsed") && code.includes("USAGE_LIMITS.free.sessions");
+      const blocksSend = code.includes("setShowPaywall(true)") && code.includes('tabWhenSending === "coach"') && code.includes('userPlan === "free"');
+      const persists = code.includes("offeradvisor_free_coach_");
+      const pass = hasQuotaState && blocksSend && persists;
+      return {
+        pass,
+        message: pass
+          ? "Free coach quota state, send guard, and localStorage key present"
+          : `Missing — quotaState:${hasQuotaState} guard:${blocksSend} persist:${persists}`,
+      };
+    },
+  },
+
+  {
+    id: "app-paywall-modals",
+    category: "Plan Gating",
+    name: "App.jsx mounts coach paywall and calculate blur/paywall paths",
+    fn: async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      let code = "";
+      try {
+        code = fs.readFileSync(path.resolve("src/App.jsx"), "utf8");
+      } catch (e) {
+        return { pass: false, message: "src/App.jsx not found" };
+      }
+      const rootModal = code.includes("showPaywall") && code.includes("<PaywallModal />");
+      const calcPath = code.includes("showCalcPaywall") && code.includes("calcPaywallDismissed") && code.includes("blur(10px)");
+      const modalProps = code.includes("onDismissExtra") && code.includes("dismissLabel");
+      const pass = rootModal && calcPath && modalProps;
+      return {
+        pass,
+        message: pass
+          ? "Root PaywallModal, calculate paywall+blur, dismiss props ✓"
+          : `Missing — root:${rootModal} calc:${calcPath} props:${modalProps}`,
+      };
+    },
+  },
+
+  {
+    id: "plan-gate-parity-free-calculate",
+    category: "Plan Gating",
+    name: "api/_plan-gate.js free plan includes calculate (matches App.jsx)",
+    fn: async () => {
+      const fs = await import("fs");
+      const path = await import("path");
+      let gate = "";
+      let app = "";
+      try {
+        gate = fs.readFileSync(path.resolve("api/_plan-gate.js"), "utf8");
+        app = fs.readFileSync(path.resolve("src/App.jsx"), "utf8");
+      } catch (e) {
+        return { pass: false, message: "Could not read source files" };
+      }
+      const gateOk = gate.includes('free:   ["coach", "calculate"]');
+      const appOk = app.includes('free:   ["coach", "calculate"]');
+      const pass = gateOk && appOk;
+      return {
+        pass,
+        message: pass ? "PLAN_FEATURES.free matches in App.jsx and _plan-gate.js" : `gate:${gateOk} app:${appOk}`,
       };
     },
   },
@@ -1233,15 +1383,22 @@ const TESTS = [
   {
     id: "frontend-clerk-provider",
     category: "Auth Integration",
-    name: "Frontend HTML loads Clerk provider",
+    name: "Frontend shell serves root mount and app branding",
     fn: async () => {
-      const r = await get("/");
-      if (!r.ok) return { pass: false, message: `Frontend returned ${r.status}` };
-      const hasClerkScript = r.text.includes("clerk") || r.text.includes("CLERK");
+      // On this app, `/app` is the canonical SPA route in production.
+      // Some hosts may redirect `/` to a marketing page, so prefer `/app`.
+      let r = await get("/app");
+      if (!r.ok) {
+        r = await get("/");
+      }
+      if (!r.ok) return { pass: false, message: `Frontend shell returned ${r.status}` };
       const hasRoot = r.text.includes('id="root"') || r.text.includes("id='root'");
+      const hasBrand = /offeradvisor/i.test(r.text);
       return {
-        pass: r.ok && hasRoot,
-        message: r.ok && hasRoot ? "Frontend loads with root mount point" : "Missing root element or Clerk reference",
+        pass: r.ok && hasRoot && hasBrand,
+        message: r.ok && hasRoot && hasBrand
+          ? "Frontend shell includes root mount and OfferAdvisor branding"
+          : "Frontend shell missing expected root/branding markers",
         detail: `HTML length: ${r.text.length} chars`,
       };
     },
@@ -1599,6 +1756,142 @@ const TESTS = [
       };
     },
   },
+
+  // ── 21. Production Routing & Static Assets ────────────────────────────────
+  {
+    id: "prod-route-app-rewrite",
+    category: "Production Routing",
+    name: "/app route rewrites to SPA entry",
+    fn: async () => {
+      const r = await get("/app");
+      if (!r.ok) return { pass: false, message: `GET /app returned ${r.status}` };
+      const hasRoot = r.text.includes('id="root"');
+      const hasTitle = /offeradvisor/i.test(r.text);
+      return {
+        pass: hasRoot && hasTitle,
+        message: hasRoot && hasTitle
+          ? "/app serves SPA shell with OfferAdvisor markup"
+          : "Rewrite did not return expected SPA HTML",
+      };
+    },
+  },
+  {
+    id: "prod-route-app-nested-rewrite",
+    category: "Production Routing",
+    name: "/app/* nested routes rewrite to SPA entry",
+    fn: async () => {
+      const r = await get("/app/test-path");
+      if (!r.ok) return { pass: false, message: `GET /app/test-path returned ${r.status}` };
+      const hasRoot = r.text.includes('id="root"');
+      return {
+        pass: hasRoot,
+        message: hasRoot
+          ? "Nested /app route correctly serves SPA shell"
+          : "Nested /app route is not rewritten correctly",
+      };
+    },
+  },
+  {
+    id: "prod-static-manifest",
+    category: "Production Routing",
+    name: "Manifest is publicly reachable",
+    fn: async () => {
+      const r = await get("/manifest.json");
+      return {
+        pass: r.ok && r.text.includes("name"),
+        message: r.ok
+          ? "manifest.json reachable"
+          : `manifest.json not reachable (${r.status})`,
+      };
+    },
+  },
+  {
+    id: "prod-static-favicon",
+    category: "Production Routing",
+    name: "Favicon is publicly reachable",
+    fn: async () => {
+      const r = await get("/favicon.svg");
+      return {
+        pass: r.ok && /svg/i.test(r.text),
+        message: r.ok
+          ? "favicon.svg reachable"
+          : `favicon.svg not reachable (${r.status})`,
+      };
+    },
+  },
+
+  // ── 22. Email API Guardrails ──────────────────────────────────────────────
+  {
+    id: "email-plan-confirmation-method-guard",
+    category: "Email APIs",
+    name: "send-plan-confirmation rejects GET requests (405)",
+    fn: async () => {
+      const url = `${BASE_URL}/api/send-plan-confirmation`;
+      const res = await fetch(url, { method: "GET" });
+      return {
+        pass: res.status === 405,
+        message: res.status === 405
+          ? "Correctly returns 405 for GET"
+          : `Unexpected status ${res.status}`,
+      };
+    },
+  },
+  {
+    id: "email-session-summary-method-guard",
+    category: "Email APIs",
+    name: "send-session-summary rejects GET requests (405)",
+    fn: async () => {
+      const url = `${BASE_URL}/api/send-session-summary`;
+      const res = await fetch(url, { method: "GET" });
+      return {
+        pass: res.status === 405,
+        message: res.status === 405
+          ? "Correctly returns 405 for GET"
+          : `Unexpected status ${res.status}`,
+      };
+    },
+  },
+  {
+    id: "email-session-summary-validation",
+    category: "Email APIs",
+    name: "send-session-summary validates required payload",
+    fn: async () => {
+      const r = await post("/api/send-session-summary", { sessionType: "coach" });
+      return {
+        pass: r.status === 400,
+        message: r.status === 400
+          ? "Correctly returns 400 for incomplete payload"
+          : `Expected 400, got ${r.status}`,
+        detail: JSON.stringify(r.data).slice(0, 140),
+      };
+    },
+  },
+
+  // ── 23. Checkout CORS/Preflight ───────────────────────────────────────────
+  {
+    id: "checkout-options-preflight",
+    category: "Stripe Checkout",
+    name: "Checkout endpoint handles OPTIONS preflight",
+    fn: async () => {
+      const url = `${BASE_URL}/api/checkout`;
+      const res = await fetch(url, { method: "OPTIONS" });
+      const allowMethods = (res.headers.get("access-control-allow-methods") || "").toUpperCase();
+      const hasPost = allowMethods.includes("POST");
+      // Same-origin app fetches do not require CORS preflight.
+      // Accept either:
+      // - explicit OPTIONS handling (200 + POST in allow-methods), or
+      // - method-not-allowed (405), which is still operationally fine for same-origin.
+      const pass = (res.status === 200 && hasPost) || res.status === 405;
+      return {
+        pass,
+        message: pass
+          ? (res.status === 405
+            ? "OPTIONS returns 405 (acceptable for same-origin checkout flow)"
+            : "OPTIONS preflight passes with POST allowed")
+          : `Preflight failed (status ${res.status}, allow-methods "${allowMethods || "missing"}")`,
+      };
+    },
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1681,6 +1974,44 @@ async function runTests() {
   log(`  ${C.red}Failed :${C.reset}  ${failed}`);
   log(`  ${C.gray}Skipped:${C.reset}  ${skipped}`);
   log(`  ${C.gray}Duration:${C.reset} ${duration}s`);
+  log(`${"═".repeat(62)}`);
+
+  // ── GTM gate verdict ───────────────────────────────────────────────────────
+  const gtmCriticalCategories = [
+    "API Health",
+    "Core Chat",
+    "Access Control",
+    "Stripe Checkout",
+    "Stripe Webhook",
+    "Checkout Flow",
+    "Production Routing",
+  ];
+  const criticalFailures = results.filter(
+    (r) => r.status === "FAIL" && gtmCriticalCategories.includes(r.category)
+  );
+  const criticalSkips = results.filter(
+    (r) => r.status === "SKIP" && ["Core Chat", "API Health"].includes(r.category)
+  );
+  const gtmReady = criticalFailures.length === 0 && criticalSkips.length === 0;
+
+  log(`${C.bold}GTM SANITY VERDICT${C.reset}`);
+  if (gtmReady) {
+    log(`  ${C.green}GO${C.reset}  Critical categories clean for announcement.`);
+  } else {
+    log(`  ${C.red}NO-GO${C.reset}  Critical blockers detected.`);
+    if (criticalFailures.length > 0) {
+      log(`  ${C.red}Critical failures:${C.reset}`);
+      criticalFailures.forEach((r) => {
+        log(`    - [${r.category}] ${r.name}`);
+      });
+    }
+    if (criticalSkips.length > 0) {
+      log(`  ${C.yellow}Critical skips:${C.reset}`);
+      criticalSkips.forEach((r) => {
+        log(`    - [${r.category}] ${r.name}`);
+      });
+    }
+  }
   log(`${"═".repeat(62)}`);
 
   if (failed === 0) {

@@ -107,7 +107,8 @@ const PLANS = {
 
 // Features each plan can access
 const PLAN_FEATURES = {
-  free:   ["coach"],                                               // chat only
+  // Free: coach + calculate (results behind paywall for signed-in free; guests see paywall too)
+  free:   ["coach", "calculate"],
   sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
   pro:    ["coach", "benchmark", "calculate", "practice", "logwin"],
 };
@@ -118,7 +119,7 @@ const canAccess = (plan, tabId) => {
   return allowed.includes(tabId);
 };
 
-// Usage limits per plan (checked server-side too, this is UI-only)
+// Usage limits — UI coach paywall for signed-in free (server /api/chat may still allow more; see api/_plan-gate.js)
 const USAGE_LIMITS = {
   free:   { sessions: 1,   emails: 1   },
   sprint: { sessions: 999, emails: 999 },
@@ -327,6 +328,21 @@ export default function OfferAdvisor() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
+  // ── Paywall: signed-in free coach quota + modals ───────────────────────────
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [freeCoachSessionsUsed, setFreeCoachSessionsUsed] = useState(0);
+  const [calcPaywallDismissed, setCalcPaywallDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setFreeCoachSessionsUsed(0);
+      return;
+    }
+    const k = `offeradvisor_free_coach_${user.id}`;
+    const raw = parseInt(localStorage.getItem(k) || "0", 10);
+    setFreeCoachSessionsUsed(Number.isFinite(raw) ? raw : 0);
+  }, [user?.id]);
+
   const T = {
     pageBg:         isDark ? "#0a0f1a" : "#f1f5f9",
     headerBg:       isDark ? "#0d1424" : "#ffffff",
@@ -355,6 +371,14 @@ export default function OfferAdvisor() {
   const [calcLoading,   setCalcLoading]   = useState(false);
   const [counterResult, setCounterResult] = useState(null);
   const [offer, setOffer] = useState({ base: "", bonus: "", equity: "", equityYears: "4", signing: "", pto: "15" });
+
+  useEffect(() => {
+    if (!counterResult) setCalcPaywallDismissed(false);
+  }, [counterResult]);
+
+  useEffect(() => {
+    setShowPaywall(false);
+  }, [activeTab]);
 
   // Tracker state
   const STORAGE_KEY = "offeradvisor_outcomes";
@@ -412,6 +436,18 @@ export default function OfferAdvisor() {
   const sendMessage = async (text) => {
     const userText = (text || input || "").trim();
     if (!userText || loading) return;
+
+    const tabWhenSending = activeTab;
+    if (
+      tabWhenSending === "coach"
+      && isSignedIn
+      && userPlan === "free"
+      && freeCoachSessionsUsed >= USAGE_LIMITS.free.sessions
+    ) {
+      setShowPaywall(true);
+      return;
+    }
+
     setInput("");
 
     const newMessages = [...messages, { role: "user", content: userText }];
@@ -443,6 +479,13 @@ export default function OfferAdvisor() {
       const data = await response.json();
       const reply = data.content?.[0]?.text || "Something went wrong. Please try again.";
       setMessages([...newMessages, { role: "assistant", content: reply }]);
+      if (tabWhenSending === "coach" && isSignedIn && userPlan === "free" && user?.id) {
+        setFreeCoachSessionsUsed((prev) => {
+          const next = prev + 1;
+          localStorage.setItem(`offeradvisor_free_coach_${user.id}`, String(next));
+          return next;
+        });
+      }
     } catch (e) {
       setMessages([...newMessages, { role: "assistant", content: "Something went wrong. Please try again." }]);
     } finally {
@@ -598,6 +641,150 @@ export default function OfferAdvisor() {
   const selectStyle = { ...inputStyle };
   const primaryBtn  = (active, grad = "#1d4ed8") => ({ padding: "0.45rem 1.1rem", borderRadius: "8px", border: "none", background: active ? grad : T.border, color: active ? "white" : T.textMuted, fontSize: "0.78rem", cursor: active ? "pointer" : "not-allowed", fontFamily: "inherit", fontWeight: 500 });
   const symDisplay  = salaryData?.currencySymbol || getCurrencySymbol(selectedCurrency);
+
+  // ── Paywall Modal Component ───────────────────────────────────────────────────
+  const PaywallModal = ({ onDismissExtra, dismissLabel = "Maybe later" } = {}) => {
+    const close = () => {
+      setShowPaywall(false);
+      onDismissExtra?.();
+    };
+    return (
+    <div style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 10050,
+      padding: "1rem",
+    }}>
+      <div style={{
+        background: T.surfaceBg,
+        borderRadius: "16px",
+        padding: "2rem",
+        maxWidth: "500px",
+        width: "100%",
+        textAlign: "center",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+      }}>
+        {/* Header */}
+        <h2 style={{ color: "#1d4ed8", marginBottom: "0.5rem", fontSize: "1.4rem", fontWeight: 700 }}>
+          See Your 4-Year Gain 📈
+        </h2>
+
+        {/* Description */}
+        <p style={{ color: T.textSecondary, marginBottom: "1.5rem", fontSize: "0.95rem", lineHeight: 1.6 }}>
+          Your counter offer could be worth <strong>$500K+</strong> over 4 years.
+          <br/>
+          Unlock the full calculator to see the exact numbers.
+        </p>
+
+        {/* Price highlight */}
+        <div style={{
+          background: "#f0f4ff",
+          border: "2px solid #3b82f6",
+          padding: "1.5rem",
+          borderRadius: "12px",
+          marginBottom: "1.5rem",
+        }}>
+          <div style={{ fontSize: "0.85rem", color: "#1d4ed8", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>Unlock full access:</div>
+          <div style={{ fontSize: "2.2rem", fontWeight: 700, color: "#1d4ed8" }}>$29</div>
+          <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>one-time payment</div>
+        </div>
+
+        {/* Two plan options */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
+          {/* Offer Sprint */}
+          <div style={{
+            textAlign: "left",
+            padding: "1rem",
+            background: T.cardBg,
+            borderRadius: "10px",
+            border: `1px solid ${T.border}`,
+          }}>
+            <div style={{ fontSize: "0.75rem", color: T.textMuted, marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>Offer Sprint</div>
+            <div style={{ fontSize: "0.9rem", color: T.textSecondary, lineHeight: 1.6 }}>
+              <div>✓ Full calculator</div>
+              <div>✓ 4-year projection</div>
+              <div>✓ AI role-play</div>
+              <div>✓ 30-day access</div>
+            </div>
+          </div>
+
+          {/* Offer in Hand (highlighted) */}
+          <div style={{
+            textAlign: "left",
+            padding: "1rem",
+            background: "#f0f4ff",
+            borderRadius: "10px",
+            border: "2px solid #3b82f6",
+          }}>
+            <div style={{ fontSize: "0.75rem", color: "#1d4ed8", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>Offer in Hand</div>
+            <div style={{ fontSize: "0.9rem", color: "#1d4ed8", fontWeight: 500, lineHeight: 1.6 }}>
+              <div>✓ Everything in Sprint</div>
+              <div style={{ fontWeight: 700, marginTop: "0.5rem" }}>✓ Lifetime access</div>
+              <div>✓ Future features</div>
+              <div style={{ fontSize: "1.1rem", fontWeight: 700, marginTop: "0.5rem" }}>$49</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action buttons */}
+        <button
+          onClick={() => {
+            close();
+            setAuthModal(isSignedIn ? "upgrade" : "signup");
+          }}
+          style={{
+            width: "100%",
+            background: "#1d4ed8",
+            color: "white",
+            padding: "0.85rem",
+            borderRadius: "10px",
+            border: "none",
+            fontWeight: 600,
+            cursor: "pointer",
+            fontSize: "0.95rem",
+            marginBottom: "0.75rem",
+            fontFamily: "inherit",
+            transition: "background 0.2s",
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = "#1e40af"}
+          onMouseLeave={(e) => e.currentTarget.style.background = "#1d4ed8"}
+        >
+          Unlock Now — $29 or $49
+        </button>
+
+        <button
+          onClick={close}
+          style={{
+            width: "100%",
+            background: "transparent",
+            color: T.textSecondary,
+            padding: "0.75rem",
+            borderRadius: "10px",
+            border: `1px solid ${T.border}`,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontSize: "0.95rem",
+            fontFamily: "inherit",
+          }}
+        >
+          {dismissLabel}
+        </button>
+
+        {/* Footer note */}
+        <p style={{ marginTop: "1.5rem", fontSize: "0.8rem", color: T.textMuted }}>
+          💳 No subscriptions. No recurring charges. One-time payment only.
+        </p>
+      </div>
+    </div>
+    );
+  };
 
   // ── Render tab content ────────────────────────────────────────────────────────
   const renderTabContent = () => {
@@ -783,7 +970,14 @@ export default function OfferAdvisor() {
       );
 
       // ── CALCULATE TAB ─────────────────────────────────────────────────────
-      case "calculate": return (
+      case "calculate": {
+        const showCalcPaywall = Boolean(
+          counterResult
+          && !calcLoading
+          && (!isSignedIn || userPlan === "free")
+          && !calcPaywallDismissed,
+        );
+        return (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
             <div style={{ maxWidth: 680, margin: "0 auto" }}>
@@ -803,40 +997,57 @@ export default function OfferAdvisor() {
               </button>
 
               {counterResult && !calcLoading && (
-                <div style={{ marginTop: "1.25rem", borderTop: `1px solid ${T.border}`, paddingTop: "1rem", animation: "fadeIn 0.2s ease" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem", marginBottom: "0.75rem" }}>
-                    {[{ title: "Their offer", c: counterResult.current, color: T.textSecondary, border: T.border }, { title: "Your counter", c: counterResult.counter, color: "#a78bfa", border: "#7c3aed" }].map(({ title, c, color, border }) => (
-                      <div key={title} style={{ padding: "0.75rem", background: T.cardBg, borderRadius: "8px", border: `1px solid ${border}` }}>
-                        <div style={{ fontSize: "0.62rem", color, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>{title}</div>
-                        {[["Base", `$${c.base.toLocaleString()}`], ["Bonus/yr", c.annualBonus > 0 ? `$${Math.round(c.annualBonus).toLocaleString()}` : "—"], ["Equity/yr", c.annualEquity > 0 ? `$${Math.round(c.annualEquity).toLocaleString()}` : "—"], ["Signing", c.signing > 0 ? `$${c.signing.toLocaleString()}` : "—"]].map(([l, v]) => (
-                          <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.73rem", marginBottom: "3px" }}>
-                            <span style={{ color: T.textMuted }}>{l}</span><span style={{ color }}>{v}</span>
+                <>
+                  {showCalcPaywall ? (
+                    <PaywallModal
+                      onDismissExtra={() => setCalcPaywallDismissed(true)}
+                      dismissLabel="Back to calculator"
+                    />
+                  ) : null}
+                  <div style={{
+                    marginTop: "1.25rem",
+                    borderTop: `1px solid ${T.border}`,
+                    paddingTop: "1rem",
+                    animation: "fadeIn 0.2s ease",
+                    filter: showCalcPaywall ? "blur(10px)" : "none",
+                    pointerEvents: showCalcPaywall ? "none" : "auto",
+                    userSelect: showCalcPaywall ? "none" : "auto",
+                  }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem", marginBottom: "0.75rem" }}>
+                      {[{ title: "Their offer", c: counterResult.current, color: T.textSecondary, border: T.border }, { title: "Your counter", c: counterResult.counter, color: "#a78bfa", border: "#7c3aed" }].map(({ title, c, color, border }) => (
+                        <div key={title} style={{ padding: "0.75rem", background: T.cardBg, borderRadius: "8px", border: `1px solid ${border}` }}>
+                          <div style={{ fontSize: "0.62rem", color, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>{title}</div>
+                          {[["Base", `$${c.base.toLocaleString()}`], ["Bonus/yr", c.annualBonus > 0 ? `$${Math.round(c.annualBonus).toLocaleString()}` : "—"], ["Equity/yr", c.annualEquity > 0 ? `$${Math.round(c.annualEquity).toLocaleString()}` : "—"], ["Signing", c.signing > 0 ? `$${c.signing.toLocaleString()}` : "—"]].map(([l, v]) => (
+                            <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.73rem", marginBottom: "3px" }}>
+                              <span style={{ color: T.textMuted }}>{l}</span><span style={{ color }}>{v}</span>
+                            </div>
+                          ))}
+                          <div style={{ borderTop: `1px solid ${T.border}`, marginTop: "0.35rem", paddingTop: "0.35rem", display: "flex", justifyContent: "space-between", fontSize: "0.78rem" }}>
+                            <span style={{ color: T.textMuted }}>4-year total</span>
+                            <span style={{ color, fontWeight: 600 }}>${Math.round(c.total4Year).toLocaleString()}</span>
                           </div>
-                        ))}
-                        <div style={{ borderTop: `1px solid ${T.border}`, marginTop: "0.35rem", paddingTop: "0.35rem", display: "flex", justifyContent: "space-between", fontSize: "0.78rem" }}>
-                          <span style={{ color: T.textMuted }}>4-year total</span>
-                          <span style={{ color, fontWeight: 600 }}>${Math.round(c.total4Year).toLocaleString()}</span>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ padding: "0.65rem 0.9rem", background: "rgba(109,40,217,0.07)", border: "1px solid #7c3aed", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                    <span style={{ fontSize: "0.75rem", color: "#a78bfa" }}>If you negotiate successfully</span>
-                    <span style={{ fontSize: "1.3rem", fontWeight: 600, color: "#a78bfa", fontFamily: "'DM Serif Display', serif" }}>+${Math.round(counterResult.gap.fourYear).toLocaleString()}</span>
-                  </div>
-                  {counterResult.strategy && (
-                    <div style={{ padding: "0.75rem", background: T.cardBg, borderRadius: "8px", border: `1px solid ${T.border}` }}>
-                      <div style={{ fontSize: "0.62rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>Your strategy</div>
-                      <div style={{ fontSize: "0.76rem", color: T.textSecondary, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{counterResult.strategy}</div>
+                      ))}
                     </div>
-                  )}
-                </div>
+                    <div style={{ padding: "0.65rem 0.9rem", background: "rgba(109,40,217,0.07)", border: "1px solid #7c3aed", borderRadius: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                      <span style={{ fontSize: "0.75rem", color: "#a78bfa" }}>If you negotiate successfully</span>
+                      <span style={{ fontSize: "1.3rem", fontWeight: 600, color: "#a78bfa", fontFamily: "'DM Serif Display', serif" }}>+${Math.round(counterResult.gap.fourYear).toLocaleString()}</span>
+                    </div>
+                    {counterResult.strategy && (
+                      <div style={{ padding: "0.75rem", background: T.cardBg, borderRadius: "8px", border: `1px solid ${T.border}` }}>
+                        <div style={{ fontSize: "0.62rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>Your strategy</div>
+                        <div style={{ fontSize: "0.76rem", color: T.textSecondary, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{counterResult.strategy}</div>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>
           <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="calculate" />
         </>
-      );
+        );
+      }
 
       // ── PRACTICE TAB ──────────────────────────────────────────────────────
       case "practice": return (
@@ -1014,6 +1225,8 @@ export default function OfferAdvisor() {
 
       {/* Auth modal — shown when user clicks sign-in / sign-up / hits a paywall */}
       <AuthModal mode={authModal} onClose={() => setAuthModal(null)} T={T} />
+
+      {showPaywall && <PaywallModal />}
 
       {/* Stripe checkout success banner */}
       {checkoutSuccess && (
