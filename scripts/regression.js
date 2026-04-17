@@ -1188,15 +1188,16 @@ const TESTS = [
       } catch (e) {
         return { pass: false, message: "src/App.jsx not found" };
       }
-      const hasQuotaState = code.includes("freeCoachSessionsUsed") && code.includes("USAGE_LIMITS.free.sessions");
-      const blocksSend = code.includes("setShowPaywall(true)") && code.includes('tabWhenSending === "coach"') && code.includes('userPlan === "free"');
-      const persists = code.includes("offeradvisor_free_coach_");
-      const pass = hasQuotaState && blocksSend && persists;
+      const hasQuotaState = code.includes("freeCoachSessionsUsed") && code.includes("guestCoachReplies") && code.includes("USAGE_LIMITS.free.sessions");
+      const blocksSignedInFree = code.includes("setShowPaywall(true)") && code.includes('tabWhenSending === "coach"') && code.includes('userPlan === "free"');
+      const blocksGuest = code.includes("!isSignedIn") && code.includes("guestCoachReplies >= coachFreeCap");
+      const persists = code.includes("offeradvisor_free_coach_") && code.includes("offeradvisor_guest_coach");
+      const pass = hasQuotaState && blocksSignedInFree && blocksGuest && persists;
       return {
         pass,
         message: pass
-          ? "Free coach quota state, send guard, and localStorage key present"
-          : `Missing — quotaState:${hasQuotaState} guard:${blocksSend} persist:${persists}`,
+          ? "Guest + signed-in free coach guards and persistence keys present"
+          : `Missing — quotaState:${hasQuotaState} signedInFree:${blocksSignedInFree} guest:${blocksGuest} persist:${persists}`,
       };
     },
   },

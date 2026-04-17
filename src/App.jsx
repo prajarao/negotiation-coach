@@ -120,7 +120,7 @@ const canAccess = (plan, tabId) => {
   return allowed.includes(tabId);
 };
 
-// Usage limits — UI coach paywall for signed-in free (server /api/chat may still allow more; see api/_plan-gate.js)
+// Usage limits — Share Offer (coach): 1 completed AI reply per guest session + per signed-in free account (UI; server may differ)
 const USAGE_LIMITS = {
   free:   { sessions: 1,   emails: 1   },
   sprint: { sessions: 999, emails: 999 },
@@ -364,13 +364,24 @@ export default function OfferAdvisor() {
   // ── Paywall: signed-in free coach quota + modals ───────────────────────────
   const [showPaywall, setShowPaywall] = useState(false);
   const [freeCoachSessionsUsed, setFreeCoachSessionsUsed] = useState(0);
+  /** Completed coach AI replies while signed out (sessionStorage); mirrors free tier session cap. */
+  const [guestCoachReplies, setGuestCoachReplies] = useState(0);
   /** When true, the calculate-tab upgrade modal is hidden; results stay blurred for guest/free until they upgrade or sign in. */
   const [calcUpgradeModalDismissed, setCalcUpgradeModalDismissed] = useState(false);
 
   useEffect(() => {
     try {
-      if (isSignedIn) sessionStorage.removeItem("offeradvisor_calc_guest_preview");
-    } catch (_) { /* ignore */ }
+      if (isSignedIn) {
+        sessionStorage.removeItem("offeradvisor_calc_guest_preview");
+        sessionStorage.removeItem("offeradvisor_guest_coach");
+        setGuestCoachReplies(0);
+        return;
+      }
+      const v = parseInt(sessionStorage.getItem("offeradvisor_guest_coach") || "0", 10);
+      setGuestCoachReplies(Number.isFinite(v) ? v : 0);
+    } catch (_) {
+      setGuestCoachReplies(0);
+    }
   }, [isSignedIn]);
 
   useEffect(() => {
@@ -478,11 +489,16 @@ export default function OfferAdvisor() {
     if (!userText || loading) return;
 
     const tabWhenSending = activeTab;
+    const coachFreeCap = USAGE_LIMITS.free.sessions;
+    if (tabWhenSending === "coach" && !isSignedIn && guestCoachReplies >= coachFreeCap) {
+      setAuthModal("signup");
+      return;
+    }
     if (
       tabWhenSending === "coach"
       && isSignedIn
       && userPlan === "free"
-      && freeCoachSessionsUsed >= USAGE_LIMITS.free.sessions
+      && freeCoachSessionsUsed >= coachFreeCap
     ) {
       setShowPaywall(true);
       return;
@@ -519,6 +535,15 @@ export default function OfferAdvisor() {
       const data = await response.json();
       const reply = data.content?.[0]?.text || "Something went wrong. Please try again.";
       setMessages([...newMessages, { role: "assistant", content: reply }]);
+      if (tabWhenSending === "coach" && !isSignedIn) {
+        setGuestCoachReplies((prev) => {
+          const next = prev + 1;
+          try {
+            sessionStorage.setItem("offeradvisor_guest_coach", String(next));
+          } catch (_) { /* ignore */ }
+          return next;
+        });
+      }
       if (tabWhenSending === "coach" && isSignedIn && userPlan === "free" && user?.id) {
         setFreeCoachSessionsUsed((prev) => {
           const next = prev + 1;
@@ -876,7 +901,13 @@ export default function OfferAdvisor() {
 
     switch (activeTab) {
       // ── COACH TAB — full chat ─────────────────────────────────────────────
-      case "coach": return (
+      case "coach": {
+        const coachFreeCap = USAGE_LIMITS.free.sessions;
+        const coachAtLimit = (
+          (!isSignedIn && guestCoachReplies >= coachFreeCap)
+          || (isSignedIn && userPlan === "free" && freeCoachSessionsUsed >= coachFreeCap)
+        );
+        return (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "1.1rem 1rem" }}>
             <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.9rem" }}>
@@ -919,8 +950,44 @@ export default function OfferAdvisor() {
             </div>
           </div>
 
-          {/* Sign-in nudge — shown to guests after they've had their first exchange */}
-          {!isSignedIn && messages.length >= 3 && (
+          {/* Coach free tier: hard stop after one AI reply (guest or signed-in free) */}
+          {coachAtLimit && (
+            <div style={{ margin: "0 1rem 0.75rem", maxWidth: 720, width: "calc(100% - 2rem)", alignSelf: "center" }}>
+              <div style={{ padding: "0.85rem 1rem", background: isDark ? "rgba(29,78,216,0.12)" : "#EFF6FF", border: "1px solid rgba(29,78,216,0.35)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: "0.82rem", fontWeight: 600, color: T.textPrimary, marginBottom: "2px" }}>
+                    {!isSignedIn ? "Free preview used" : "Free coaching limit reached"}
+                  </div>
+                  <div style={{ fontSize: "0.74rem", color: T.textSecondary, lineHeight: 1.55 }}>
+                    {!isSignedIn
+                      ? "You've had one full coaching exchange without an account. Create a free account to keep negotiating here."
+                      : "You've used your included exchange on the free plan. Upgrade once for unlimited coaching and every tool."}
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
+                  {!isSignedIn ? (
+                    <>
+                      <button type="button" onClick={() => setAuthModal("signin")}
+                        style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: `1px solid ${T.border}`, background: "transparent", color: T.textSecondary, fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit" }}>
+                        Sign in
+                      </button>
+                      <button type="button" onClick={() => setAuthModal("signup")}
+                        style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
+                        Sign up free →
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => setAuthModal("upgrade")}
+                      style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
+                      View plans →
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Soft nudge before hard limit (guests only) */}
+          {!isSignedIn && !coachAtLimit && messages.length >= 3 && (
             <div style={{ margin: "0 1rem 0.75rem", maxWidth: 720, width: "calc(100% - 2rem)", alignSelf: "center" }}>
               <div style={{ padding: "0.85rem 1rem", background: isDark ? "rgba(29,78,216,0.08)" : "#EFF6FF", border: "1px solid rgba(29,78,216,0.2)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
                 <div>
@@ -928,11 +995,11 @@ export default function OfferAdvisor() {
                   <div style={{ fontSize: "0.74rem", color: T.textSecondary }}>Sign up free to continue — your conversation won't be lost.</div>
                 </div>
                 <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-                  <button onClick={() => setAuthModal("signin")}
+                  <button type="button" onClick={() => setAuthModal("signin")}
                     style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: `1px solid ${T.border}`, background: "transparent", color: T.textSecondary, fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit" }}>
                     Sign in
                   </button>
-                  <button onClick={() => setAuthModal("signup")}
+                  <button type="button" onClick={() => setAuthModal("signup")}
                     style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
                     Sign up free →
                   </button>
@@ -943,13 +1010,13 @@ export default function OfferAdvisor() {
           <div style={{ padding: "0 1rem 0.5rem", maxWidth: 720, margin: "0 auto", width: "100%" }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
               {PROMPTS.coach.map((p, i) => (
-                <button key={i} onClick={() => sendMessage(p)}
-                  style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit" }}>
+                <button key={i} type="button" disabled={coachAtLimit} onClick={() => sendMessage(p)}
+                  style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.72rem", cursor: coachAtLimit ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: coachAtLimit ? 0.45 : 1 }}>
                   {p}
                 </button>
               ))}
-              <button onClick={() => { setMode((m) => m === "roleplay" ? "coach" : "roleplay"); setMessages((p) => [...p, { role: "assistant", content: mode === "coach" ? "**Role-play mode on.** I'm Alex, your recruiter. What role are we discussing?" : "**Coach mode restored.** What do you want to work on?" }]); setActiveTab("coach"); }}
-                style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${mode === "roleplay" ? "#7c3aed" : T.border}`, background: mode === "roleplay" ? "rgba(124,58,237,0.1)" : "transparent", color: mode === "roleplay" ? "#a78bfa" : T.textMuted, fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit", fontWeight: mode === "roleplay" ? 500 : 400 }}>
+              <button type="button" disabled={coachAtLimit} onClick={() => { if (coachAtLimit) return; setMode((m) => m === "roleplay" ? "coach" : "roleplay"); setMessages((p) => [...p, { role: "assistant", content: mode === "coach" ? "**Role-play mode on.** I'm Alex, your recruiter. What role are we discussing?" : "**Coach mode restored.** What do you want to work on?" }]); setActiveTab("coach"); }}
+                style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${mode === "roleplay" ? "#7c3aed" : T.border}`, background: mode === "roleplay" ? "rgba(124,58,237,0.1)" : "transparent", color: mode === "roleplay" ? "#a78bfa" : T.textMuted, fontSize: "0.72rem", cursor: coachAtLimit ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: mode === "roleplay" ? 500 : 400, opacity: coachAtLimit ? 0.45 : 1 }}>
                 {mode === "roleplay" ? "🎭 Role-play ON" : "🎭 Role-play mode"}
               </button>
             </div>
@@ -957,21 +1024,29 @@ export default function OfferAdvisor() {
 
           {/* Main input */}
           <div style={{ padding: "0.45rem 1rem 1rem", borderTop: `1px solid ${T.border}`, background: T.headerBg }}>
-            <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: "0.5rem", alignItems: "flex-end", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "0.5rem 0.5rem 0.5rem 0.85rem" }}>
+            <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: "0.5rem", alignItems: "flex-end", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "0.5rem 0.5rem 0.5rem 0.85rem", opacity: coachAtLimit ? 0.72 : 1 }}>
               <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey}
-                placeholder={mode === "roleplay" ? "Speak to the recruiter, Alex..." : "Describe your offer or ask anything..."}
+                disabled={coachAtLimit}
+                placeholder={coachAtLimit
+                  ? (!isSignedIn ? "Sign up to send another message…" : "Upgrade to continue coaching…")
+                  : (mode === "roleplay" ? "Speak to the recruiter, Alex..." : "Describe your offer or ask anything...")}
                 rows={1}
                 style={{ flex: 1, background: "transparent", border: "none", color: T.textPrimary, fontSize: "0.87rem", fontFamily: "inherit", lineHeight: 1.6, maxHeight: 120, overflowY: "auto", resize: "none", outline: "none" }}
                 onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} />
-              <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
-                style={{ width: 32, height: 32, borderRadius: "8px", border: "none", background: input.trim() && !loading ? "#1d4ed8" : T.border, color: input.trim() && !loading ? "white" : T.textMuted, cursor: input.trim() && !loading ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem", flexShrink: 0 }}>↑</button>
+              <button type="button" onClick={() => sendMessage()} disabled={!input.trim() || loading || coachAtLimit}
+                style={{ width: 32, height: 32, borderRadius: "8px", border: "none", background: input.trim() && !loading && !coachAtLimit ? "#1d4ed8" : T.border, color: input.trim() && !loading && !coachAtLimit ? "white" : T.textMuted, cursor: input.trim() && !loading && !coachAtLimit ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem", flexShrink: 0 }}>↑</button>
             </div>
             <p style={{ textAlign: "center", color: T.textHint, fontSize: "0.6rem", marginTop: "0.35rem", maxWidth: 720, margin: "0.35rem auto 0" }}>
-              AI coaching — not a substitute for professional financial or legal advice
+              {!isSignedIn
+                ? `Guests get ${coachFreeCap} full coaching reply on this device — sign up free for more.`
+                : userPlan === "free"
+                  ? `Free plan includes ${coachFreeCap} coaching exchange — upgrade for unlimited.`
+                  : "AI coaching — not a substitute for professional financial or legal advice"}
             </p>
           </div>
         </>
-      );
+        );
+      }
 
       // ── BENCHMARK TAB ─────────────────────────────────────────────────────
       case "benchmark": return (
