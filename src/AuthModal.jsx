@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { SignIn, SignUp, useUser } from "@clerk/clerk-react";
+import { offeradvisorClerkAppearance } from "./clerkAppearance.js";
 
 /**
  * AuthModal
@@ -219,54 +220,14 @@ export default function AuthModal({ mode, onClose, T }) {
         {/* ── Sign In ────────────────────────────────────────────────────────── */}
         {mode === "signin" && (
           <div style={{ animation: "oa-slide-up 0.22s ease forwards", width: "100%", maxWidth: 420 }}>
-            <SignIn
-              routing="hash"
-              appearance={{
-                variables: {
-                  colorPrimary: "#1d4ed8",
-                  colorBackground: "#0d1424",
-                  colorInputBackground: "#0a0f1a",
-                  colorInputText: "#e2e8f0",
-                  colorText: "#e2e8f0",
-                  colorTextSecondary: "#94a3b8",
-                  borderRadius: "10px",
-                  fontFamily: "'DM Sans', system-ui, sans-serif",
-                },
-                elements: {
-                  card: { border: "1px solid #1e293b", boxShadow: "none" },
-                  headerTitle: { fontFamily: "'DM Serif Display', serif", fontWeight: 500 },
-                  formButtonPrimary: { backgroundColor: "#1d4ed8" },
-                  footerActionLink: { color: "#3b82f6" },
-                },
-              }}
-            />
+            <SignIn routing="hash" appearance={offeradvisorClerkAppearance()} />
           </div>
         )}
 
         {/* ── Sign Up ────────────────────────────────────────────────────────── */}
         {mode === "signup" && (
           <div style={{ animation: "oa-slide-up 0.22s ease forwards", width: "100%", maxWidth: 420 }}>
-            <SignUp
-              routing="hash"
-              appearance={{
-                variables: {
-                  colorPrimary: "#1d4ed8",
-                  colorBackground: "#0d1424",
-                  colorInputBackground: "#0a0f1a",
-                  colorInputText: "#e2e8f0",
-                  colorText: "#e2e8f0",
-                  colorTextSecondary: "#94a3b8",
-                  borderRadius: "10px",
-                  fontFamily: "'DM Sans', system-ui, sans-serif",
-                },
-                elements: {
-                  card: { border: "1px solid #1e293b", boxShadow: "none" },
-                  headerTitle: { fontFamily: "'DM Serif Display', serif", fontWeight: 500 },
-                  formButtonPrimary: { backgroundColor: "#1d4ed8" },
-                  footerActionLink: { color: "#3b82f6" },
-                },
-              }}
-            />
+            <SignUp routing="hash" appearance={offeradvisorClerkAppearance()} />
           </div>
         )}
       </div>

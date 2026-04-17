@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useUser, useAuth, SignInButton, SignUpButton, UserProfile } from "@clerk/clerk-react";
 import AuthModal from "./AuthModal.jsx";
+import { offeradvisorClerkAppearance } from "./clerkAppearance.js";
 import { sendSessionSummaryEmail } from "./utils/sessionEmail";
 import CrispChat from "./components/CrispChat";
 
@@ -1381,13 +1382,10 @@ export default function OfferAdvisor() {
             <div style={{ padding: "0.5rem 1rem 1.25rem" }}>
               <UserProfile
                 routing="hash"
-                appearance={{
-                  variables: { colorPrimary: "#1d4ed8", borderRadius: "10px" },
-                  elements: {
-                    rootBox: { width: "100%" },
-                    card: { boxShadow: "none", background: "transparent" },
-                  },
-                }}
+                appearance={offeradvisorClerkAppearance({
+                  rootBox: { width: "100%" },
+                  card: { boxShadow: "none", background: "transparent", border: "none" },
+                })}
               />
             </div>
           </div>
