@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useUser, useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/clerk-react";
+import { useUser, useAuth, SignInButton, SignUpButton, UserProfile } from "@clerk/clerk-react";
 import AuthModal from "./AuthModal.jsx";
 import { sendSessionSummaryEmail } from "./utils/sessionEmail";
 import CrispChat from "./components/CrispChat";
@@ -249,6 +249,22 @@ export default function OfferAdvisor() {
 
   const userPlan = adminPlan || clerkPlan;
   const userName = adminPlan ? "Admin" : (user?.firstName || user?.username || null);
+  const accountDisplayName =
+    user?.fullName?.trim()
+    || [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim()
+    || user?.username
+    || user?.primaryEmailAddress?.emailAddress?.split("@")[0]
+    || "Account";
+  const accountEmail = user?.primaryEmailAddress?.emailAddress || "";
+  const planExpiresRaw = user?.publicMetadata?.planExpiresAt;
+  const planExpiresLabel = (() => {
+    if (!planExpiresRaw || typeof planExpiresRaw !== "string") return null;
+    try {
+      return new Date(planExpiresRaw).toLocaleDateString(undefined, { dateStyle: "medium" });
+    } catch {
+      return null;
+    }
+  })();
 
   // Allow toggling plan from admin bar
   const setTestPlan = (plan) => {
@@ -265,6 +281,22 @@ export default function OfferAdvisor() {
 
   // Auth modal state
   const [authModal, setAuthModal] = useState(null); // null | "signin" | "signup" | "upgrade"
+
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [walletModalOpen, setWalletModalOpen] = useState(false);
+  const accountMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const onPointerDown = (e) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [accountMenuOpen]);
 
   // Stripe return — detect ?checkout=success in URL after payment
   const [checkoutSuccess, setCheckoutSuccess] = useState(null); // null | "sprint" | "pro"
@@ -1226,6 +1258,167 @@ export default function OfferAdvisor() {
       {/* Auth modal — shown when user clicks sign-in / sign-up / hits a paywall */}
       <AuthModal mode={authModal} onClose={() => setAuthModal(null)} T={T} />
 
+      {showUserProfileModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Your profile"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowUserProfileModal(false); }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10070,
+            background: "rgba(0,0,0,0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+            overflowY: "auto",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "relative",
+              width: "100%",
+              maxWidth: 920,
+              maxHeight: "min(92vh, 880px)",
+              overflow: "auto",
+              background: T.headerBg,
+              border: `1px solid ${T.border}`,
+              borderRadius: "14px",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
+              paddingTop: "6px",
+            }}
+          >
+            <button
+              type="button"
+              aria-label="Close profile"
+              onClick={() => setShowUserProfileModal(false)}
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                zIndex: 2,
+                width: 36,
+                height: 36,
+                borderRadius: "8px",
+                border: `1px solid ${T.border}`,
+                background: T.cardBg,
+                color: T.textMuted,
+                fontSize: "1.25rem",
+                lineHeight: 1,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              ×
+            </button>
+            <div style={{ padding: "0.5rem 1rem 1.25rem" }}>
+              <UserProfile
+                routing="hash"
+                appearance={{
+                  variables: { colorPrimary: "#1d4ed8", borderRadius: "10px" },
+                  elements: {
+                    rootBox: { width: "100%" },
+                    card: { boxShadow: "none", background: "transparent" },
+                  },
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {walletModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Wallet and plan"
+          onClick={(e) => { if (e.target === e.currentTarget) setWalletModalOpen(false); }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10065,
+            background: "rgba(0,0,0,0.65)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 400,
+              padding: "1.5rem",
+              borderRadius: "14px",
+              border: `1px solid ${T.border}`,
+              background: T.headerBg,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
+            }}
+          >
+            <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.2rem", color: T.textPrimary, marginBottom: "0.75rem" }}>Wallet & plan</h2>
+            <p style={{ fontSize: "0.82rem", color: T.textSecondary, lineHeight: 1.65, marginBottom: "0.75rem" }}>
+              Your subscription is managed through Stripe. Receipts are emailed to you after purchase.
+            </p>
+            <div style={{ padding: "0.75rem", borderRadius: "10px", background: T.cardBg, border: `1px solid ${T.border}`, marginBottom: "0.75rem" }}>
+              <div style={{ fontSize: "0.68rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.35rem" }}>Current plan</div>
+              <div style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary }}>{PLANS[userPlan]?.label || userPlan}</div>
+              {planExpiresLabel && userPlan !== "free" ? (
+                <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.4rem" }}>
+                  Full access until <strong style={{ color: T.textSecondary }}>{planExpiresLabel}</strong>
+                </div>
+              ) : userPlan === "free" ? (
+                <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.4rem" }}>Upgrade once to unlock every tool for 30 days.</div>
+              ) : null}
+              {adminPlan ? (
+                <div style={{ fontSize: "0.72rem", color: "#a78bfa", marginTop: "0.5rem" }}>Admin test override active (local only).</div>
+              ) : null}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setWalletModalOpen(false);
+                  setAuthModal("upgrade");
+                }}
+                style={{
+                  padding: "0.6rem 1rem",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "#1d4ed8",
+                  color: "white",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {userPlan === "free" ? "View plans & upgrade" : "Change plan"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setWalletModalOpen(false)}
+                style={{
+                  padding: "0.5rem 1rem",
+                  borderRadius: "10px",
+                  border: `1px solid ${T.border}`,
+                  background: "transparent",
+                  color: T.textMuted,
+                  fontSize: "0.8rem",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPaywall && <PaywallModal />}
 
       {/* Stripe checkout success banner */}
@@ -1355,14 +1548,133 @@ export default function OfferAdvisor() {
                 {PLANS[userPlan]?.label || "Free"}
               </div>
               {/* Clerk's built-in user button — handles profile, sign-out, etc */}
-              <UserButton
-                afterSignOutUrl="/"
-                appearance={{
-                  elements: {
-                    avatarBox: { width: 28, height: 28 },
-                  },
-                }}
-              />
+              <div ref={accountMenuRef} style={{ position: "relative" }}>
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={accountMenuOpen}
+                  onClick={() => setAccountMenuOpen((o) => !o)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
+                    padding: "0.25rem 0.45rem 0.25rem 0.25rem",
+                    borderRadius: "10px",
+                    border: `1px solid ${T.border}`,
+                    background: T.cardBg,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    maxWidth: "min(200px, 42vw)",
+                  }}
+                >
+                  {user?.imageUrl ? (
+                    <img
+                      alt=""
+                      src={user.imageUrl}
+                      width={28}
+                      height={28}
+                      style={{ borderRadius: "8px", flexShrink: 0, objectFit: "cover" }}
+                    />
+                  ) : (
+                    <div style={{ width: 28, height: 28, borderRadius: "8px", flexShrink: 0, background: "#334155", color: "#e2e8f0", fontSize: "0.75rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {(accountDisplayName[0] || "?").toUpperCase()}
+                    </div>
+                  )}
+                  <span style={{ fontSize: "0.78rem", fontWeight: 500, color: T.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {accountDisplayName}
+                  </span>
+                  <span style={{ fontSize: "0.55rem", color: T.textMuted, flexShrink: 0 }}>▼</span>
+                </button>
+                {accountMenuOpen && (
+                  <div
+                    role="menu"
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: "calc(100% + 6px)",
+                      minWidth: 240,
+                      maxWidth: 300,
+                      padding: "0.35rem 0",
+                      borderRadius: "12px",
+                      border: `1px solid ${T.border}`,
+                      background: T.headerBg,
+                      boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
+                      zIndex: 10060,
+                    }}
+                  >
+                    <div style={{ padding: "0.5rem 0.85rem 0.65rem", borderBottom: `1px solid ${T.border}` }}>
+                      <div style={{ fontSize: "0.72rem", fontWeight: 600, color: T.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountDisplayName}</div>
+                      {accountEmail ? (
+                        <div style={{ fontSize: "0.68rem", color: T.textMuted, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountEmail}</div>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        setShowUserProfileModal(true);
+                      }}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "0.55rem 0.85rem",
+                        border: "none",
+                        background: "transparent",
+                        color: T.textSecondary,
+                        fontSize: "0.8rem",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      View / edit profile
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        setWalletModalOpen(true);
+                      }}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "0.55rem 0.85rem",
+                        border: "none",
+                        background: "transparent",
+                        color: T.textSecondary,
+                        fontSize: "0.8rem",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Wallet & plan
+                    </button>
+                    <div style={{ height: 1, background: T.border, margin: "0.25rem 0" }} />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={async () => {
+                        setAccountMenuOpen(false);
+                        await signOut({ redirectUrl: `${window.location.origin}/` });
+                      }}
+                      style={{
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "0.55rem 0.85rem",
+                        border: "none",
+                        background: "transparent",
+                        color: "#f87171",
+                        fontSize: "0.8rem",
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div style={{ display: "flex", gap: "0.3rem" }}>
