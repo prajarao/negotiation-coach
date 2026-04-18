@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { useUser, useAuth, SignInButton, SignUpButton, UserProfile } from "@clerk/clerk-react";
+import { useUser, useAuth, SignInButton, SignUpButton, UserButton } from "@clerk/clerk-react";
 import AuthModal from "./AuthModal.jsx";
-import { offeradvisorClerkAppearance } from "./clerkAppearance.js";
 import { sendSessionSummaryEmail } from "./utils/sessionEmail";
 import CrispChat from "./components/CrispChat";
 
@@ -54,6 +53,10 @@ const TABS = [
   { id: "calculate", label: "Calculate",   shortLabel: "Calculate", icon: "calculate", desc: "Build your counter-offer" },
   { id: "practice",  label: "Practice",    shortLabel: "Practice",  icon: "practice",  desc: "Role-play the conversation" },
   { id: "logwin",    label: "Log win",     shortLabel: "Log win",   icon: "logwin",    desc: "Record your result" },
+  // Phase 2 Pro-only features (coming soon)
+  { id: "templates", label: "Templates",   shortLabel: "Templates", icon: "templates", desc: "Email scripts (Pro)" },
+  { id: "playbook",  label: "Playbook",    shortLabel: "Playbook",  icon: "playbook",  desc: "Download guide (Pro)" },
+  { id: "history",   label: "History",     shortLabel: "History",   icon: "history",   desc: "Track negotiations (Pro)" },
 ];
 
 const PROMPTS = {
@@ -108,10 +111,10 @@ const PLANS = {
 
 // Features each plan can access
 const PLAN_FEATURES = {
-  // Free: coach + calculate (results behind paywall for signed-in free; guests see paywall too)
-  free:   ["coach", "calculate"],
+  free:   ["coach"],                                               // chat only
   sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-  pro:    ["coach", "benchmark", "calculate", "practice", "logwin"],
+  pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
+  // Phase 2 features for Pro: templates (email scripts), playbook (PDF), history (tracker)
 };
 
 // Check if a plan can access a given tab
@@ -120,7 +123,7 @@ const canAccess = (plan, tabId) => {
   return allowed.includes(tabId);
 };
 
-// Usage limits — Share Offer (coach): 1 completed AI reply per guest session + per signed-in free account (UI; server may differ)
+// Usage limits per plan (checked server-side too, this is UI-only)
 const USAGE_LIMITS = {
   free:   { sessions: 1,   emails: 1   },
   sprint: { sessions: 999, emails: 999 },
@@ -235,6 +238,21 @@ export default function OfferAdvisor() {
   // User's plan comes from Clerk publicMetadata (set by webhook on sign-up,
   // updated by Stripe webhook after payment)
   const clerkPlan = (user?.publicMetadata?.plan) || "free";
+  
+  // Sprint 30-day window: Stripe webhook sets `expiresAt` + `planExpiresAt` (ISO). Pro has both null.
+  const sprintExpiresAtIso =
+    user?.publicMetadata?.expiresAt ?? user?.publicMetadata?.planExpiresAt ?? null;
+  const isSprintExpired =
+    clerkPlan === "sprint"
+    && sprintExpiresAtIso
+    && new Date() > new Date(sprintExpiresAtIso);
+
+  // Effective plan: expired Sprint is treated as free in the UI (Clerk metadata unchanged until you sync)
+  const effectivePlan = isSprintExpired ? "free" : clerkPlan;
+  const daysLeftOnSprint =
+    clerkPlan === "sprint" && sprintExpiresAtIso
+      ? Math.max(0, Math.ceil((new Date(sprintExpiresAtIso) - new Date()) / (1000 * 60 * 60 * 24)))
+      : 0;
 
   // ── Admin / test override ─────────────────────────────────────────────────
   // Set via localStorage so you can test locked screens without real payments.
@@ -248,24 +266,8 @@ export default function OfferAdvisor() {
   // Admin toolbar state
   const [showAdminBar, setShowAdminBar] = useState(() => !!localStorage.getItem("oa_admin_plan"));
 
-  const userPlan = adminPlan || clerkPlan;
+  const userPlan = adminPlan || effectivePlan;
   const userName = adminPlan ? "Admin" : (user?.firstName || user?.username || null);
-  const accountDisplayName =
-    user?.fullName?.trim()
-    || [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim()
-    || user?.username
-    || user?.primaryEmailAddress?.emailAddress?.split("@")[0]
-    || "Account";
-  const accountEmail = user?.primaryEmailAddress?.emailAddress || "";
-  const planExpiresRaw = user?.publicMetadata?.planExpiresAt;
-  const planExpiresLabel = (() => {
-    if (!planExpiresRaw || typeof planExpiresRaw !== "string") return null;
-    try {
-      return new Date(planExpiresRaw).toLocaleDateString(undefined, { dateStyle: "medium" });
-    } catch {
-      return null;
-    }
-  })();
 
   // Allow toggling plan from admin bar
   const setTestPlan = (plan) => {
@@ -282,22 +284,6 @@ export default function OfferAdvisor() {
 
   // Auth modal state
   const [authModal, setAuthModal] = useState(null); // null | "signin" | "signup" | "upgrade"
-
-  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
-  const [walletModalOpen, setWalletModalOpen] = useState(false);
-  const accountMenuRef = useRef(null);
-
-  useEffect(() => {
-    if (!accountMenuOpen) return;
-    const onPointerDown = (e) => {
-      if (accountMenuRef.current && !accountMenuRef.current.contains(e.target)) {
-        setAccountMenuOpen(false);
-      }
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [accountMenuOpen]);
 
   // Stripe return — detect ?checkout=success in URL after payment
   const [checkoutSuccess, setCheckoutSuccess] = useState(null); // null | "sprint" | "pro"
@@ -361,38 +347,9 @@ export default function OfferAdvisor() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
-  // ── Paywall: signed-in free coach quota + modals ───────────────────────────
+  // ── Paywall state (track premium feature usage) ──────────────────────────────
+  const [premiumFeaturesUsed, setPremiumFeaturesUsed] = useState(0);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [freeCoachSessionsUsed, setFreeCoachSessionsUsed] = useState(0);
-  /** Completed coach AI replies while signed out (sessionStorage); mirrors free tier session cap. */
-  const [guestCoachReplies, setGuestCoachReplies] = useState(0);
-  /** When true, the calculate-tab upgrade modal is hidden; results stay blurred for guest/free until they upgrade or sign in. */
-  const [calcUpgradeModalDismissed, setCalcUpgradeModalDismissed] = useState(false);
-
-  useEffect(() => {
-    try {
-      if (isSignedIn) {
-        sessionStorage.removeItem("offeradvisor_calc_guest_preview");
-        sessionStorage.removeItem("offeradvisor_guest_coach");
-        setGuestCoachReplies(0);
-        return;
-      }
-      const v = parseInt(sessionStorage.getItem("offeradvisor_guest_coach") || "0", 10);
-      setGuestCoachReplies(Number.isFinite(v) ? v : 0);
-    } catch (_) {
-      setGuestCoachReplies(0);
-    }
-  }, [isSignedIn]);
-
-  useEffect(() => {
-    if (!user?.id) {
-      setFreeCoachSessionsUsed(0);
-      return;
-    }
-    const k = `offeradvisor_free_coach_${user.id}`;
-    const raw = parseInt(localStorage.getItem(k) || "0", 10);
-    setFreeCoachSessionsUsed(Number.isFinite(raw) ? raw : 0);
-  }, [user?.id]);
 
   const T = {
     pageBg:         isDark ? "#0a0f1a" : "#f1f5f9",
@@ -422,14 +379,6 @@ export default function OfferAdvisor() {
   const [calcLoading,   setCalcLoading]   = useState(false);
   const [counterResult, setCounterResult] = useState(null);
   const [offer, setOffer] = useState({ base: "", bonus: "", equity: "", equityYears: "4", signing: "", pto: "15" });
-
-  useEffect(() => {
-    if (!counterResult) setCalcUpgradeModalDismissed(false);
-  }, [counterResult]);
-
-  useEffect(() => {
-    setShowPaywall(false);
-  }, [activeTab]);
 
   // Tracker state
   const STORAGE_KEY = "offeradvisor_outcomes";
@@ -487,23 +436,6 @@ export default function OfferAdvisor() {
   const sendMessage = async (text) => {
     const userText = (text || input || "").trim();
     if (!userText || loading) return;
-
-    const tabWhenSending = activeTab;
-    const coachFreeCap = USAGE_LIMITS.free.sessions;
-    if (tabWhenSending === "coach" && !isSignedIn && guestCoachReplies >= coachFreeCap) {
-      setAuthModal("signup");
-      return;
-    }
-    if (
-      tabWhenSending === "coach"
-      && isSignedIn
-      && userPlan === "free"
-      && freeCoachSessionsUsed >= coachFreeCap
-    ) {
-      setShowPaywall(true);
-      return;
-    }
-
     setInput("");
 
     const newMessages = [...messages, { role: "user", content: userText }];
@@ -535,22 +467,6 @@ export default function OfferAdvisor() {
       const data = await response.json();
       const reply = data.content?.[0]?.text || "Something went wrong. Please try again.";
       setMessages([...newMessages, { role: "assistant", content: reply }]);
-      if (tabWhenSending === "coach" && !isSignedIn) {
-        setGuestCoachReplies((prev) => {
-          const next = prev + 1;
-          try {
-            sessionStorage.setItem("offeradvisor_guest_coach", String(next));
-          } catch (_) { /* ignore */ }
-          return next;
-        });
-      }
-      if (tabWhenSending === "coach" && isSignedIn && userPlan === "free" && user?.id) {
-        setFreeCoachSessionsUsed((prev) => {
-          const next = prev + 1;
-          localStorage.setItem(`offeradvisor_free_coach_${user.id}`, String(next));
-          return next;
-        });
-      }
     } catch (e) {
       setMessages([...newMessages, { role: "assistant", content: "Something went wrong. Please try again." }]);
     } finally {
@@ -617,27 +533,6 @@ export default function OfferAdvisor() {
   // ── Counter calculator ───────────────────────────────────────────────────────
   const calculateCounter = async () => {
     if (!offer.base) return;
-    let guestPreviewDone = false;
-    let freePreviewDone = false;
-    try {
-      guestPreviewDone = !isSignedIn && sessionStorage.getItem("offeradvisor_calc_guest_preview") === "1";
-    } catch (_) { guestPreviewDone = false; }
-    try {
-      freePreviewDone = Boolean(
-        isSignedIn
-        && userPlan === "free"
-        && user?.id
-        && localStorage.getItem(`offeradvisor_free_calc_preview_${user.id}`) === "1",
-      );
-    } catch (_) { freePreviewDone = false; }
-    if (guestPreviewDone) {
-      setAuthModal("signup");
-      return;
-    }
-    if (freePreviewDone) {
-      setAuthModal("upgrade");
-      return;
-    }
     setCalcLoading(true);
     setCounterResult(null);
     try {
@@ -666,10 +561,6 @@ export default function OfferAdvisor() {
       });
       const aiData = await aiRes.json();
       setCounterResult({ current: { base, annualBonus, annualEquity, signing, totalAnnual, total4Year }, counter: { base: counterBase, annualBonus: counterAnnualBonus, annualEquity: counterAnnualEquity, signing: counterSigning, totalAnnual: counterTotalAnnual, total4Year: counterTotal4Year }, gap: { annual: counterTotalAnnual - totalAnnual, fourYear: fourYearGap }, strategy: aiData.content?.[0]?.text || "" });
-      try {
-        if (!isSignedIn) sessionStorage.setItem("offeradvisor_calc_guest_preview", "1");
-        else if (userPlan === "free" && user?.id) localStorage.setItem(`offeradvisor_free_calc_preview_${user.id}`, "1");
-      } catch (_) { /* ignore quota / private mode */ }
       // Send counter-offer email summary
       if (isSignedIn && user?.emailAddresses?.[0]?.emailAddress) {
         sendSessionSummaryEmail({
@@ -733,12 +624,7 @@ export default function OfferAdvisor() {
   const symDisplay  = salaryData?.currencySymbol || getCurrencySymbol(selectedCurrency);
 
   // ── Paywall Modal Component ───────────────────────────────────────────────────
-  const PaywallModal = ({ onDismissExtra, dismissLabel = "Maybe later" } = {}) => {
-    const close = () => {
-      setShowPaywall(false);
-      onDismissExtra?.();
-    };
-    return (
+  const PaywallModal = () => (
     <div style={{
       position: "fixed",
       top: 0,
@@ -749,7 +635,7 @@ export default function OfferAdvisor() {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      zIndex: 10050,
+      zIndex: 1000,
       padding: "1rem",
     }}>
       <div style={{
@@ -826,7 +712,7 @@ export default function OfferAdvisor() {
         {/* Action buttons */}
         <button
           onClick={() => {
-            close();
+            setShowPaywall(false);
             setAuthModal(isSignedIn ? "upgrade" : "signup");
           }}
           style={{
@@ -850,7 +736,7 @@ export default function OfferAdvisor() {
         </button>
 
         <button
-          onClick={close}
+          onClick={() => setShowPaywall(false)}
           style={{
             width: "100%",
             background: "transparent",
@@ -864,7 +750,7 @@ export default function OfferAdvisor() {
             fontFamily: "inherit",
           }}
         >
-          {dismissLabel}
+          Back to calculator
         </button>
 
         {/* Footer note */}
@@ -873,8 +759,7 @@ export default function OfferAdvisor() {
         </p>
       </div>
     </div>
-    );
-  };
+  );
 
   // ── Render tab content ────────────────────────────────────────────────────────
   const renderTabContent = () => {
@@ -901,13 +786,7 @@ export default function OfferAdvisor() {
 
     switch (activeTab) {
       // ── COACH TAB — full chat ─────────────────────────────────────────────
-      case "coach": {
-        const coachFreeCap = USAGE_LIMITS.free.sessions;
-        const coachAtLimit = (
-          (!isSignedIn && guestCoachReplies >= coachFreeCap)
-          || (isSignedIn && userPlan === "free" && freeCoachSessionsUsed >= coachFreeCap)
-        );
-        return (
+      case "coach": return (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "1.1rem 1rem" }}>
             <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.9rem" }}>
@@ -950,44 +829,8 @@ export default function OfferAdvisor() {
             </div>
           </div>
 
-          {/* Coach free tier: hard stop after one AI reply (guest or signed-in free) */}
-          {coachAtLimit && (
-            <div style={{ margin: "0 1rem 0.75rem", maxWidth: 720, width: "calc(100% - 2rem)", alignSelf: "center" }}>
-              <div style={{ padding: "0.85rem 1rem", background: isDark ? "rgba(29,78,216,0.12)" : "#EFF6FF", border: "1px solid rgba(29,78,216,0.35)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
-                <div>
-                  <div style={{ fontSize: "0.82rem", fontWeight: 600, color: T.textPrimary, marginBottom: "2px" }}>
-                    {!isSignedIn ? "Free preview used" : "Free coaching limit reached"}
-                  </div>
-                  <div style={{ fontSize: "0.74rem", color: T.textSecondary, lineHeight: 1.55 }}>
-                    {!isSignedIn
-                      ? "You've had one full coaching exchange without an account. Create a free account to keep negotiating here."
-                      : "You've used your included exchange on the free plan. Upgrade once for unlimited coaching and every tool."}
-                  </div>
-                </div>
-                <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-                  {!isSignedIn ? (
-                    <>
-                      <button type="button" onClick={() => setAuthModal("signin")}
-                        style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: `1px solid ${T.border}`, background: "transparent", color: T.textSecondary, fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit" }}>
-                        Sign in
-                      </button>
-                      <button type="button" onClick={() => setAuthModal("signup")}
-                        style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
-                        Sign up free →
-                      </button>
-                    </>
-                  ) : (
-                    <button type="button" onClick={() => setAuthModal("upgrade")}
-                      style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
-                      View plans →
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          {/* Soft nudge before hard limit (guests only) */}
-          {!isSignedIn && !coachAtLimit && messages.length >= 3 && (
+          {/* Sign-in nudge — shown to guests after they've had their first exchange */}
+          {!isSignedIn && messages.length >= 3 && (
             <div style={{ margin: "0 1rem 0.75rem", maxWidth: 720, width: "calc(100% - 2rem)", alignSelf: "center" }}>
               <div style={{ padding: "0.85rem 1rem", background: isDark ? "rgba(29,78,216,0.08)" : "#EFF6FF", border: "1px solid rgba(29,78,216,0.2)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
                 <div>
@@ -995,11 +838,11 @@ export default function OfferAdvisor() {
                   <div style={{ fontSize: "0.74rem", color: T.textSecondary }}>Sign up free to continue — your conversation won't be lost.</div>
                 </div>
                 <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-                  <button type="button" onClick={() => setAuthModal("signin")}
+                  <button onClick={() => setAuthModal("signin")}
                     style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: `1px solid ${T.border}`, background: "transparent", color: T.textSecondary, fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit" }}>
                     Sign in
                   </button>
-                  <button type="button" onClick={() => setAuthModal("signup")}
+                  <button onClick={() => setAuthModal("signup")}
                     style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
                     Sign up free →
                   </button>
@@ -1010,13 +853,13 @@ export default function OfferAdvisor() {
           <div style={{ padding: "0 1rem 0.5rem", maxWidth: 720, margin: "0 auto", width: "100%" }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
               {PROMPTS.coach.map((p, i) => (
-                <button key={i} type="button" disabled={coachAtLimit} onClick={() => sendMessage(p)}
-                  style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.72rem", cursor: coachAtLimit ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: coachAtLimit ? 0.45 : 1 }}>
+                <button key={i} onClick={() => sendMessage(p)}
+                  style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit" }}>
                   {p}
                 </button>
               ))}
-              <button type="button" disabled={coachAtLimit} onClick={() => { if (coachAtLimit) return; setMode((m) => m === "roleplay" ? "coach" : "roleplay"); setMessages((p) => [...p, { role: "assistant", content: mode === "coach" ? "**Role-play mode on.** I'm Alex, your recruiter. What role are we discussing?" : "**Coach mode restored.** What do you want to work on?" }]); setActiveTab("coach"); }}
-                style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${mode === "roleplay" ? "#7c3aed" : T.border}`, background: mode === "roleplay" ? "rgba(124,58,237,0.1)" : "transparent", color: mode === "roleplay" ? "#a78bfa" : T.textMuted, fontSize: "0.72rem", cursor: coachAtLimit ? "not-allowed" : "pointer", fontFamily: "inherit", fontWeight: mode === "roleplay" ? 500 : 400, opacity: coachAtLimit ? 0.45 : 1 }}>
+              <button onClick={() => { setMode((m) => m === "roleplay" ? "coach" : "roleplay"); setMessages((p) => [...p, { role: "assistant", content: mode === "coach" ? "**Role-play mode on.** I'm Alex, your recruiter. What role are we discussing?" : "**Coach mode restored.** What do you want to work on?" }]); setActiveTab("coach"); }}
+                style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${mode === "roleplay" ? "#7c3aed" : T.border}`, background: mode === "roleplay" ? "rgba(124,58,237,0.1)" : "transparent", color: mode === "roleplay" ? "#a78bfa" : T.textMuted, fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit", fontWeight: mode === "roleplay" ? 500 : 400 }}>
                 {mode === "roleplay" ? "🎭 Role-play ON" : "🎭 Role-play mode"}
               </button>
             </div>
@@ -1024,29 +867,21 @@ export default function OfferAdvisor() {
 
           {/* Main input */}
           <div style={{ padding: "0.45rem 1rem 1rem", borderTop: `1px solid ${T.border}`, background: T.headerBg }}>
-            <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: "0.5rem", alignItems: "flex-end", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "0.5rem 0.5rem 0.5rem 0.85rem", opacity: coachAtLimit ? 0.72 : 1 }}>
+            <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: "0.5rem", alignItems: "flex-end", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "0.5rem 0.5rem 0.5rem 0.85rem" }}>
               <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey}
-                disabled={coachAtLimit}
-                placeholder={coachAtLimit
-                  ? (!isSignedIn ? "Sign up to send another message…" : "Upgrade to continue coaching…")
-                  : (mode === "roleplay" ? "Speak to the recruiter, Alex..." : "Describe your offer or ask anything...")}
+                placeholder={mode === "roleplay" ? "Speak to the recruiter, Alex..." : "Describe your offer or ask anything..."}
                 rows={1}
                 style={{ flex: 1, background: "transparent", border: "none", color: T.textPrimary, fontSize: "0.87rem", fontFamily: "inherit", lineHeight: 1.6, maxHeight: 120, overflowY: "auto", resize: "none", outline: "none" }}
                 onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} />
-              <button type="button" onClick={() => sendMessage()} disabled={!input.trim() || loading || coachAtLimit}
-                style={{ width: 32, height: 32, borderRadius: "8px", border: "none", background: input.trim() && !loading && !coachAtLimit ? "#1d4ed8" : T.border, color: input.trim() && !loading && !coachAtLimit ? "white" : T.textMuted, cursor: input.trim() && !loading && !coachAtLimit ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem", flexShrink: 0 }}>↑</button>
+              <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
+                style={{ width: 32, height: 32, borderRadius: "8px", border: "none", background: input.trim() && !loading ? "#1d4ed8" : T.border, color: input.trim() && !loading ? "white" : T.textMuted, cursor: input.trim() && !loading ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem", flexShrink: 0 }}>↑</button>
             </div>
             <p style={{ textAlign: "center", color: T.textHint, fontSize: "0.6rem", marginTop: "0.35rem", maxWidth: 720, margin: "0.35rem auto 0" }}>
-              {!isSignedIn
-                ? `Guests get ${coachFreeCap} full coaching reply on this device — sign up free for more.`
-                : userPlan === "free"
-                  ? `Free plan includes ${coachFreeCap} coaching exchange — upgrade for unlimited.`
-                  : "AI coaching — not a substitute for professional financial or legal advice"}
+              AI coaching — not a substitute for professional financial or legal advice
             </p>
           </div>
         </>
-        );
-      }
+      );
 
       // ── BENCHMARK TAB ─────────────────────────────────────────────────────
       case "benchmark": return (
@@ -1110,15 +945,7 @@ export default function OfferAdvisor() {
       );
 
       // ── CALCULATE TAB ─────────────────────────────────────────────────────
-      case "calculate": {
-        let calcPreviewLocked = false;
-        try {
-          if (!isSignedIn) calcPreviewLocked = sessionStorage.getItem("offeradvisor_calc_guest_preview") === "1";
-          else if (userPlan === "free" && user?.id) calcPreviewLocked = localStorage.getItem(`offeradvisor_free_calc_preview_${user.id}`) === "1";
-        } catch (_) { calcPreviewLocked = false; }
-        const showCalcBlur = Boolean(counterResult && !calcLoading && (!isSignedIn || userPlan === "free"));
-        const showCalcUpgradeModal = showCalcBlur && !calcUpgradeModalDismissed;
-        return (
+      case "calculate": return (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
             <div style={{ maxWidth: 680, margin: "0 auto" }}>
@@ -1133,58 +960,17 @@ export default function OfferAdvisor() {
                   </div>
                 ))}
               </div>
-              <button
-                onClick={() => {
-                  if (calcPreviewLocked) {
-                    setAuthModal(!isSignedIn ? "signup" : "upgrade");
-                    return;
-                  }
-                  calculateCounter();
-                }}
-                disabled={!offer.base || calcLoading}
-                style={{ ...primaryBtn(offer.base && !calcLoading, "#6d28d9"), marginBottom: "0" }}
-              >
-                {calcLoading
-                  ? "Calculating..."
-                  : calcPreviewLocked
-                    ? (!isSignedIn ? "Sign up to run again →" : "Upgrade for unlimited runs →")
-                    : "Calculate counter-offer →"}
+              <button onClick={calculateCounter} disabled={!offer.base || calcLoading} style={{ ...primaryBtn(offer.base && !calcLoading, "#6d28d9"), marginBottom: "0" }}>
+                {calcLoading ? "Calculating..." : "Calculate counter-offer →"}
               </button>
-
-              {showCalcBlur && calcUpgradeModalDismissed && (
-                <div style={{
-                  marginTop: "0.85rem",
-                  padding: "0.55rem 0.75rem",
-                  borderRadius: "10px",
-                  border: `1px solid ${T.border}`,
-                  background: T.cardBg,
-                  fontSize: "0.76rem",
-                  color: T.textSecondary,
-                  lineHeight: 1.55,
-                }}>
-                  {!isSignedIn
-                    ? "You've seen your free preview. Create a free account to unlock the full breakdown and run more calculations."
-                    : "You've used your free preview. Upgrade to unlock full numbers and unlimited calculator runs."}
-                </div>
-              )}
 
               {counterResult && !calcLoading && (
                 <>
-                  {showCalcUpgradeModal ? (
-                    <PaywallModal
-                      onDismissExtra={() => setCalcUpgradeModalDismissed(true)}
-                      dismissLabel="Hide"
-                    />
+                  {!isSignedIn || !canAccess(userPlan, "calculate") ? (
+                    // Show paywall for non-signed-in or free plan users
+                    <PaywallModal />
                   ) : null}
-                  <div style={{
-                    marginTop: "1.25rem",
-                    borderTop: `1px solid ${T.border}`,
-                    paddingTop: "1rem",
-                    animation: "fadeIn 0.2s ease",
-                    filter: showCalcBlur ? "blur(10px)" : "none",
-                    pointerEvents: showCalcBlur ? "none" : "auto",
-                    userSelect: showCalcBlur ? "none" : "auto",
-                  }}>
+                  <div style={{ marginTop: "1.25rem", borderTop: `1px solid ${T.border}`, paddingTop: "1rem", animation: "fadeIn 0.2s ease" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.6rem", marginBottom: "0.75rem" }}>
                       {[{ title: "Their offer", c: counterResult.current, color: T.textSecondary, border: T.border }, { title: "Your counter", c: counterResult.counter, color: "#a78bfa", border: "#7c3aed" }].map(({ title, c, color, border }) => (
                         <div key={title} style={{ padding: "0.75rem", background: T.cardBg, borderRadius: "8px", border: `1px solid ${border}` }}>
@@ -1218,8 +1004,7 @@ export default function OfferAdvisor() {
           </div>
           <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="calculate" />
         </>
-        );
-      }
+      );
 
       // ── PRACTICE TAB ──────────────────────────────────────────────────────
       case "practice": return (
@@ -1398,166 +1183,6 @@ export default function OfferAdvisor() {
       {/* Auth modal — shown when user clicks sign-in / sign-up / hits a paywall */}
       <AuthModal mode={authModal} onClose={() => setAuthModal(null)} T={T} />
 
-      {showUserProfileModal && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Your profile"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowUserProfileModal(false); }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 10070,
-            background: "rgba(0,0,0,0.72)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-            overflowY: "auto",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: "relative",
-              width: "100%",
-              maxWidth: 920,
-              maxHeight: "min(92vh, 880px)",
-              overflow: "auto",
-              background: T.headerBg,
-              border: `1px solid ${T.border}`,
-              borderRadius: "14px",
-              boxShadow: "0 24px 64px rgba(0,0,0,0.4)",
-              paddingTop: "6px",
-            }}
-          >
-            <button
-              type="button"
-              aria-label="Close profile"
-              onClick={() => setShowUserProfileModal(false)}
-              style={{
-                position: "absolute",
-                top: 10,
-                right: 10,
-                zIndex: 2,
-                width: 36,
-                height: 36,
-                borderRadius: "8px",
-                border: `1px solid ${T.border}`,
-                background: T.cardBg,
-                color: T.textMuted,
-                fontSize: "1.25rem",
-                lineHeight: 1,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              ×
-            </button>
-            <div style={{ padding: "0.5rem 1rem 1.25rem" }}>
-              <UserProfile
-                routing="hash"
-                appearance={offeradvisorClerkAppearance({
-                  rootBox: { width: "100%" },
-                  card: { boxShadow: "none", background: "transparent", border: "none" },
-                })}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {walletModalOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Wallet and plan"
-          onClick={(e) => { if (e.target === e.currentTarget) setWalletModalOpen(false); }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 10065,
-            background: "rgba(0,0,0,0.65)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1rem",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 400,
-              padding: "1.5rem",
-              borderRadius: "14px",
-              border: `1px solid ${T.border}`,
-              background: T.headerBg,
-              boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
-            }}
-          >
-            <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.2rem", color: T.textPrimary, marginBottom: "0.75rem" }}>Wallet & plan</h2>
-            <p style={{ fontSize: "0.82rem", color: T.textSecondary, lineHeight: 1.65, marginBottom: "0.75rem" }}>
-              Your subscription is managed through Stripe. Receipts are emailed to you after purchase.
-            </p>
-            <div style={{ padding: "0.75rem", borderRadius: "10px", background: T.cardBg, border: `1px solid ${T.border}`, marginBottom: "0.75rem" }}>
-              <div style={{ fontSize: "0.68rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.35rem" }}>Current plan</div>
-              <div style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary }}>{PLANS[userPlan]?.label || userPlan}</div>
-              {planExpiresLabel && userPlan !== "free" ? (
-                <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.4rem" }}>
-                  Full access until <strong style={{ color: T.textSecondary }}>{planExpiresLabel}</strong>
-                </div>
-              ) : userPlan === "free" ? (
-                <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.4rem" }}>Upgrade once to unlock every tool for 30 days.</div>
-              ) : null}
-              {adminPlan ? (
-                <div style={{ fontSize: "0.72rem", color: "#a78bfa", marginTop: "0.5rem" }}>Admin test override active (local only).</div>
-              ) : null}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setWalletModalOpen(false);
-                  setAuthModal("upgrade");
-                }}
-                style={{
-                  padding: "0.6rem 1rem",
-                  borderRadius: "10px",
-                  border: "none",
-                  background: "#1d4ed8",
-                  color: "white",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {userPlan === "free" ? "View plans & upgrade" : "Change plan"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setWalletModalOpen(false)}
-                style={{
-                  padding: "0.5rem 1rem",
-                  borderRadius: "10px",
-                  border: `1px solid ${T.border}`,
-                  background: "transparent",
-                  color: T.textMuted,
-                  fontSize: "0.8rem",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showPaywall && <PaywallModal />}
-
       {/* Stripe checkout success banner */}
       {checkoutSuccess && (
         <div style={{
@@ -1591,6 +1216,92 @@ export default function OfferAdvisor() {
             onClick={() => setCheckoutSuccess(null)}
             style={{ marginLeft: "0.5rem", background: "transparent", border: "none", color: "#4ade80", fontSize: "1rem", cursor: "pointer", lineHeight: 1, padding: 0 }}
           >×</button>
+        </div>
+      )}
+
+      {/* Sprint Plan Expiration Countdown */}
+      {isLoaded && isSignedIn && clerkPlan === "sprint" && !isSprintExpired && sprintExpiresAtIso && (
+        <div style={{
+          background: daysLeftOnSprint <= 3 
+            ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
+            : "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+          color: "white",
+          padding: "0.65rem 1rem",
+          textAlign: "center",
+          fontSize: "0.8rem",
+          fontWeight: 500,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+        }}>
+          <span>
+            {daysLeftOnSprint <= 0
+              ? "⏰ Your Sprint access ends today"
+              : daysLeftOnSprint <= 3
+                ? `⏰ Your Sprint access expires in ${daysLeftOnSprint} day${daysLeftOnSprint !== 1 ? "s" : ""}`
+                : `✅ Sprint plan active — ${daysLeftOnSprint} days remaining`}
+          </span>
+          {daysLeftOnSprint <= 3 && (
+            <button 
+              onClick={() => setAuthModal("upgrade")}
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                color: "white",
+                border: "1px solid rgba(255,255,255,0.4)",
+                padding: "0.3rem 0.75rem",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                fontFamily: "inherit",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.3)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.2)"}
+            >
+              Upgrade to Pro →
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Sprint Plan Expired Banner */}
+      {isLoaded && isSignedIn && isSprintExpired && (
+        <div style={{
+          background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+          color: "white",
+          padding: "0.75rem 1rem",
+          textAlign: "center",
+          fontSize: "0.82rem",
+          fontWeight: 600,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "1rem",
+        }}>
+          <span>
+            ⏱️ Your Sprint plan (30-day trial) has ended. Upgrade to Pro for lifetime access.
+          </span>
+          <button 
+            onClick={() => setAuthModal("upgrade")}
+            style={{
+              background: "white",
+              color: "#dc2626",
+              border: "none",
+              padding: "0.4rem 0.9rem",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "0.75rem",
+              fontWeight: 600,
+              fontFamily: "inherit",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = "0.9"}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = "1"}
+          >
+            Upgrade to Pro $49 →
+          </button>
         </div>
       )}
 
@@ -1685,133 +1396,14 @@ export default function OfferAdvisor() {
                 {PLANS[userPlan]?.label || "Free"}
               </div>
               {/* Clerk's built-in user button — handles profile, sign-out, etc */}
-              <div ref={accountMenuRef} style={{ position: "relative" }}>
-                <button
-                  type="button"
-                  aria-haspopup="menu"
-                  aria-expanded={accountMenuOpen}
-                  onClick={() => setAccountMenuOpen((o) => !o)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.45rem",
-                    padding: "0.25rem 0.45rem 0.25rem 0.25rem",
-                    borderRadius: "10px",
-                    border: `1px solid ${T.border}`,
-                    background: T.cardBg,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                    maxWidth: "min(200px, 42vw)",
-                  }}
-                >
-                  {user?.imageUrl ? (
-                    <img
-                      alt=""
-                      src={user.imageUrl}
-                      width={28}
-                      height={28}
-                      style={{ borderRadius: "8px", flexShrink: 0, objectFit: "cover" }}
-                    />
-                  ) : (
-                    <div style={{ width: 28, height: 28, borderRadius: "8px", flexShrink: 0, background: "#334155", color: "#e2e8f0", fontSize: "0.75rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {(accountDisplayName[0] || "?").toUpperCase()}
-                    </div>
-                  )}
-                  <span style={{ fontSize: "0.78rem", fontWeight: 500, color: T.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {accountDisplayName}
-                  </span>
-                  <span style={{ fontSize: "0.55rem", color: T.textMuted, flexShrink: 0 }}>▼</span>
-                </button>
-                {accountMenuOpen && (
-                  <div
-                    role="menu"
-                    style={{
-                      position: "absolute",
-                      right: 0,
-                      top: "calc(100% + 6px)",
-                      minWidth: 240,
-                      maxWidth: 300,
-                      padding: "0.35rem 0",
-                      borderRadius: "12px",
-                      border: `1px solid ${T.border}`,
-                      background: T.headerBg,
-                      boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
-                      zIndex: 10060,
-                    }}
-                  >
-                    <div style={{ padding: "0.5rem 0.85rem 0.65rem", borderBottom: `1px solid ${T.border}` }}>
-                      <div style={{ fontSize: "0.72rem", fontWeight: 600, color: T.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountDisplayName}</div>
-                      {accountEmail ? (
-                        <div style={{ fontSize: "0.68rem", color: T.textMuted, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountEmail}</div>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setAccountMenuOpen(false);
-                        setShowUserProfileModal(true);
-                      }}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "0.55rem 0.85rem",
-                        border: "none",
-                        background: "transparent",
-                        color: T.textSecondary,
-                        fontSize: "0.8rem",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      View / edit profile
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setAccountMenuOpen(false);
-                        setWalletModalOpen(true);
-                      }}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "0.55rem 0.85rem",
-                        border: "none",
-                        background: "transparent",
-                        color: T.textSecondary,
-                        fontSize: "0.8rem",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      Wallet & plan
-                    </button>
-                    <div style={{ height: 1, background: T.border, margin: "0.25rem 0" }} />
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={async () => {
-                        setAccountMenuOpen(false);
-                        await signOut({ redirectUrl: `${window.location.origin}/` });
-                      }}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "0.55rem 0.85rem",
-                        border: "none",
-                        background: "transparent",
-                        color: "#f87171",
-                        fontSize: "0.8rem",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      Sign out
-                    </button>
-                  </div>
-                )}
-              </div>
+              <UserButton
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    avatarBox: { width: 28, height: 28 },
+                  },
+                }}
+              />
             </div>
           ) : (
             <div style={{ display: "flex", gap: "0.3rem" }}>

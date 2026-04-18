@@ -75,6 +75,8 @@ export default async function handler(req, res) {
       await clerkClient.users.updateUserMetadata(userId, {
         publicMetadata: {
           plan: "free",
+          planExpiresAt: null,
+          expiresAt: null,
           planActivatedAt: new Date().toISOString(),
           sessionCount: 0,
           emailCount: 0,
@@ -132,14 +134,19 @@ export default async function handler(req, res) {
     const userId = data.id;
     const plan   = data.public_metadata?.plan || "free";
     const email  = data.email_addresses?.[0]?.email_address || null;
+    const planExpiresAt =
+      data.public_metadata?.expiresAt
+      ?? data.public_metadata?.planExpiresAt
+      ?? null;
 
     try {
-      // Sync latest plan + email to Supabase
+      // Sync latest plan + email + expiry to Supabase (matches Stripe webhook + App.jsx)
       const { error } = await supabase.from("users").upsert(
         {
-          clerk_id: userId,
-          email:    email,
-          plan:     plan,
+          clerk_id:        userId,
+          email:           email,
+          plan:            plan,
+          plan_expires_at: planExpiresAt,
         },
         { onConflict: "clerk_id" }
       );

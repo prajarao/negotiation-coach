@@ -5,7 +5,7 @@
  * On checkout.session.completed:
  *   1. Reads clerkUserId + plan from the session metadata
  *   2. Updates the user's Clerk publicMetadata with their new plan
- *   3. Sets plan_expires_at 30 days from now (for both sprint and pro)
+ *   3. Sets plan expiry: Sprint = 30 days from payment; Pro = no expiry (null)
  *
  * Environment variables required:
  *   STRIPE_SECRET_KEY          — sk_live_... or sk_test_...
@@ -79,20 +79,26 @@ export default async function handler(req, res) {
         break;
       }
 
-      // Calculate plan expiry — 30 days from now
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
+      // Sprint: 30-day access. Pro: lifetime (no expiry).
+      let planExpiresAtIso = null;
+      if (plan === "sprint") {
+        const d = new Date();
+        d.setDate(d.getDate() + 30);
+        planExpiresAtIso = d.toISOString();
+      }
 
       try {
-        // Update Clerk publicMetadata — this is what the frontend reads via useUser()
         await clerkClient.users.updateUserMetadata(clerkUserId, {
           publicMetadata: {
-            plan,                                              // "sprint" | "pro"
+            plan,
             planActivatedAt: new Date().toISOString(),
-            planExpiresAt: expiresAt.toISOString(),
+            // App.jsx reads `expiresAt`; keep `planExpiresAt` for older clients / tools
+            ...(plan === "sprint" && planExpiresAtIso
+              ? { planExpiresAt: planExpiresAtIso, expiresAt: planExpiresAtIso }
+              : { planExpiresAt: null, expiresAt: null }),
             stripeSessionId: session.id,
             stripeCustomerId: session.customer || null,
-            sessionCount: 0,                                   // reset usage counter
+            sessionCount: 0,
             emailCount: 0,
           },
         });
@@ -133,7 +139,7 @@ export default async function handler(req, res) {
             clerk_id:        clerkUserId,
             plan,
             usage_count:     0,
-            plan_expires_at: expiresAt.toISOString(),
+            plan_expires_at: planExpiresAtIso,
           },
           { onConflict: "clerk_id" }
         );
@@ -156,7 +162,7 @@ export default async function handler(req, res) {
         }
 
         console.log(
-          `✅ User ${clerkUserId} upgraded to plan "${plan}" — expires ${expiresAt.toDateString()}`
+          `✅ User ${clerkUserId} upgraded to plan "${plan}"${planExpiresAtIso ? ` — access until ${planExpiresAtIso}` : " — no expiry (Pro)"}`
         );
       } catch (err) {
         console.error(`Failed to update Clerk metadata for ${clerkUserId}:`, err.message);
