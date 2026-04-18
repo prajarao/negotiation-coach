@@ -186,7 +186,7 @@ function LockScreen({ title, description, T, onUpgrade, isSignedIn }) {
         {isSignedIn ? "Unlock for $29 →" : "Sign up to unlock →"}
       </button>
       <p style={{ fontSize: "0.72rem", color: T.textMuted, marginTop: "0.6rem" }}>
-        {isSignedIn ? "One-time payment · 30 days full access" : "Free account · then unlock for $29"}
+        {isSignedIn ? "Sprint $29 · 30 days from purchase · Pro $49 · no expiry" : "Free account · then unlock for $29 (Sprint) or $49 (Pro)"}
       </p>
     </div>
   );
@@ -687,7 +687,7 @@ export default function OfferAdvisor() {
               <div>✓ Full calculator</div>
               <div>✓ 4-year projection</div>
               <div>✓ AI role-play</div>
-              <div>✓ 30-day access</div>
+              <div>✓ 30 days from purchase</div>
             </div>
           </div>
 
@@ -702,8 +702,8 @@ export default function OfferAdvisor() {
             <div style={{ fontSize: "0.75rem", color: "#1d4ed8", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>Offer in Hand</div>
             <div style={{ fontSize: "0.9rem", color: "#1d4ed8", fontWeight: 500, lineHeight: 1.6 }}>
               <div>✓ Everything in Sprint</div>
-              <div style={{ fontWeight: 700, marginTop: "0.5rem" }}>✓ Lifetime access</div>
-              <div>✓ Future features</div>
+              <div style={{ fontWeight: 700, marginTop: "0.5rem" }}>✓ No expiry</div>
+              <div>{"✓ Templates, Playbook & History tabs"}</div>
               <div style={{ fontSize: "1.1rem", fontWeight: 700, marginTop: "0.5rem" }}>$49</div>
             </div>
           </div>
@@ -772,8 +772,8 @@ export default function OfferAdvisor() {
             title={tab?.label || "Premium feature"}
             description={
               !isSignedIn
-                ? "Create a free account to get started, then unlock all tools for $29."
-                : "Unlock all tools — salary benchmarking, counter calculator, role-play, and outcome tracking — for a one-time $29 payment."
+                ? "Create a free account to get started, then unlock with Offer Sprint ($29, 30 days) or Offer in Hand ($49, no expiry)."
+                : "Unlock coach tools — benchmark, counter calculator, role-play, log win. Offer Sprint $29 (30 days from purchase) or Offer in Hand $49 (no expiry)."
             }
             T={T}
             isSignedIn={isSignedIn}
@@ -1201,15 +1201,16 @@ export default function OfferAdvisor() {
           boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
           animation: "oa-slide-up 0.25s ease forwards",
           maxWidth: "calc(100vw - 2rem)",
-          whiteSpace: "nowrap",
         }}>
           <span style={{ fontSize: "1.1rem" }}>🎉</span>
           <div>
             <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#4ade80" }}>
               {checkoutSuccess === "sprint" ? "Offer Sprint" : "Offer in Hand"} unlocked!
             </div>
-            <div style={{ fontSize: "0.72rem", color: "#86efac" }}>
-              All tools are now available. Start coaching below.
+            <div style={{ fontSize: "0.72rem", color: "#86efac", maxWidth: 320, lineHeight: 1.35 }}>
+              {checkoutSuccess === "sprint"
+                ? "Coach, benchmark, calculator, role-play and log win — 30 days from checkout. Upgrade anytime for Pro tabs with no expiry."
+                : "Core tools plus Templates, Playbook and History — no expiry. Start below."}
             </div>
           </div>
           <button

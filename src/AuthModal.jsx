@@ -139,7 +139,7 @@ export default function AuthModal({ mode, onClose, T }) {
                 Unlock all tools
               </div>
               <p style={{ fontSize: "0.83rem", color: "#94a3b8", lineHeight: 1.65, margin: 0 }}>
-                One-time payment. No subscription. Full access for 30 days.
+                One-time payment. No subscription. Offer Sprint: 30 days from purchase. Offer in Hand: no expiry.
               </p>
             </div>
 
@@ -184,10 +184,10 @@ export default function AuthModal({ mode, onClose, T }) {
                     <span style={{ fontSize: "1.6rem", fontWeight: 700, color: "#e2e8f0" }}>$29</span>
                     <span style={{ fontSize: "0.72rem", color: "#64748b" }}>one-time</span>
                   </div>
-                  <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "2px" }}>30 days full access</div>
+                  <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "2px" }}>30 days from purchase</div>
                 </div>
                 <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", flex: 1 }}>
-                  {["Unlimited sessions", "Salary benchmark", "Counter calculator", "Role-play mode", "Email scripts", "Outcome tracker"].map(f => (
+                  {["Unlimited sessions", "Salary benchmark", "Counter calculator", "Role-play mode", "Log win & outcome tracker", "Multi-currency benchmark"].map(f => (
                     <li key={f} style={{ display: "flex", gap: "5px", fontSize: "0.75rem", color: "#94a3b8", marginBottom: "4px", alignItems: "center" }}>
                       <span style={{ color: "#34d399", flexShrink: 0 }}>✓</span>{f}
                     </li>
@@ -212,10 +212,10 @@ export default function AuthModal({ mode, onClose, T }) {
                     <span style={{ fontSize: "1.6rem", fontWeight: 700, color: "#e2e8f0" }}>$49</span>
                     <span style={{ fontSize: "0.72rem", color: "#64748b" }}>one-time</span>
                   </div>
-                  <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "2px" }}>30 days full access</div>
+                  <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "2px" }}>No expiry · full access</div>
                 </div>
                 <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", flex: 1 }}>
-                  {["Everything in Sprint", "4-year comp projection", "Benefits valuation", "Comp report export", "Follow-up coaching", "Priority support"].map(f => (
+                  {["Everything in Sprint", "No expiry after purchase", "Templates, Playbook & History tabs", "4-year view in calculator (same as Sprint)", "Priority support", "New Pro features as shipped"].map(f => (
                     <li key={f} style={{ display: "flex", gap: "5px", fontSize: "0.75rem", color: "#94a3b8", marginBottom: "4px", alignItems: "center" }}>
                       <span style={{ color: "#a78bfa", flexShrink: 0 }}>✓</span>{f}
                     </li>
