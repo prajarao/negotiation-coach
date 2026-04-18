@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "scripts": {
     "predeploy": "node scripts/regression.js --env production --url https://negotiation-coach-pearl.vercel.app",
-     "dev": "vite",
+    "regression:prod": "node scripts/regression.js --env production --url https://negotiation-coach-pearl.vercel.app",
+    "dev": "vite",
     "build": "vite build"
   },
   "dependencies": {
