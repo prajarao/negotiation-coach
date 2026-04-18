@@ -4,6 +4,7 @@ import AuthModal from "./AuthModal.jsx";
 import { offeradvisorClerkAppearance } from "./clerkAppearance.js";
 import { sendSessionSummaryEmail } from "./utils/sessionEmail";
 import CrispChat from "./components/CrispChat";
+import TemplatesTab from "./components/TemplatesTab.jsx";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -86,6 +87,10 @@ const PROMPTS = {
     "I successfully negotiated — help me log my win",
     "They didn't budge — what did I learn?",
     "What should I do differently next time?",
+  ],
+  templates: [
+    "Polish my counter-offer email for tone and clarity",
+    "Shorten this template while keeping leverage",
   ],
 };
 
@@ -1192,11 +1197,17 @@ export default function OfferAdvisor() {
       );
 
       case "templates":
+        return (
+          <>
+            <TemplatesTab T={T} />
+            <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="templates" />
+          </>
+        );
+
       case "playbook":
       case "history": {
         const proTabMeta = TABS.find((t) => t.id === activeTab);
         const comingSoonBlurbs = {
-          templates: "Saved negotiation email scripts and reusable snippets will live here.",
           playbook: "A downloadable negotiation guide (PDF) will be available here.",
           history: "A timeline of your offers, counters, and wins will appear here.",
         };
