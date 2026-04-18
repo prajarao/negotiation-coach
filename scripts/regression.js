@@ -1583,12 +1583,13 @@ const TESTS = [
       const hasCancelUrl     = code.includes("cancel_url") && code.includes("checkout=cancelled");
       const hasPriceIds      = code.includes("STRIPE_SPRINT_PRICE_ID") && code.includes("STRIPE_PRO_PRICE_ID");
       const hasPromoCodes    = code.includes("allow_promotion_codes");
-      const allPresent = hasPaymentMode && hasMetadata && hasSuccessUrl && hasCancelUrl && hasPriceIds;
+      const hasCuratedPromos = code.includes("STRIPE_CHECKOUT_PROMO_MAP") && code.includes("discounts") && code.includes("INVALID_PROMOTION_CODE");
+      const allPresent = hasPaymentMode && hasMetadata && hasSuccessUrl && hasCancelUrl && hasPriceIds && hasCuratedPromos;
       return {
         pass: allPresent,
         message: allPresent
-          ? `Stripe config: payment mode ✓ metadata ✓ redirects ✓ price IDs ✓ promo codes: ${hasPromoCodes}`
-          : `Missing — mode:${hasPaymentMode} meta:${hasMetadata} success:${hasSuccessUrl} cancel:${hasCancelUrl} prices:${hasPriceIds}`,
+          ? `Stripe config: payment mode ✓ metadata ✓ redirects ✓ price IDs ✓ curated promos ✓ open promos: ${hasPromoCodes}`
+          : `Missing — mode:${hasPaymentMode} meta:${hasMetadata} success:${hasSuccessUrl} cancel:${hasCancelUrl} prices:${hasPriceIds} curated:${hasCuratedPromos}`,
       };
     },
   },

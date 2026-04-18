@@ -12,8 +12,15 @@
  *   STRIPE_PRO_PRICE_ID        — price_... for the $49 Offer in Hand product
  *   NEXT_PUBLIC_APP_URL        — https://offeradvisor.ai  (used for redirect URLs)
  *
+ * Optional curated promotion codes (50% off, etc.):
+ *   STRIPE_CHECKOUT_PROMO_MAP  — JSON object: { "YOURCODE": "promo_xxx", ... }
+ *   Keys are what you share (case-insensitive). Values are Stripe *promotion code* IDs
+ *   (Dashboard → Product catalog → Coupons → Promotion codes → copy API ID `promo_...`).
+ *   When a key matches, that discount is applied at checkout. When the field is empty,
+ *   Stripe still shows “Add promotion code” if you use public codes in Stripe.
+ *
  * Request body:
- *   { plan: "sprint" | "pro", clerkUserId: string, userEmail: string }
+ *   { plan: "sprint" | "pro", clerkUserId: string, userEmail: string, promotionCode?: string }
  *
  * Response:
  *   { url: "https://checkout.stripe.com/..." }
@@ -23,12 +30,36 @@ import Stripe from "stripe";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://offeradvisor.ai";
 
+/** @returns {Record<string, string>|null} */
+function parsePromoMap() {
+  const raw = process.env.STRIPE_CHECKOUT_PROMO_MAP;
+  if (!raw || typeof raw !== "string") return null;
+  try {
+    const o = JSON.parse(raw);
+    if (o && typeof o === "object" && !Array.isArray(o)) return o;
+  } catch (e) {
+    console.error("STRIPE_CHECKOUT_PROMO_MAP JSON parse error:", e.message);
+  }
+  return null;
+}
+
+/** Human-facing code → Stripe promotion_code id (promo_...) */
+function resolvePromotionCodeId(humanCode) {
+  if (!humanCode || typeof humanCode !== "string") return null;
+  const key = humanCode.trim().toUpperCase();
+  if (!key) return null;
+  const map = parsePromoMap();
+  if (!map) return null;
+  const id = map[key];
+  return typeof id === "string" && id.startsWith("promo_") ? id : null;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { plan, clerkUserId, userEmail } = req.body;
+  const { plan, clerkUserId, userEmail, promotionCode } = req.body;
 
   // ── Validate inputs ─────────────────────────────────────────────────────────
   if (!plan || !["sprint", "pro"].includes(plan)) {
@@ -61,11 +92,22 @@ export default async function handler(req, res) {
     });
   }
 
+  const trimmedPromo =
+    typeof promotionCode === "string" ? promotionCode.trim() : "";
+  const stripePromoId = trimmedPromo ? resolvePromotionCodeId(trimmedPromo) : null;
+  if (trimmedPromo && !stripePromoId) {
+    return res.status(400).json({
+      error:
+        "That promotion code is not recognized. Double-check the code or leave the field empty to pay full price.",
+      code: "INVALID_PROMOTION_CODE",
+    });
+  }
+
   try {
     const stripe = new Stripe(stripeKey);
 
-    // ── Create Stripe Checkout Session ──────────────────────────────────────────
-    const session = await stripe.checkout.sessions.create({
+    // Cannot combine `discounts` with `allow_promotion_codes` on the same session.
+    const sessionParams = {
       mode: "payment",                    // one-time payment, not subscription
       payment_method_types: ["card"],
 
@@ -80,6 +122,7 @@ export default async function handler(req, res) {
       metadata: {
         clerkUserId,
         plan,
+        ...(trimmedPromo && { promotionCodeApplied: trimmedPromo.toUpperCase() }),
       },
 
       // Pre-fill email if we have it (reduces friction)
@@ -90,13 +133,19 @@ export default async function handler(req, res) {
       // Where to send the user after success / cancel
       success_url: `${APP_URL}/?checkout=success&plan=${plan}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url:  `${APP_URL}/?checkout=cancelled`,
+    };
 
-      // Allow promotion codes (e.g. launch discount)
-      allow_promotion_codes: true,
-    });
+    if (stripePromoId) {
+      sessionParams.discounts = [{ promotion_code: stripePromoId }];
+    } else {
+      sessionParams.allow_promotion_codes = true;
+    }
+
+    // ── Create Stripe Checkout Session ──────────────────────────────────────────
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     console.log(
-      `Checkout session created: ${session.id} | user: ${clerkUserId} | plan: ${plan}`
+      `Checkout session created: ${session.id} | user: ${clerkUserId} | plan: ${plan}${stripePromoId ? ` | promo: ${trimmedPromo.toUpperCase()}` : ""}`
     );
 
     return res.status(200).json({ url: session.url });

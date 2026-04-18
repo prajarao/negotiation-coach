@@ -13,6 +13,7 @@ export default function AuthModal({ mode, onClose, T }) {
   const { user } = useUser();
   const [checkoutLoading, setCheckoutLoading] = useState(null); // "sprint" | "pro" | null
   const [checkoutError, setCheckoutError]     = useState(null);
+  const [promotionCode, setPromotionCode]       = useState("");
 
   if (!mode) return null;
 
@@ -29,6 +30,7 @@ export default function AuthModal({ mode, onClose, T }) {
           plan,
           clerkUserId: user?.id,
           userEmail:   user?.primaryEmailAddress?.emailAddress || null,
+          promotionCode: promotionCode.trim() || undefined,
         }),
       });
 
@@ -138,6 +140,35 @@ export default function AuthModal({ mode, onClose, T }) {
               </div>
               <p style={{ fontSize: "0.83rem", color: "#94a3b8", lineHeight: 1.65, margin: 0 }}>
                 One-time payment. No subscription. Full access for 30 days.
+              </p>
+            </div>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label htmlFor="oa-promo-code" style={{ display: "block", fontSize: "0.72rem", color: "#64748b", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Invite code (optional)
+              </label>
+              <input
+                id="oa-promo-code"
+                type="text"
+                autoComplete="off"
+                value={promotionCode}
+                onChange={(e) => setPromotionCode(e.target.value)}
+                placeholder="e.g. FRIEND50"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "0.55rem 0.75rem",
+                  borderRadius: "10px",
+                  border: "1px solid #334155",
+                  background: "#0a0f1a",
+                  color: "#e2e8f0",
+                  fontSize: "0.85rem",
+                  fontFamily: "inherit",
+                  letterSpacing: "0.04em",
+                }}
+              />
+              <p style={{ fontSize: "0.68rem", color: "#475569", margin: "6px 0 0", lineHeight: 1.45 }}>
+                Private invite codes apply automatically on Stripe. Leave blank for list price — you can still enter a promotion on Stripe’s checkout when no invite code is used here.
               </p>
             </div>
 
