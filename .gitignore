@@ -25,3 +25,8 @@ dist-ssr
 .env
 .vercel
 .env*.local
+
+# Licensed books / generated knowledge — must not ship in repo or builds
+Negotiation*.pdf
+**/Negotiation*.pdf
+api/_negotiation-book-knowledge.js

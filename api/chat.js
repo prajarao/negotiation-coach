@@ -1,6 +1,5 @@
 import { requirePlan } from "./_plan-gate.js";
 import { supabase } from "./_supabase.js";
-import { NEGOTIATION_BOOK_REFERENCE } from "./_negotiation-book-knowledge.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -18,13 +17,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Messages must be an array" });
     }
 
-    const userSystem = typeof system === "string" ? system : "";
-    const book =
-      typeof NEGOTIATION_BOOK_REFERENCE === "string" && NEGOTIATION_BOOK_REFERENCE.trim().length > 0
-        ? `\n\n--- Reference: Negotiation Made Simple (John Lowry) ---\nUse these ideas, stories, and frameworks when they genuinely help the user. Synthesize in your own words; do not paste long verbatim passages unless they ask for exact wording.\n\n${NEGOTIATION_BOOK_REFERENCE.trim()}`
-        : "";
-    const mergedSystem = userSystem + book;
-
     const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
@@ -38,7 +30,7 @@ export default async function handler(req, res) {
           max_tokens: 1000,
           temperature: 0.7,
           messages: [
-            { role: "system", content: mergedSystem },
+            { role: "system", content: typeof system === "string" ? system : "" },
             ...messages,
           ],
         }),
