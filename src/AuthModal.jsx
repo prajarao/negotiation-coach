@@ -288,7 +288,7 @@ export default function AuthModal({ mode, onClose, T }) {
                       <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "2px" }}>No expiry · full access</div>
                     </div>
                     <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", flex: 1 }}>
-                      {["Everything in Sprint", "No expiry after purchase", "Templates, Playbook & History tabs", "4-year view in calculator (same as Sprint)", "Priority support", "New Pro features as shipped"].map(f => (
+                      {["Everything in Sprint", "No expiry after purchase", "Templates, Playbook guide & History tab", "4-year view in calculator (same as Sprint)", "Priority support", "New Pro features as shipped"].map(f => (
                         <li key={f} style={{ display: "flex", gap: "5px", fontSize: "0.75rem", color: "#94a3b8", marginBottom: "4px", alignItems: "center" }}>
                           <span style={{ color: "#a78bfa", flexShrink: 0 }}>✓</span>{f}
                         </li>

@@ -5,6 +5,7 @@ import { offeradvisorClerkAppearance } from "./clerkAppearance.js";
 import { sendSessionSummaryEmail } from "./utils/sessionEmail";
 import CrispChat from "./components/CrispChat";
 import TemplatesTab from "./components/TemplatesTab.jsx";
+import PlaybookTab from "./components/PlaybookTab.jsx";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -59,7 +60,7 @@ const TABS = [
   { id: "logwin",    label: "Log win",     shortLabel: "Log win",   icon: "logwin",    desc: "Record your result" },
   // Phase 2 Pro-only features (coming soon)
   { id: "templates", label: "Templates",   shortLabel: "Templates", icon: "templates", desc: "Email scripts (Pro)" },
-  { id: "playbook",  label: "Playbook",    shortLabel: "Playbook",  icon: "playbook",  desc: "Download guide (Pro)" },
+  { id: "playbook",  label: "Playbook",    shortLabel: "Playbook",  icon: "playbook",  desc: "OfferAdvisor field guide (Pro)" },
   { id: "history",   label: "History",     shortLabel: "History",   icon: "history",   desc: "Track negotiations (Pro)" },
 ];
 
@@ -94,6 +95,10 @@ const PROMPTS = {
     "Polish my counter-offer email for tone and clarity",
     "Shorten this template while keeping leverage",
   ],
+  playbook: [
+    "Turn one Playbook section into a checklist for my call tomorrow",
+    "What OfferAdvisor tab should I use first for my situation?",
+  ],
 };
 
 const CURRENCIES = [
@@ -122,7 +127,7 @@ const PLAN_FEATURES = {
   free:   ["coach"],                                               // chat only
   sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
   pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
-  // Phase 2 features for Pro: templates (email scripts), playbook (PDF), history (tracker)
+  // Pro: templates (scripts), playbook (OfferAdvisor field guide), history (tracker — coming soon)
 };
 
 // Check if a plan can access a given tab
@@ -1207,12 +1212,15 @@ export default function OfferAdvisor() {
         );
 
       case "playbook":
+        return (
+          <>
+            <PlaybookTab T={T} />
+            <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="playbook" />
+          </>
+        );
+
       case "history": {
         const proTabMeta = TABS.find((t) => t.id === activeTab);
-        const comingSoonBlurbs = {
-          playbook: "A downloadable negotiation guide (PDF) will be available here.",
-          history: "A timeline of your offers, counters, and wins will appear here.",
-        };
         return (
           <>
             <div style={{ flex: 1, overflowY: "auto", padding: "2rem 1rem", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
@@ -1229,7 +1237,7 @@ export default function OfferAdvisor() {
               }}>
                 <div style={{ fontSize: "0.68rem", fontWeight: 600, color: "#a78bfa", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.85rem" }}>Coming soon</div>
                 <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.35rem", color: T.textPrimary, margin: "0 0 0.5rem" }}>{proTabMeta?.label || activeTab}</h2>
-                <p style={{ fontSize: "0.86rem", color: T.textSecondary, lineHeight: 1.65, margin: 0 }}>{comingSoonBlurbs[activeTab]}</p>
+                <p style={{ fontSize: "0.86rem", color: T.textSecondary, lineHeight: 1.65, margin: 0 }}>A timeline of your offers, counters, and wins will appear here.</p>
                 <p style={{ fontSize: "0.78rem", color: T.textMuted, lineHeight: 1.55, margin: "1.1rem 0 0" }}>
                   This module is not built yet. Use the coach below for email wording, strategy, and follow-ups in the meantime.
                 </p>
