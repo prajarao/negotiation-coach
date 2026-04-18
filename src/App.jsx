@@ -1191,6 +1191,42 @@ export default function OfferAdvisor() {
         </>
       );
 
+      case "templates":
+      case "playbook":
+      case "history": {
+        const proTabMeta = TABS.find((t) => t.id === activeTab);
+        const comingSoonBlurbs = {
+          templates: "Saved negotiation email scripts and reusable snippets will live here.",
+          playbook: "A downloadable negotiation guide (PDF) will be available here.",
+          history: "A timeline of your offers, counters, and wins will appear here.",
+        };
+        return (
+          <>
+            <div style={{ flex: 1, overflowY: "auto", padding: "2rem 1rem", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
+              <div style={{
+                maxWidth: 460,
+                width: "100%",
+                marginTop: "1.5rem",
+                textAlign: "center",
+                padding: "2rem 1.5rem",
+                borderRadius: "14px",
+                border: `1px solid ${T.border}`,
+                background: T.cardBg,
+                animation: "fadeIn 0.25s ease",
+              }}>
+                <div style={{ fontSize: "0.68rem", fontWeight: 600, color: "#a78bfa", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.85rem" }}>Coming soon</div>
+                <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.35rem", color: T.textPrimary, margin: "0 0 0.5rem" }}>{proTabMeta?.label || activeTab}</h2>
+                <p style={{ fontSize: "0.86rem", color: T.textSecondary, lineHeight: 1.65, margin: 0 }}>{comingSoonBlurbs[activeTab]}</p>
+                <p style={{ fontSize: "0.78rem", color: T.textMuted, lineHeight: 1.55, margin: "1.1rem 0 0" }}>
+                  This module is not built yet. Use the coach below for email wording, strategy, and follow-ups in the meantime.
+                </p>
+              </div>
+            </div>
+            <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId={activeTab} />
+          </>
+        );
+      }
+
       default: return null;
     }
   };
