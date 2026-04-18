@@ -162,7 +162,7 @@ Best,
             📧 Negotiation Email Templates
           </h2>
           <p style={{ fontSize: "0.82rem", color: T.textSecondary, margin: 0, lineHeight: 1.6 }}>
-            Copy-paste-ready scripts for every negotiation scenario. Customize with your details and send.
+            Copy-paste-ready scripts aligned with <strong style={{ color: T.textPrimary }}>Negotiation Made Simple</strong> (John Lowry)—competitive and cooperative moves, concessions, and closing. Customize placeholders and send.
           </p>
         </div>
       </div>
