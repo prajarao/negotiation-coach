@@ -1337,26 +1337,46 @@ export default function OfferAdvisor() {
               ) : null}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setWalletModalOpen(false);
-                  setAuthModal("upgrade");
-                }}
-                style={{
-                  padding: "0.6rem 1rem",
-                  borderRadius: "10px",
-                  border: "none",
-                  background: "#1d4ed8",
-                  color: "white",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {userPlan === "free" ? "View plans & upgrade" : "Change plan"}
-              </button>
+              {userPlan === "pro" ? (
+                <button
+                  type="button"
+                  disabled
+                  style={{
+                    padding: "0.6rem 1rem",
+                    borderRadius: "10px",
+                    border: `1px solid ${T.border}`,
+                    background: T.cardBg,
+                    color: T.textMuted,
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    cursor: "not-allowed",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Highest plan — no upgrade available
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setWalletModalOpen(false);
+                    setAuthModal("upgrade");
+                  }}
+                  style={{
+                    padding: "0.6rem 1rem",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: "#1d4ed8",
+                    color: "white",
+                    fontSize: "0.85rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {userPlan === "free" ? "View plans & upgrade" : "Change plan"}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setWalletModalOpen(false)}
