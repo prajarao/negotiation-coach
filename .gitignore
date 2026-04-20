@@ -26,6 +26,9 @@ dist-ssr
 .vercel
 .env*.local
 
+# Local billing reports (PII)
+reports/user-billing-*.json
+
 # Licensed books / generated knowledge — must not ship in repo or builds
 Negotiation*.pdf
 **/Negotiation*.pdf

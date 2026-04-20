@@ -5,6 +5,7 @@
   "scripts": {
     "predeploy": "node scripts/regression.js --env production --url https://negotiation-coach-pearl.vercel.app",
     "regression:prod": "node scripts/regression.js --env production --url https://negotiation-coach-pearl.vercel.app",
+    "report:users": "node scripts/user-billing-report.mjs",
     "dev": "vite",
     "build": "vite build"
   },
