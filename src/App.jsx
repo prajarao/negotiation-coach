@@ -371,6 +371,11 @@ export default function OfferAdvisor() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("coach");
+  const canPractice = canAccess(userPlan, "practice");
+  useEffect(() => {
+    if (!canPractice && mode === "roleplay") setMode("coach");
+  }, [canPractice, mode]);
+
   // Personalise welcome message once Clerk has loaded the user
   useEffect(() => {
     if (isLoaded && isSignedIn && userName) {
@@ -491,7 +496,8 @@ export default function OfferAdvisor() {
     if (jobTitle) setLastRole(jobTitle);
     if (jobLocation) setLastLocation(jobLocation);
 
-    const systemPrompt = mode === "roleplay"
+    const useRoleplayPrompt = mode === "roleplay" && canPractice;
+    const systemPrompt = useRoleplayPrompt
       ? SYSTEM_PROMPT + "\n\nIMPORTANT: You are now role-playing as a recruiter named Alex. Stay in character. Push back realistically. After each exchange add a brief [Coach Note] with tactical feedback."
       : SYSTEM_PROMPT;
 
@@ -506,7 +512,7 @@ export default function OfferAdvisor() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ system: systemPrompt, messages: messagesToSend }),
+        body: JSON.stringify({ system: systemPrompt, messages: messagesToSend, roleplay: useRoleplayPrompt }),
       });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
@@ -808,6 +814,7 @@ export default function OfferAdvisor() {
 
   // ── Render tab content ────────────────────────────────────────────────────────
   const renderTabContent = () => {
+    const practiceUnlocked = canAccess(userPlan, "practice");
     // For tool tabs: show LockScreen if user doesn't have access
     if (activeTab !== "coach" && !canAccess(userPlan, activeTab)) {
       const tab = TABS.find(t => t.id === activeTab);
@@ -903,9 +910,17 @@ export default function OfferAdvisor() {
                   {p}
                 </button>
               ))}
-              <button onClick={() => { setMode((m) => m === "roleplay" ? "coach" : "roleplay"); setMessages((p) => [...p, { role: "assistant", content: mode === "coach" ? "**Role-play mode on.** I'm Alex, your recruiter. What role are we discussing?" : "**Coach mode restored.** What do you want to work on?" }]); setActiveTab("coach"); }}
-                style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${mode === "roleplay" ? "#7c3aed" : T.border}`, background: mode === "roleplay" ? "rgba(124,58,237,0.1)" : "transparent", color: mode === "roleplay" ? "#a78bfa" : T.textMuted, fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit", fontWeight: mode === "roleplay" ? 500 : 400 }}>
-                {mode === "roleplay" ? "🎭 Role-play ON" : "🎭 Role-play mode"}
+              <button onClick={() => {
+                if (!practiceUnlocked) {
+                  setAuthModal(isSignedIn ? "upgrade" : "signup");
+                  return;
+                }
+                setMode((m) => (m === "roleplay" ? "coach" : "roleplay"));
+                setMessages((p) => [...p, { role: "assistant", content: mode === "coach" ? "**Role-play mode on.** I'm Alex, your recruiter. What role are we discussing?" : "**Coach mode restored.** What do you want to work on?" }]);
+                setActiveTab("coach");
+              }}
+                style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${practiceUnlocked && mode === "roleplay" ? "#7c3aed" : T.border}`, background: practiceUnlocked && mode === "roleplay" ? "rgba(124,58,237,0.1)" : "transparent", color: practiceUnlocked && mode === "roleplay" ? "#a78bfa" : T.textMuted, fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit", fontWeight: practiceUnlocked && mode === "roleplay" ? 500 : 400 }}>
+                {practiceUnlocked && mode === "roleplay" ? "🎭 Role-play ON" : "🎭 Role-play mode"}
               </button>
             </div>
           </div>
@@ -914,7 +929,7 @@ export default function OfferAdvisor() {
           <div style={{ padding: "0.45rem 1rem 1rem", borderTop: `1px solid ${T.border}`, background: T.headerBg }}>
             <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: "0.5rem", alignItems: "flex-end", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "0.5rem 0.5rem 0.5rem 0.85rem" }}>
               <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey}
-                placeholder={mode === "roleplay" ? "Speak to the recruiter, Alex..." : "Describe your offer or ask anything..."}
+                placeholder={practiceUnlocked && mode === "roleplay" ? "Speak to the recruiter, Alex..." : "Describe your offer or ask anything..."}
                 rows={1}
                 style={{ flex: 1, background: "transparent", border: "none", color: T.textPrimary, fontSize: "0.87rem", fontFamily: "inherit", lineHeight: 1.6, maxHeight: 120, overflowY: "auto", resize: "none", outline: "none" }}
                 onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} />

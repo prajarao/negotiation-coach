@@ -246,7 +246,10 @@ const TESTS = [
     name: "Role-play mode activates recruiter persona",
     fn: async () => {
       if (!chatApiHealthy) return { skip: true, message: "Skipped — chat API not healthy" };
-      const r = await post("/api/chat", {
+      if (!AUTH_BEARER_TOKEN) {
+        return { skip: true, message: "Skipped — REGRESSION_AUTH_TOKEN or --token required (recruiter role-play is plan-gated)" };
+      }
+      const r = await authPost("/api/chat", {
         system: "You are an elite salary negotiation coach. IMPORTANT: You are now role-playing as a recruiter named Alex. Stay in character. Push back on salary requests. After each exchange add a [Coach Note].",
         messages: [{ role: "user", content: "Hi, I'd like to discuss the salary for the Product Manager role." }],
       }, 45000);
@@ -257,6 +260,25 @@ const TESTS = [
         pass: hasRecruiterPersona,
         message: hasRecruiterPersona ? "Recruiter persona active with Coach Note" : "Role-play persona not detected in response",
         detail: text.slice(0, 200),
+      };
+    },
+  },
+
+  {
+    id: "chat-roleplay-guest-blocked",
+    category: "Core Chat",
+    name: "Recruiter role-play API rejects unauthenticated requests",
+    fn: async () => {
+      if (!chatApiHealthy) return { skip: true, message: "Skipped — chat API not healthy" };
+      const r = await post("/api/chat", {
+        system: "You are an elite salary negotiation coach. IMPORTANT: You are now role-playing as a recruiter named Alex. Stay in character.",
+        messages: [{ role: "user", content: "Hi" }],
+      }, 45000);
+      const blocked = r.status === 401 && r.data?.code === "AUTH_REQUIRED";
+      return {
+        pass: blocked,
+        message: blocked ? "Unauthenticated recruiter role-play correctly rejected" : `Expected 401 AUTH_REQUIRED, got ${r.status}`,
+        detail: JSON.stringify(r.data || {}).slice(0, 120),
       };
     },
   },

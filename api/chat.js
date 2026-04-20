@@ -11,7 +11,15 @@ export default async function handler(req, res) {
   if (!gate.ok) return;
 
   try {
-    const { messages, system } = req.body;
+    const { messages, system, roleplay } = req.body;
+    const systemStr = typeof system === "string" ? system : "";
+    const wantsRecruiterRoleplay =
+      roleplay === true ||
+      systemStr.includes("You are now role-playing as a recruiter named Alex");
+    if (wantsRecruiterRoleplay) {
+      const practiceGate = await requirePlan(req, res, "practice");
+      if (!practiceGate.ok) return;
+    }
 
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "Messages must be an array" });
