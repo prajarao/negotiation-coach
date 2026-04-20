@@ -20,9 +20,9 @@ import { supabase } from "./_supabase.js";
 
 // Which features each plan can access (mirrors frontend PLAN_FEATURES)
 const PLAN_FEATURES = {
-  free:   ["coach", "calculate"],
+  free:   ["coach"],
   sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-  pro:    ["coach", "benchmark", "calculate", "practice", "logwin"],
+  pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
 };
 
 // Usage limits per plan

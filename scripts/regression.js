@@ -1101,17 +1101,17 @@ const TESTS = [
     name: "PLAN_FEATURES correctly maps plans to features",
     fn: async () => {
       const PLAN_FEATURES = {
-        free:   ["coach", "calculate"],
+        free:   ["coach"],
         sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-        pro:    ["coach", "benchmark", "calculate", "practice", "logwin"],
+        pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
       };
-      const freeCoachCalc = PLAN_FEATURES.free.includes("coach") && PLAN_FEATURES.free.includes("calculate") && !PLAN_FEATURES.free.includes("benchmark");
+      const freeCoachOnly = PLAN_FEATURES.free.includes("coach") && !PLAN_FEATURES.free.includes("calculate") && !PLAN_FEATURES.free.includes("benchmark");
       const sprintAll = ["coach", "benchmark", "calculate", "practice", "logwin"].every(f => PLAN_FEATURES.sprint.includes(f));
       const proAll    = ["coach", "benchmark", "calculate", "practice", "logwin"].every(f => PLAN_FEATURES.pro.includes(f));
       return {
-        pass: freeCoachCalc && sprintAll && proAll,
-        message: freeCoachCalc && sprintAll && proAll
-          ? "Free=coach+calculate, Sprint/Pro=all 5 features"
+        pass: freeCoachOnly && sprintAll && proAll,
+        message: freeCoachOnly && sprintAll && proAll
+          ? "Free=coach only, Sprint/Pro include all paid tabs"
           : `Mapping incorrect — free:${PLAN_FEATURES.free} sprint:${PLAN_FEATURES.sprint.length} pro:${PLAN_FEATURES.pro.length}`,
         detail: `free:[${PLAN_FEATURES.free}] sprint:[${PLAN_FEATURES.sprint}] pro:[${PLAN_FEATURES.pro}]`,
       };
@@ -1124,9 +1124,9 @@ const TESTS = [
     name: "canAccess() correctly gates features by plan",
     fn: async () => {
       const PLAN_FEATURES = {
-        free:   ["coach", "calculate"],
+        free:   ["coach"],
         sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-        pro:    ["coach", "benchmark", "calculate", "practice", "logwin"],
+        pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
       };
       const canAccess = (plan, tabId) => {
         const allowed = PLAN_FEATURES[plan] || PLAN_FEATURES.free;
@@ -1135,7 +1135,7 @@ const TESTS = [
       const tests = [
         { plan: "free",   tab: "coach",     expected: true },
         { plan: "free",   tab: "benchmark", expected: false },
-        { plan: "free",   tab: "calculate", expected: true },
+        { plan: "free",   tab: "calculate", expected: false },
         { plan: "free",   tab: "practice",  expected: false },
         { plan: "free",   tab: "logwin",    expected: false },
         { plan: "sprint", tab: "coach",     expected: true },
@@ -1210,16 +1210,17 @@ const TESTS = [
       } catch (e) {
         return { pass: false, message: "src/App.jsx not found" };
       }
-      const hasQuotaState = code.includes("freeCoachSessionsUsed") && code.includes("guestCoachReplies") && code.includes("USAGE_LIMITS.free.sessions");
-      const blocksSignedInFree = code.includes("setShowPaywall(true)") && code.includes('tabWhenSending === "coach"') && code.includes('userPlan === "free"');
-      const blocksGuest = code.includes("!isSignedIn") && code.includes("guestCoachReplies >= coachFreeCap");
-      const persists = code.includes("offeradvisor_free_coach_") && code.includes("offeradvisor_guest_coach");
-      const pass = hasQuotaState && blocksSignedInFree && blocksGuest && persists;
+      const hasUsageLimits = code.includes("USAGE_LIMITS") && code.includes("PLAN_FEATURES");
+      const guestNudgeAfterExchange =
+        code.includes("Save your coaching session") &&
+        code.includes("messages.length >= 3") &&
+        code.includes("!isSignedIn");
+      const pass = hasUsageLimits && guestNudgeAfterExchange;
       return {
         pass,
         message: pass
-          ? "Guest + signed-in free coach guards and persistence keys present"
-          : `Missing — quotaState:${hasQuotaState} signedInFree:${blocksSignedInFree} guest:${blocksGuest} persist:${persists}`,
+          ? "USAGE_LIMITS + guest coach sign-up nudge after first exchanges present"
+          : `Missing — usageLimits:${hasUsageLimits} guestNudge:${guestNudgeAfterExchange}`,
       };
     },
   },
@@ -1238,14 +1239,16 @@ const TESTS = [
         return { pass: false, message: "src/App.jsx not found" };
       }
       const rootModal = code.includes("showPaywall") && code.includes("<PaywallModal />");
-      const calcPath = code.includes("showCalcBlur") && code.includes("calcUpgradeModalDismissed") && code.includes("blur(10px)");
-      const modalProps = code.includes("onDismissExtra") && code.includes("dismissLabel");
-      const pass = rootModal && calcPath && modalProps;
+      const calcPaywall =
+        code.includes('canAccess(userPlan, "calculate")') &&
+        code.includes("<PaywallModal />") &&
+        code.includes("counterResult");
+      const pass = rootModal && calcPaywall;
       return {
         pass,
         message: pass
-          ? "Root PaywallModal, calculate paywall+blur, dismiss props ✓"
-          : `Missing — root:${rootModal} calc:${calcPath} props:${modalProps}`,
+          ? "PaywallModal for premium flow + calculate results paywall ✓"
+          : `Missing — root:${rootModal} calcPaywall:${calcPaywall}`,
       };
     },
   },
@@ -1253,7 +1256,7 @@ const TESTS = [
   {
     id: "plan-gate-parity-free-calculate",
     category: "Plan Gating",
-    name: "api/_plan-gate.js free plan includes calculate (matches App.jsx)",
+    name: "api/_plan-gate.js PLAN_FEATURES matches App.jsx",
     fn: async () => {
       const fs = await import("fs");
       const path = await import("path");
@@ -1265,12 +1268,24 @@ const TESTS = [
       } catch (e) {
         return { pass: false, message: "Could not read source files" };
       }
-      const gateOk = gate.includes('free:   ["coach", "calculate"]');
-      const appOk = app.includes('free:   ["coach", "calculate"]');
-      const pass = gateOk && appOk;
+      const extractFree = (src) => {
+        const m = src.match(/PLAN_FEATURES\s*=\s*\{[\s\S]*?free:\s*\[([^\]]*)\]/);
+        if (!m) return null;
+        return m[1]
+          .split(",")
+          .map((s) => s.replace(/['"\s]/g, "").trim())
+          .filter(Boolean)
+          .sort()
+          .join(",");
+      };
+      const g = extractFree(gate);
+      const a = extractFree(app);
+      const pass = g && a && g === a;
       return {
         pass,
-        message: pass ? "PLAN_FEATURES.free matches in App.jsx and _plan-gate.js" : `gate:${gateOk} app:${appOk}`,
+        message: pass
+          ? `PLAN_FEATURES.free aligned: [${g.split(",").join(", ")}]`
+          : `Mismatch — _plan-gate: [${g || "?"}] vs App.jsx: [${a || "?"}]`,
       };
     },
   },
