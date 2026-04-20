@@ -20,10 +20,26 @@ export function offeradvisorClerkAppearance(extraElements = {}) {
       headerTitle: { fontFamily: "'DM Serif Display', serif", fontWeight: 500 },
       formButtonPrimary: { backgroundColor: "#1d4ed8" },
       footerActionLink: { color: "#3b82f6" },
+      // Light OAuth rows on a dark card: Clerk's default hover uses neutral shades from the
+      // dark theme, which wipes out the light fill. Keep an explicit light hover/focus/active.
       socialButtonsBlockButton: {
         backgroundColor: "#f8fafc",
         color: "#0f172a",
         border: "1px solid #cbd5e1",
+        "&:hover": {
+          backgroundColor: "#e2e8f0",
+          color: "#0f172a",
+          borderColor: "#94a3b8",
+        },
+        "&:focus": {
+          backgroundColor: "#e2e8f0",
+          color: "#0f172a",
+          borderColor: "#64748b",
+        },
+        "&:active": {
+          backgroundColor: "#cbd5e1",
+          color: "#0f172a",
+        },
       },
       socialButtonsBlockButtonText: {
         color: "#0f172a",
@@ -33,6 +49,20 @@ export function offeradvisorClerkAppearance(extraElements = {}) {
         backgroundColor: "#f8fafc",
         color: "#0f172a",
         border: "1px solid #cbd5e1",
+        "&:hover": {
+          backgroundColor: "#e2e8f0",
+          color: "#0f172a",
+          borderColor: "#94a3b8",
+        },
+        "&:focus": {
+          backgroundColor: "#e2e8f0",
+          color: "#0f172a",
+          borderColor: "#64748b",
+        },
+        "&:active": {
+          backgroundColor: "#cbd5e1",
+          color: "#0f172a",
+        },
       },
       ...extraElements,
     },
