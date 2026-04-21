@@ -21,7 +21,7 @@
 import Stripe from "stripe";
 import { clerkClient } from "@clerk/clerk-sdk-node";
 import { supabase } from "./_supabase.js";
-import { internalApiOrigin } from "./_internal-origin.js";
+import { sendPlanConfirmationEmail } from "./_plan-confirmation-email.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -106,33 +106,29 @@ export default async function handler(req, res) {
 
         // Fetch Clerk user for email and name (used by both emails below)
         const clerkUser = await clerkClient.users.getUser(clerkUserId);
-        const userEmail = clerkUser.emailAddresses?.[0]?.emailAddress || session.customer_email;
+        const primaryId = clerkUser.primaryEmailAddressId;
+        const addrs = clerkUser.emailAddresses || [];
+        const primaryAddr = primaryId ? addrs.find((a) => a.id === primaryId) : null;
+        const userEmail =
+          primaryAddr?.emailAddress ||
+          addrs[0]?.emailAddress ||
+          session.customer_email;
 
-		// Send plan confirmation email
-		try {
-		  const emailRes = await fetch(
-			`${internalApiOrigin()}/api/send-plan-confirmation`,
-			{
-			  method: "POST",
-			  headers: { "Content-Type": "application/json" },
-			  body: JSON.stringify({
-				userEmail: userEmail,
-				userName: clerkUser.firstName || "",
-				plan: plan,
-				checkoutSessionId: session.id,
-			  }),
-			}
-		  );
-
-		  if (!emailRes.ok) {
-			console.error("Failed to send plan confirmation email:", await emailRes.text());
-		  } else {
-			console.log(`✓ Plan confirmation email sent to ${userEmail}`);
-		  }
-		} catch (emailError) {
-		  console.error("Email send error:", emailError);
-		  // Don't fail webhook
-		}
+        try {
+          const emailResult = await sendPlanConfirmationEmail({
+            userEmail,
+            userName: clerkUser.firstName || "",
+            plan,
+            checkoutSessionId: session.id,
+          });
+          if (!emailResult.ok) {
+            console.error("Failed to send plan confirmation email:", emailResult.status, emailResult.error);
+          } else {
+            console.log(`✓ Plan confirmation email sent to ${userEmail}`);
+          }
+        } catch (emailError) {
+          console.error("Email send error:", emailError);
+        }
 
         // Update Supabase users table — this is what the server-side plan gate reads
         const { error: sbError } = await supabase.from("users").upsert(

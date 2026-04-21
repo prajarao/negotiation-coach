@@ -15,7 +15,7 @@
 import { Webhook } from "svix";
 import { clerkClient } from "@clerk/clerk-sdk-node";
 import { supabase } from "./_supabase.js";
-import { internalApiOrigin } from "./_internal-origin.js";
+import { sendPlanConfirmationEmail } from "./_plan-confirmation-email.js";
 
 export const config = { api: { bodyParser: false } };
 
@@ -120,20 +120,14 @@ export default async function handler(req, res) {
         );
       } else {
         try {
-          const welcomeUrl = `${internalApiOrigin()}/api/send-plan-confirmation`;
-          const welcomeRes = await fetch(welcomeUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              userEmail: email,
-              userName: data.first_name || data.username || null,
-              plan: "free",
-              checkoutSessionId: null,
-            }),
+          const welcomeResult = await sendPlanConfirmationEmail({
+            userEmail: email,
+            userName: data.first_name || data.username || null,
+            plan: "free",
+            checkoutSessionId: null,
           });
-          if (!welcomeRes.ok) {
-            const errText = await welcomeRes.text();
-            console.error(`Failed to send welcome email (${welcomeRes.status}):`, errText);
+          if (!welcomeResult.ok) {
+            console.error("Failed to send welcome email:", welcomeResult.status, welcomeResult.error);
           } else {
             console.log(`📧 Welcome email sent to ${email}`);
           }
