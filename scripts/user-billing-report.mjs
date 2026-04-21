@@ -13,6 +13,9 @@
  *   CLERK_SECRET_KEY
  *   STRIPE_SECRET_KEY
  *
+ * Clerk users are loaded via the Backend REST API (`https://api.clerk.com/v1/users`) so this
+ * script does not import `@clerk/clerk-sdk-node` (avoids a broken optional chain: `snake-case` → `tslib`).
+ *
  * Optional: load `.env` from repo root if dotenv is installed (`npm i` already includes dotenv).
  *
  * Usage:
@@ -49,6 +52,54 @@ function requireEnv(name) {
   return v.trim();
 }
 
+/** Normalize Clerk REST `User` into the shape this script expects (camelCase). */
+function normalizeClerkRestUser(u) {
+  const ts = u.created_at;
+  const createdAt =
+    typeof ts === "number"
+      ? new Date(ts).toISOString()
+      : ts
+        ? new Date(ts).toISOString()
+        : null;
+  return {
+    id: u.id,
+    createdAt,
+    emailAddresses: (u.email_addresses || []).map((ea) => ({
+      emailAddress: ea.email_address,
+    })),
+    publicMetadata: u.public_metadata || {},
+  };
+}
+
+async function fetchAllClerkUsers(secretKey) {
+  const users = [];
+  const limit = 100;
+  let offset = 0;
+  for (;;) {
+    const url = new URL("https://api.clerk.com/v1/users");
+    url.searchParams.set("limit", String(limit));
+    url.searchParams.set("offset", String(offset));
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${secretKey}` },
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Clerk API ${res.status}: ${text.slice(0, 800)}`);
+    }
+    let body;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new Error("Clerk API returned non-JSON");
+    }
+    const batch = (body.data || []).map(normalizeClerkRestUser);
+    users.push(...batch);
+    if (batch.length < limit) break;
+    offset += limit;
+  }
+  return users;
+}
+
 async function main() {
   requireEnv("SUPABASE_URL");
   requireEnv("SUPABASE_SERVICE_KEY");
@@ -57,8 +108,6 @@ async function main() {
 
   const { createClient } = await import("@supabase/supabase-js");
   const Stripe = (await import("stripe")).default;
-  const { clerkClient } = await import("@clerk/clerk-sdk-node");
-
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY, {
     auth: { persistSession: false },
   });
@@ -79,16 +128,7 @@ async function main() {
   if (!subsErr) sbSubs = subsData || [];
   else console.warn("Supabase subscriptions (optional):", subsErr.message);
 
-  const clerkUsers = [];
-  const limit = 100;
-  let offset = 0;
-  for (;;) {
-    const res = await clerkClient.users.getUserList({ limit, offset });
-    const batch = Array.isArray(res) ? res : (res.data ?? []);
-    clerkUsers.push(...batch);
-    if (batch.length < limit) break;
-    offset += limit;
-  }
+  const clerkUsers = await fetchAllClerkUsers(process.env.CLERK_SECRET_KEY.trim());
 
   /** Paid checkout sessions with Clerk user in metadata */
   const stripeSessions = [];
@@ -166,7 +206,7 @@ async function main() {
     rows.push({
       clerk_id: clerkId,
       email,
-      signed_up_clerk: cu?.createdAt ? new Date(cu.createdAt).toISOString() : null,
+      signed_up_clerk: cu?.createdAt || null,
       signed_up_supabase: sb?.created_at || null,
       plan_clerk_public_metadata: clerkPlan,
       plan_clerk_expires_at: clerkExpires,
