@@ -7,6 +7,7 @@
     "regression:prod": "node scripts/regression.js --env production --url https://negotiation-coach-pearl.vercel.app",
     "report:users": "node scripts/user-billing-report.mjs",
     "fix:tslib": "node scripts/ensure-tslib.cjs",
+    "postinstall": "node scripts/ensure-tslib.cjs",
     "dev": "vite",
     "build": "vite build"
   },
