@@ -15,8 +15,20 @@
 import { Webhook } from "svix";
 import { clerkClient } from "@clerk/clerk-sdk-node";
 import { supabase } from "./_supabase.js";
+import { internalApiOrigin } from "./_internal-origin.js";
 
 export const config = { api: { bodyParser: false } };
+
+/** Clerk `email_addresses[0]` is not always the primary (e.g. Google). */
+function primaryEmailFromClerkUser(data) {
+  const list = data.email_addresses || [];
+  const primaryId = data.primary_email_address_id;
+  if (primaryId) {
+    const match = list.find((a) => a.id === primaryId);
+    if (match?.email_address) return match.email_address;
+  }
+  return list[0]?.email_address || null;
+}
 
 async function buffer(readable) {
   const chunks = [];
@@ -68,7 +80,7 @@ export default async function handler(req, res) {
   // ── user.created ────────────────────────────────────────────────────────────
   if (type === "user.created") {
     const userId = data.id;
-    const email  = data.email_addresses?.[0]?.email_address || null;
+    const email = primaryEmailFromClerkUser(data);
 
     try {
       // 1. Set default plan in Clerk publicMetadata
@@ -102,10 +114,14 @@ export default async function handler(req, res) {
       }
 
       // Send welcome email (non-critical — don't fail user creation if email fails)
-      try {
-        const welcomeRes = await fetch(
-          `https://${process.env.VERCEL_URL || "offeradvisor.ai"}/api/send-plan-confirmation`,
-          {
+      if (!email) {
+        console.warn(
+          `Welcome email skipped for ${userId}: no primary email on user.created (OAuth pending or phone-only). It may arrive on user.updated.`
+        );
+      } else {
+        try {
+          const welcomeUrl = `${internalApiOrigin()}/api/send-plan-confirmation`;
+          const welcomeRes = await fetch(welcomeUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -114,15 +130,16 @@ export default async function handler(req, res) {
               plan: "free",
               checkoutSessionId: null,
             }),
+          });
+          if (!welcomeRes.ok) {
+            const errText = await welcomeRes.text();
+            console.error(`Failed to send welcome email (${welcomeRes.status}):`, errText);
+          } else {
+            console.log(`📧 Welcome email sent to ${email}`);
           }
-        );
-        if (!welcomeRes.ok) {
-          console.error("Failed to send welcome email:", await welcomeRes.text());
-        } else {
-          console.log(`📧 Welcome email sent to ${email}`);
+        } catch (emailErr) {
+          console.error("Welcome email error:", emailErr.message);
         }
-      } catch (emailErr) {
-        console.error("Welcome email error:", emailErr.message);
       }
     } catch (err) {
       console.error(`Failed to process user.created for ${userId}:`, err.message);
@@ -133,7 +150,7 @@ export default async function handler(req, res) {
   if (type === "user.updated") {
     const userId = data.id;
     const plan   = data.public_metadata?.plan || "free";
-    const email  = data.email_addresses?.[0]?.email_address || null;
+    const email = primaryEmailFromClerkUser(data);
     const planExpiresAt =
       data.public_metadata?.expiresAt
       ?? data.public_metadata?.planExpiresAt

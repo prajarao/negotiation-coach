@@ -14,6 +14,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
+  if (!process.env.RESEND_API_KEY) {
+    console.error("send-session-summary: RESEND_API_KEY is not set");
+    return res.status(500).json({ error: "Email provider not configured" });
+  }
+
   const {
     userEmail,
     userName,

@@ -21,6 +21,7 @@
 import Stripe from "stripe";
 import { clerkClient } from "@clerk/clerk-sdk-node";
 import { supabase } from "./_supabase.js";
+import { internalApiOrigin } from "./_internal-origin.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -110,7 +111,7 @@ export default async function handler(req, res) {
 		// Send plan confirmation email
 		try {
 		  const emailRes = await fetch(
-			`https://${process.env.VERCEL_URL || "offeradvisor.ai"}/api/send-plan-confirmation`,
+			`${internalApiOrigin()}/api/send-plan-confirmation`,
 			{
 			  method: "POST",
 			  headers: { "Content-Type": "application/json" },
