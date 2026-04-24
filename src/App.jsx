@@ -6,6 +6,7 @@ import { sendSessionSummaryEmail } from "./utils/sessionEmail";
 import CrispChat from "./components/CrispChat";
 import TemplatesTab from "./components/TemplatesTab.jsx";
 import PlaybookTab from "./components/PlaybookTab.jsx";
+import AlexRoleplayTab from "./components/AlexRoleplayTab.jsx";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -62,6 +63,7 @@ const TABS = [
   { id: "templates", label: "Templates",   shortLabel: "Templates", icon: "templates", desc: "Email scripts (Pro)" },
   { id: "playbook",  label: "Playbook",    shortLabel: "Playbook",  icon: "playbook",  desc: "OfferAdvisor field guide (Pro)" },
   { id: "history",   label: "History",     shortLabel: "History",   icon: "history",   desc: "Track negotiations (Pro)" },
+  { id: "alex",      label: "Mock interview", shortLabel: "Mock AI", icon: "alex",  desc: "Voice interview with Alex (Pro)" },
 ];
 
 const PROMPTS = {
@@ -99,6 +101,10 @@ const PROMPTS = {
     "Turn one Playbook section into a checklist for my call tomorrow",
     "What OfferAdvisor tab should I use first for my situation?",
   ],
+  alex: [
+    "Summarize my offer before I start the voice interview",
+    "What should I lead with in the mock interview?",
+  ],
 };
 
 const CURRENCIES = [
@@ -126,8 +132,8 @@ const PLANS = {
 const PLAN_FEATURES = {
   free:   ["coach"],                                               // chat only
   sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-  pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
-  // Pro: templates (scripts), playbook (OfferAdvisor field guide), history (tracker — coming soon)
+  pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
+  // Pro: templates, playbook, history, alex (voice mock interview + ElevenLabs)
 };
 
 // Check if a plan can access a given tab
@@ -818,15 +824,22 @@ export default function OfferAdvisor() {
     // For tool tabs: show LockScreen if user doesn't have access
     if (activeTab !== "coach" && !canAccess(userPlan, activeTab)) {
       const tab = TABS.find(t => t.id === activeTab);
+      const lockDescription = (() => {
+        if (activeTab === "alex") {
+          return isSignedIn
+            ? "Voice mock interview with Alex (camera preview + live audio) is included with Offer in Hand (Pro). Upgrade to unlock."
+            : "Sign in, then upgrade to Offer in Hand (Pro) to use the voice mock interview with Alex.";
+        }
+        if (!isSignedIn) {
+          return "Create a free account to get started, then unlock with Offer Sprint ($29, 30 days) or Offer in Hand ($49, no expiry).";
+        }
+        return "Unlock coach tools — benchmark, counter calculator, role-play, log win. Offer Sprint $29 (30 days from purchase) or Offer in Hand $49 (no expiry).";
+      })();
       return (
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           <LockScreen
             title={tab?.label || "Premium feature"}
-            description={
-              !isSignedIn
-                ? "Create a free account to get started, then unlock with Offer Sprint ($29, 30 days) or Offer in Hand ($49, no expiry)."
-                : "Unlock coach tools — benchmark, counter calculator, role-play, log win. Offer Sprint $29 (30 days from purchase) or Offer in Hand $49 (no expiry)."
-            }
+            description={lockDescription}
             T={T}
             isSignedIn={isSignedIn}
             onUpgrade={() => setAuthModal(isSignedIn ? "upgrade" : "signup")}
@@ -1233,6 +1246,25 @@ export default function OfferAdvisor() {
             <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="playbook" />
           </>
         );
+
+      case "alex": {
+        const alexContext = [
+          jobTitle && `Role: ${jobTitle}`,
+          jobLocation && `Location: ${jobLocation}`,
+          offer.base && `Offer base: ${offer.base}`,
+          offer.equity && `Equity (total): ${offer.equity}`,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <>
+            <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
+              <AlexRoleplayTab T={T} contextualText={alexContext} />
+            </div>
+            <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="alex" />
+          </>
+        );
+      }
 
       case "history": {
         const proTabMeta = TABS.find((t) => t.id === activeTab);

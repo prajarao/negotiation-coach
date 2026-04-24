@@ -22,7 +22,7 @@ import { supabase } from "./_supabase.js";
 const PLAN_FEATURES = {
   free:   ["coach"],
   sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-  pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
+  pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
 };
 
 // Usage limits per plan
@@ -56,7 +56,7 @@ function extractClerkId(req) {
 /**
  * @param {object}  req
  * @param {object}  res
- * @param {string}  feature   — "coach" | "benchmark" | "calculate" | "practice" | "logwin"
+ * @param {string}  feature   — "coach" | "benchmark" | "calculate" | "practice" | "logwin" | "templates" | … | "alex"
  * @param {object}  [opts]
  * @param {boolean} [opts.allowGuest=false]  — let unauthenticated users through (with limits)
  * @param {number}  [opts.guestLimit=5]      — max requests for guests (tracked per IP, not enforced yet)

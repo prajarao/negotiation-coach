@@ -1,12 +1,17 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import alexTokenHandler from "./api/alex-token.js";
 
 dotenv.config();
 
 const app = express();
 app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
+
+// ElevenLabs ConvAI token (PRO) — mirrors `api/alex-token.js` for local dev
+app.get("/api/alex-token", (req, res) => alexTokenHandler(req, res));
+app.post("/api/alex-token", (req, res) => alexTokenHandler(req, res));
 
 // ─── existing chat route ──────────────────────────────────────
 app.post("/api/chat", async (req, res) => {
