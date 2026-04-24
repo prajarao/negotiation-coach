@@ -93,7 +93,12 @@ function AlexRoleplayInner({ T, contextualText }) {
       const r = await fetch("/api/alex-token", { headers: { Authorization: `Bearer ${jwt}` } });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
-        setLocalError(j.error || "Could not start session");
+        const extra = [j.hint, j.detail, j.elevenStatus ? `HTTP ${j.elevenStatus}` : null]
+          .filter(Boolean)
+          .join(" — ");
+        setLocalError(
+          [j.error || (r.status === 403 || r.status === 401 ? "Not allowed" : "Could not start session"), extra].filter(Boolean).join(" — "),
+        );
         return;
       }
       const { token } = j;
