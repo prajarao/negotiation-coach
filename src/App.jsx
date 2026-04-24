@@ -818,6 +818,48 @@ export default function OfferAdvisor() {
     </div>
   );
 
+  /** Shared text coach thread (same `messages` state as Share offer) — also shown on Mock interview. */
+  const coachMessageList = () => (
+    <>
+      {messages.map((msg, i) => (
+        <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", animation: "fadeIn 0.2s ease" }}>
+          {msg.role === "assistant" && (
+            <div style={{ width: 26, height: 26, borderRadius: "7px", background: "#1d4ed8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: "0.5rem", marginTop: "0.1rem" }}>
+              <svg width="15" height="15" viewBox="0 0 32 32" fill="none"><path d="M8 21L16 10L24 21" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /><circle cx="16" cy="10" r="2.2" fill="#60a5fa" /></svg>
+            </div>
+          )}
+          <div style={{ maxWidth: "82%", padding: msg.role === "user" ? "0.55rem 0.85rem" : "0.85rem 1rem", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? "#1d4ed8" : T.surfaceBg, border: msg.role === "assistant" ? `1px solid ${T.border}` : "none" }}>
+            {msg.role === "user"
+              ? <p style={{ margin: 0, fontSize: "0.87rem", color: "white", lineHeight: 1.6 }}>{msg.content}</p>
+              : <MarkdownText text={msg.content} T={T} isDark={isDark} />}
+          </div>
+        </div>
+      ))}
+      {loading && (
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", animation: "fadeIn 0.2s ease" }}>
+          <div style={{ width: 26, height: 26, borderRadius: "7px", background: "#1d4ed8", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="15" height="15" viewBox="0 0 32 32" fill="none"><path d="M8 21L16 10L24 21" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /><circle cx="16" cy="10" r="2.2" fill="#60a5fa" /></svg>
+          </div>
+          <div style={{ display: "flex", gap: "4px", padding: "0.65rem 0.85rem", background: T.surfaceBg, borderRadius: "4px 14px 14px 14px", border: `1px solid ${T.border}` }}>
+            {[0, 1, 2].map((n) => <div key={n} style={{ width: 6, height: 6, borderRadius: "50%", background: "#3b82f6", animation: `pulse 1.2s ease-in-out ${n * 0.2}s infinite` }} />)}
+          </div>
+        </div>
+      )}
+      {messages.length > 2 && !loading && (lastRole || jobTitle) && (
+        <div style={{ paddingLeft: "38px" }}>
+          <a href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(lastRole || jobTitle)}&location=${encodeURIComponent(lastLocation || jobLocation || "")}&f_TPR=r604800`} target="_blank" rel="noopener noreferrer"
+            style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "0.35rem 0.85rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.71rem", textDecoration: "none", fontFamily: "inherit" }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#0077b5"; e.currentTarget.style.color = "#0077b5"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textMuted; }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="#0077b5" style={{ flexShrink: 0 }}><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" /></svg>
+            See jobs paying more for {lastRole || jobTitle} →
+          </a>
+        </div>
+      )}
+      <div ref={bottomRef} />
+    </>
+  );
+
   // ── Render tab content ────────────────────────────────────────────────────────
   const renderTabContent = () => {
     const practiceUnlocked = canAccess(userPlan, "practice");
@@ -855,42 +897,7 @@ export default function OfferAdvisor() {
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "1.1rem 1rem" }}>
             <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.9rem" }}>
-              {messages.map((msg, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start", animation: "fadeIn 0.2s ease" }}>
-                  {msg.role === "assistant" && (
-                    <div style={{ width: 26, height: 26, borderRadius: "7px", background: "#1d4ed8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginRight: "0.5rem", marginTop: "0.1rem" }}>
-                      <svg width="15" height="15" viewBox="0 0 32 32" fill="none"><path d="M8 21L16 10L24 21" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /><circle cx="16" cy="10" r="2.2" fill="#60a5fa" /></svg>
-                    </div>
-                  )}
-                  <div style={{ maxWidth: "82%", padding: msg.role === "user" ? "0.55rem 0.85rem" : "0.85rem 1rem", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? "#1d4ed8" : T.surfaceBg, border: msg.role === "assistant" ? `1px solid ${T.border}` : "none" }}>
-                    {msg.role === "user"
-                      ? <p style={{ margin: 0, fontSize: "0.87rem", color: "white", lineHeight: 1.6 }}>{msg.content}</p>
-                      : <MarkdownText text={msg.content} T={T} isDark={isDark} />}
-                  </div>
-                </div>
-              ))}
-              {loading && (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", animation: "fadeIn 0.2s ease" }}>
-                  <div style={{ width: 26, height: 26, borderRadius: "7px", background: "#1d4ed8", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="15" height="15" viewBox="0 0 32 32" fill="none"><path d="M8 21L16 10L24 21" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /><circle cx="16" cy="10" r="2.2" fill="#60a5fa" /></svg>
-                  </div>
-                  <div style={{ display: "flex", gap: "4px", padding: "0.65rem 0.85rem", background: T.surfaceBg, borderRadius: "4px 14px 14px 14px", border: `1px solid ${T.border}` }}>
-                    {[0, 1, 2].map((n) => <div key={n} style={{ width: 6, height: 6, borderRadius: "50%", background: "#3b82f6", animation: `pulse 1.2s ease-in-out ${n * 0.2}s infinite` }} />)}
-                  </div>
-                </div>
-              )}
-              {messages.length > 2 && !loading && (lastRole || jobTitle) && (
-                <div style={{ paddingLeft: "38px" }}>
-                  <a href={`https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(lastRole || jobTitle)}&location=${encodeURIComponent(lastLocation || jobLocation || "")}&f_TPR=r604800`} target="_blank" rel="noopener noreferrer"
-                    style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "0.35rem 0.85rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.71rem", textDecoration: "none", fontFamily: "inherit" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#0077b5"; e.currentTarget.style.color = "#0077b5"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textMuted; }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="#0077b5" style={{ flexShrink: 0 }}><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" /></svg>
-                    See jobs paying more for {lastRole || jobTitle} →
-                  </a>
-                </div>
-              )}
-              <div ref={bottomRef} />
+              {coachMessageList()}
             </div>
           </div>
 
@@ -1258,8 +1265,26 @@ export default function OfferAdvisor() {
           .join(" · ");
         return (
           <>
-            <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
-              <AlexRoleplayTab T={T} contextualText={alexContext} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+              <div style={{ flex: "0 1 auto", maxHeight: "min(50vh, 420px)", overflowY: "auto", padding: "1rem 1rem 0" }}>
+                <AlexRoleplayTab T={T} contextualText={alexContext} />
+              </div>
+              <div
+                style={{
+                  flex: 1,
+                  minHeight: 120,
+                  overflowY: "auto",
+                  padding: "0.75rem 1rem",
+                  borderTop: `1px solid ${T.border}`,
+                  background: T.pageBg,
+                }}
+                aria-label="Text coach replies"
+              >
+                <div style={{ fontSize: "0.63rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.5rem" }}>Text coach (this tab)</div>
+                <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {coachMessageList()}
+                </div>
+              </div>
             </div>
             <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="alex" />
           </>
