@@ -58,12 +58,12 @@ const TABS = [
   { id: "benchmark", label: "Benchmark",   shortLabel: "Benchmark", icon: "benchmark", desc: "Compare to market data" },
   { id: "calculate", label: "Calculate",   shortLabel: "Calculate", icon: "calculate", desc: "Build your counter-offer" },
   { id: "practice",  label: "Practice",    shortLabel: "Practice",  icon: "practice",  desc: "Role-play the conversation" },
+  { id: "alex",      label: "Mock interview", shortLabel: "Mock AI", icon: "alex",     desc: "Voice interview with Alex (Pro)" },
   { id: "logwin",    label: "Log win",     shortLabel: "Log win",   icon: "logwin",    desc: "Record your result" },
-  // Phase 2 Pro-only features (coming soon)
+  // Pro-only: templates, playbook, history
   { id: "templates", label: "Templates",   shortLabel: "Templates", icon: "templates", desc: "Email scripts (Pro)" },
   { id: "playbook",  label: "Playbook",    shortLabel: "Playbook",  icon: "playbook",  desc: "OfferAdvisor field guide (Pro)" },
   { id: "history",   label: "History",     shortLabel: "History",   icon: "history",   desc: "Track negotiations (Pro)" },
-  { id: "alex",      label: "Mock interview", shortLabel: "Mock AI", icon: "alex",  desc: "Voice interview with Alex (Pro)" },
 ];
 
 const PROMPTS = {
