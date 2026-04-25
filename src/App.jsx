@@ -373,6 +373,8 @@ export default function OfferAdvisor() {
     cb();
   };
   const [activeTab, setActiveTab] = useState("coach");
+  /** Mock interview: hide text coach + input strip to give the camera/interview more room (esp. mobile). */
+  const [alexTextCoachVisible, setAlexTextCoachVisible] = useState(true);
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -381,6 +383,9 @@ export default function OfferAdvisor() {
   useEffect(() => {
     if (!canPractice && mode === "roleplay") setMode("coach");
   }, [canPractice, mode]);
+  useEffect(() => {
+    if (activeTab !== "alex") setAlexTextCoachVisible(true);
+  }, [activeTab]);
 
   // Personalise welcome message once Clerk has loaded the user
   useEffect(() => {
@@ -1266,27 +1271,96 @@ export default function OfferAdvisor() {
         return (
           <>
             <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
-              <div style={{ flex: "0 1 auto", maxHeight: "min(50vh, 420px)", overflowY: "auto", padding: "1rem 1rem 0" }}>
-                <AlexRoleplayTab T={T} contextualText={alexContext} />
-              </div>
               <div
                 style={{
-                  flex: 1,
-                  minHeight: 120,
+                  flex: alexTextCoachVisible ? "0 1 auto" : "1 1 0%",
+                  minHeight: 0,
+                  maxHeight: alexTextCoachVisible ? "min(50vh, 420px)" : "none",
                   overflowY: "auto",
-                  padding: "0.75rem 1rem",
-                  borderTop: `1px solid ${T.border}`,
-                  background: T.pageBg,
+                  padding: "1rem 1rem 0",
                 }}
-                aria-label="Text coach replies"
               >
-                <div style={{ fontSize: "0.63rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.5rem" }}>Text coach (this tab)</div>
-                <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  {coachMessageList()}
-                </div>
+                <AlexRoleplayTab T={T} contextualText={alexContext} />
               </div>
+              {alexTextCoachVisible && (
+                <button
+                  type="button"
+                  onClick={() => setAlexTextCoachVisible(false)}
+                  style={{
+                    flex: "0 0 auto",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.35rem",
+                    width: "100%",
+                    padding: "0.55rem 1rem",
+                    margin: 0,
+                    border: "none",
+                    borderTop: `1px solid ${T.border}`,
+                    background: T.cardBg,
+                    color: T.textSecondary,
+                    fontSize: "0.8rem",
+                    fontWeight: 500,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    minHeight: 44,
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span aria-hidden="true" style={{ fontSize: "0.75rem" }}>▼</span>
+                  Focus on interview — hide text coach
+                </button>
+              )}
+              {alexTextCoachVisible && (
+                <div
+                  style={{
+                    flex: 1,
+                    minHeight: 120,
+                    overflowY: "auto",
+                    padding: "0.75rem 1rem",
+                    borderTop: `1px solid ${T.border}`,
+                    background: T.pageBg,
+                  }}
+                  aria-label="Text coach replies"
+                >
+                  <div style={{ fontSize: "0.63rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.5rem" }}>Text coach (this tab)</div>
+                  <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {coachMessageList()}
+                  </div>
+                </div>
+              )}
+              {!alexTextCoachVisible && (
+                <button
+                  type="button"
+                  onClick={() => setAlexTextCoachVisible(true)}
+                  style={{
+                    flex: "0 0 auto",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.35rem",
+                    width: "100%",
+                    padding: "0.65rem 1rem",
+                    paddingBottom: "max(0.65rem, env(safe-area-inset-bottom, 0px))",
+                    margin: 0,
+                    border: "none",
+                    borderTop: `1px solid ${T.border}`,
+                    background: T.headerBg,
+                    color: "#1d4ed8",
+                    fontSize: "0.82rem",
+                    fontWeight: 600,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    minHeight: 48,
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span aria-hidden="true" style={{ fontSize: "0.75rem" }}>▲</span>
+                  Show text coach
+                </button>
+              )}
             </div>
-            <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="alex" />
+            {alexTextCoachVisible && <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="alex" />}
           </>
         );
       }
