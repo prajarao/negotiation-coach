@@ -22,13 +22,14 @@ function AlexVisualAvatar({ isSpeaking, isLive }) {
     <div
       className="alex-avatar-tile"
       style={{
-        width: 88,
-        height: 88,
-        margin: "0 auto 0.75rem",
-        borderRadius: 20,
+        width: "100%",
+        height: "100%",
+        minHeight: 200,
+        margin: 0,
+        borderRadius: 0,
         overflow: "hidden",
         background: "linear-gradient(135deg, #1d4ed8, #7c3aed)",
-        boxShadow: "0 8px 24px rgba(29, 78, 216, 0.35)",
+        boxShadow: pulse ? undefined : "inset 0 0 0 1px rgba(255,255,255,0.06)",
         animation: pulse ? "oaAlexPulse 0.75s ease-in-out infinite" : undefined,
       }}
     >
@@ -223,11 +224,23 @@ function AlexRoleplayInner({ T, contextualText }) {
               <span style={{ fontSize: "0.65rem", color: T.textMuted }}>{isBusy ? "Connecting…" : isSpeaking ? "Speaking" : isListening ? "Listening" : status}</span>
             )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200, padding: "1.5rem" }}>
-            <div style={{ textAlign: "center" }}>
-              <AlexVisualAvatar isSpeaking={isSpeaking} isLive={isLive} />
-              <div style={{ fontSize: "0.8rem", color: T.textSecondary, fontWeight: 500 }}>Recruiter</div>
-              <div style={{ fontSize: "0.7rem", color: T.textMuted, marginTop: 4 }}>OfferAdvisor</div>
+          <div style={{ width: "100%", height: 200, position: "relative" }}>
+            <AlexVisualAvatar isSpeaking={isSpeaking} isLive={isLive} />
+            <div
+              style={{
+                position: "absolute",
+                bottom: 10,
+                left: 10,
+                right: 10,
+                zIndex: 1,
+                pointerEvents: "none",
+                fontSize: "0.68rem",
+                color: "rgba(255,255,255,0.92)",
+                textShadow: "0 1px 3px rgba(0,0,0,0.45)",
+                fontWeight: 600,
+              }}
+            >
+              Recruiter · OfferAdvisor
             </div>
           </div>
         </div>
@@ -252,8 +265,8 @@ function AlexRoleplayInner({ T, contextualText }) {
       </div>
       <style>{`
         @keyframes oaAlexPulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.04); }
+          0%, 100% { box-shadow: inset 0 0 0 2px rgba(167, 139, 250, 0.45); }
+          50% { box-shadow: inset 0 0 0 3px rgba(167, 139, 250, 0.85), 0 0 28px rgba(124, 58, 237, 0.35); }
         }
         @media (max-width: 700px) {
           .alex-roleplay-grid { grid-template-columns: 1fr !important; }
