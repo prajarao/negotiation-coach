@@ -3,13 +3,14 @@ import { useAuth } from "@clerk/clerk-react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 
 /**
- * Optional avatar: set in `.env` for Vite / Vercel (must be VITE_ for client):
- *   VITE_ALEX_AVATAR_IMAGE=/alex-avatar.png   — add file to /public
- *   VITE_ALEX_AVATAR_VIDEO=/alex-idle.webm     — looped idle clip; overrides image
+ * Avatar media:
+ * - Drop `public/alex-avatar.png` — shown by default (no env needed).
+ * - Override: VITE_ALEX_AVATAR_IMAGE (path or URL); VITE_ALEX_AVATAR_VIDEO overrides image (looped webm/mp4).
  */
 function AlexVisualAvatar({ isSpeaking, isLive }) {
   const videoSrc = import.meta.env.VITE_ALEX_AVATAR_VIDEO || "";
-  const imageSrc = import.meta.env.VITE_ALEX_AVATAR_IMAGE || "";
+  const imageSrc =
+    import.meta.env.VITE_ALEX_AVATAR_IMAGE || "/alex-avatar.png";
   const [videoErr, setVideoErr] = useState(false);
   const [imageErr, setImageErr] = useState(false);
 
