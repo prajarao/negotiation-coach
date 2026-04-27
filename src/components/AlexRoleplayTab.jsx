@@ -3,6 +3,73 @@ import { useAuth } from "@clerk/clerk-react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
 
 /**
+ * Optional avatar: set in `.env` for Vite / Vercel (must be VITE_ for client):
+ *   VITE_ALEX_AVATAR_IMAGE=/alex-avatar.png   — add file to /public
+ *   VITE_ALEX_AVATAR_VIDEO=/alex-idle.webm     — looped idle clip; overrides image
+ */
+function AlexVisualAvatar({ isSpeaking, isLive }) {
+  const videoSrc = import.meta.env.VITE_ALEX_AVATAR_VIDEO || "";
+  const imageSrc = import.meta.env.VITE_ALEX_AVATAR_IMAGE || "";
+  const [videoErr, setVideoErr] = useState(false);
+  const [imageErr, setImageErr] = useState(false);
+
+  const useVideo = Boolean(videoSrc) && !videoErr;
+  const useImage = !useVideo && Boolean(imageSrc) && !imageErr;
+  const pulse = Boolean(isLive && isSpeaking);
+
+  return (
+    <div
+      className="alex-avatar-tile"
+      style={{
+        width: 88,
+        height: 88,
+        margin: "0 auto 0.75rem",
+        borderRadius: 20,
+        overflow: "hidden",
+        background: "linear-gradient(135deg, #1d4ed8, #7c3aed)",
+        boxShadow: "0 8px 24px rgba(29, 78, 216, 0.35)",
+        animation: pulse ? "oaAlexPulse 0.75s ease-in-out infinite" : undefined,
+      }}
+    >
+      {useVideo ? (
+        <video
+          key={videoSrc}
+          src={videoSrc}
+          muted
+          loop
+          playsInline
+          autoPlay
+          onError={() => setVideoErr(true)}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+      ) : useImage ? (
+        <img
+          src={imageSrc}
+          alt="Alex, your recruiter"
+          onError={() => setImageErr(true)}
+          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        />
+      ) : (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "white",
+            fontSize: "2rem",
+            fontWeight: 600,
+          }}
+        >
+          A
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Inner component — must sit under ConversationProvider.
  */
 function AlexRoleplayInner({ T, contextualText }) {
@@ -106,7 +173,12 @@ function AlexRoleplayInner({ T, contextualText }) {
         setLocalError("No token returned");
         return;
       }
-      const p = startSession({ conversationToken: token, connectionType: "webrtc" });
+      // Must match allowlisted origins in ElevenLabs (e.g. www vs apex) — we send the real page origin.
+      const p = startSession({
+        conversationToken: token,
+        connectionType: "webrtc",
+        origin: typeof window !== "undefined" ? window.location.origin : undefined,
+      });
       if (p && typeof p.then === "function") await p;
     } catch (e) {
       setLocalError(e?.message || "Could not start. Allow microphone when prompted.");
@@ -122,7 +194,7 @@ function AlexRoleplayInner({ T, contextualText }) {
       <div>
         <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.3rem", color: T.textPrimary, marginBottom: "0.3rem" }}>Mock interview with Alex</h2>
         <p style={{ fontSize: "0.82rem", color: T.textSecondary, margin: 0, lineHeight: 1.6 }}>
-          Live voice with your ElevenLabs agent. Your camera is preview-only (not sent to the model). Use the coach below to prepare context before you start.
+          Practice live with Alex as your recruiter. Your camera is only for your own preview. Use the text coach below to shape context before you start.
         </p>
       </div>
 
@@ -152,26 +224,9 @@ function AlexRoleplayInner({ T, contextualText }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200, padding: "1.5rem" }}>
             <div style={{ textAlign: "center" }}>
-              <div
-                style={{
-                  width: 88,
-                  height: 88,
-                  margin: "0 auto 0.75rem",
-                  borderRadius: "20px",
-                  background: "linear-gradient(135deg, #1d4ed8, #7c3aed)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "white",
-                  fontSize: "2rem",
-                  fontWeight: 600,
-                  boxShadow: "0 8px 24px rgba(29, 78, 216, 0.35)",
-                }}
-              >
-                A
-              </div>
+              <AlexVisualAvatar isSpeaking={isSpeaking} isLive={isLive} />
               <div style={{ fontSize: "0.8rem", color: T.textSecondary, fontWeight: 500 }}>Recruiter</div>
-              <div style={{ fontSize: "0.7rem", color: T.textMuted, marginTop: 4 }}>OfferAdvisor · ElevenLabs</div>
+              <div style={{ fontSize: "0.7rem", color: T.textMuted, marginTop: 4 }}>OfferAdvisor</div>
             </div>
           </div>
         </div>
@@ -195,6 +250,10 @@ function AlexRoleplayInner({ T, contextualText }) {
         </div>
       </div>
       <style>{`
+        @keyframes oaAlexPulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.04); }
+        }
         @media (max-width: 700px) {
           .alex-roleplay-grid { grid-template-columns: 1fr !important; }
         }
@@ -307,7 +366,7 @@ function AlexRoleplayInner({ T, contextualText }) {
 }
 
 /**
- * PRO-only: ElevenLabs ConvAI (WebRTC) with local camera preview.
+ * PRO-only: voice mock interview with local camera preview.
  */
 export default function AlexRoleplayTab({ T, contextualText }) {
   return (
