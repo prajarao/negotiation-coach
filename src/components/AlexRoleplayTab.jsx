@@ -72,13 +72,16 @@ function AlexVisualAvatar({ isSpeaking, isLive }) {
 }
 
 /**
- * Inner component — must sit under ConversationProvider.
+ * Inner component — must sit under ConversationProvider (pass `isMuted={!micOn}` on provider).
  */
-function AlexRoleplayInner({ T, contextualText }) {
+function AlexRoleplayInner({ T, contextualText, micOn, setMicOn }) {
   const { getToken: getClerkToken } = useAuth();
   const [camOn, setCamOn] = useState(true);
-  const [micOn, setMicOn] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [localError, setLocalError] = useState(null);
+  /** Bump after voice connects or errors so camera preview restarts (avoids mic/WebRTC contention with an active video capture). */
+  const [cameraSession, setCameraSession] = useState(0);
+  const [inputLevel, setInputLevel] = useState(0);
   const videoRef = useRef(null);
   const videoStreamRef = useRef(null);
   const contextSentRef = useRef(false);
@@ -87,11 +90,17 @@ function AlexRoleplayInner({ T, contextualText }) {
     contextSentRef.current = false;
   }, []);
 
-  const { startSession, endSession, status, isSpeaking, isListening, sendContextualUpdate } = useConversation({
-    onConnect: () => setLocalError(null),
+  const bumpCameraPreview = useCallback(() => {
+    setCameraSession((s) => s + 1);
+  }, []);
+
+  const { startSession, endSession, status, isSpeaking, isListening, sendContextualUpdate, sendUserActivity, getInputVolume } = useConversation({
+    onConnect: () => {
+      setLocalError(null);
+      bumpCameraPreview();
+    },
     onDisconnect,
     onError: (e) => setLocalError(e?.message || "Connection error"),
-    micMuted: !micOn,
   });
 
   useEffect(() => {
@@ -104,15 +113,60 @@ function AlexRoleplayInner({ T, contextualText }) {
     }
   }, [status, contextualText, sendContextualUpdate]);
 
+  /** Keeps server-side silence timers honest when returning from another tab. */
+  useEffect(() => {
+    if (status !== "connected") return;
+    const onVis = () => {
+      if (document.visibilityState === "visible") {
+        try {
+          sendUserActivity();
+        } catch {
+          /* noop */
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [status, sendUserActivity]);
+
+  /** Input level meter while connected — confirms mic audio reaches the SDK/LiveKit. */
+  useEffect(() => {
+    if (status !== "connected") {
+      setInputLevel(0);
+      return;
+    }
+    let rafId = 0;
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled) return;
+      try {
+        const v = typeof getInputVolume === "function" ? getInputVolume() : 0;
+        setInputLevel(typeof v === "number" && !Number.isNaN(v) ? Math.min(1, Math.max(0, v)) : 0);
+      } catch {
+        setInputLevel(0);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+    };
+  }, [status, getInputVolume]);
+
+  const releaseCameraPreview = useCallback(() => {
+    if (videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach((t) => t.stop());
+      videoStreamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!camOn) {
-        if (videoStreamRef.current) {
-          videoStreamRef.current.getTracks().forEach((t) => t.stop());
-          videoStreamRef.current = null;
-        }
-        if (videoRef.current) videoRef.current.srcObject = null;
+        releaseCameraPreview();
         return;
       }
       try {
@@ -132,8 +186,9 @@ function AlexRoleplayInner({ T, contextualText }) {
     })();
     return () => {
       cancelled = true;
+      releaseCameraPreview();
     };
-  }, [camOn]);
+  }, [camOn, cameraSession, releaseCameraPreview]);
 
   const handleStop = useCallback(() => {
     void endSession();
@@ -142,21 +197,37 @@ function AlexRoleplayInner({ T, contextualText }) {
   useEffect(() => {
     return () => {
       void endSession();
-      if (videoStreamRef.current) {
-        videoStreamRef.current.getTracks().forEach((t) => t.stop());
-        videoStreamRef.current = null;
-      }
+      releaseCameraPreview();
     };
-  }, [endSession]);
+  }, [endSession, releaseCameraPreview]);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") setIsFullscreen(false);
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isFullscreen]);
 
   const handleStart = async () => {
     setLocalError(null);
     try {
       const test = await navigator.mediaDevices.getUserMedia({ audio: true });
       test.getTracks().forEach((t) => t.stop());
+      /* Release local camera before ElevenLabs/LiveKit grabs the mic — avoids broken uplink on some Windows/browser combos. Preview restarts in onConnect via cameraSession. */
+      if (camOn) {
+        releaseCameraPreview();
+      }
       const jwt = await getClerkToken();
       if (!jwt) {
         setLocalError("You must be signed in.");
+        bumpCameraPreview();
         return;
       }
       const r = await fetch("/api/alex-token", { headers: { Authorization: `Bearer ${jwt}` } });
@@ -168,11 +239,13 @@ function AlexRoleplayInner({ T, contextualText }) {
         setLocalError(
           [j.error || (r.status === 403 || r.status === 401 ? "Not allowed" : "Could not start session"), extra].filter(Boolean).join(" — "),
         );
+        bumpCameraPreview();
         return;
       }
       const { token } = j;
       if (!token) {
         setLocalError("No token returned");
+        bumpCameraPreview();
         return;
       }
       // Must match allowlisted origins in ElevenLabs (e.g. www vs apex) — we send the real page origin.
@@ -184,32 +257,76 @@ function AlexRoleplayInner({ T, contextualText }) {
       if (p && typeof p.then === "function") await p;
     } catch (e) {
       setLocalError(e?.message || "Could not start. Allow microphone when prompted.");
+      bumpCameraPreview();
     }
   };
 
   const isLive = status === "connected";
   const isBusy = status === "connecting";
+  const overlayTextColor = isFullscreen ? "rgba(255,255,255,0.92)" : T.textPrimary;
+  const overlayMutedColor = isFullscreen ? "rgba(255,255,255,0.68)" : T.textMuted;
   const labelStyle = { fontSize: "0.68rem", color: T.textMuted, marginBottom: "6px" };
+  const mediaHeight = isFullscreen ? "100%" : 200;
+  const wrapperStyle = isFullscreen
+    ? {
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        display: "flex",
+        flexDirection: "column",
+        width: "100vw",
+        height: "100dvh",
+        background: "#020617",
+      }
+    : {
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
+        maxWidth: 800,
+        margin: "0 auto",
+        width: "100%",
+      };
+  const gridStyle = {
+    display: "grid",
+    gridTemplateColumns: isFullscreen ? "1fr" : "1fr 1fr",
+    gridTemplateRows: isFullscreen ? "1fr 1fr" : undefined,
+    gap: isFullscreen ? 0 : "0.75rem",
+    minHeight: isFullscreen ? 0 : 220,
+    height: isFullscreen ? "100%" : undefined,
+    flex: isFullscreen ? 1 : undefined,
+  };
+  const tileStyle = {
+    position: "relative",
+    borderRadius: isFullscreen ? 0 : "12px",
+    overflow: "hidden",
+    border: isFullscreen ? "none" : `1px solid ${T.border}`,
+  };
+  const controlButtonStyle = {
+    padding: isFullscreen ? "0.45rem 0.75rem" : "0.4rem 0.9rem",
+    borderRadius: "8px",
+    border: `1px solid ${isFullscreen ? "rgba(255,255,255,0.22)" : T.border}`,
+    background: isFullscreen ? "rgba(15,23,42,0.72)" : T.cardBg,
+    color: isFullscreen ? "white" : T.textPrimary,
+    fontSize: "0.78rem",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    backdropFilter: isFullscreen ? "blur(10px)" : undefined,
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: 800, margin: "0 auto", width: "100%" }}>
-      <div>
+    <div className={isFullscreen ? "alex-roleplay-fullscreen" : undefined} style={wrapperStyle}>
+      {!isFullscreen && <div>
         <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.3rem", color: T.textPrimary, marginBottom: "0.3rem" }}>Mock interview with Alex</h2>
         <p style={{ fontSize: "0.82rem", color: T.textSecondary, margin: 0, lineHeight: 1.6 }}>
-          Practice live with Alex as your recruiter. Your camera is only for your own preview. Use the text coach below to shape context before you start.
+          Practice live with Alex as your recruiter. Your camera is only for your own preview. Use the text coach below to shape context before you start. If Alex keeps asking whether you are still there, use headphones or earbuds — speakers can confuse echo cancellation and mute your mic.
         </p>
-      </div>
+      </div>}
 
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: "0.75rem",
-          minHeight: 220,
-        }}
+        style={gridStyle}
         className="alex-roleplay-grid"
       >
-        <div style={{ position: "relative", borderRadius: "12px", overflow: "hidden", border: `1px solid ${T.border}`, background: "linear-gradient(160deg, rgba(29,78,216,0.12), rgba(124,58,237,0.08))" }}>
+        <div style={{ ...tileStyle, background: "linear-gradient(160deg, rgba(29,78,216,0.12), rgba(124,58,237,0.08))" }}>
           <div style={{ position: "absolute", top: 10, left: 10, zIndex: 1, display: "flex", alignItems: "center", gap: 8 }}>
             <div
               style={{
@@ -219,12 +336,12 @@ function AlexRoleplayInner({ T, contextualText }) {
                 background: isLive ? (isSpeaking ? "#a78bfa" : isListening ? "#22c55e" : T.textHint) : T.textHint,
               }}
             />
-            <span style={{ fontSize: "0.7rem", fontWeight: 600, color: T.textPrimary }}>Alex</span>
+            <span style={{ fontSize: "0.7rem", fontWeight: 600, color: overlayTextColor }}>Alex</span>
             {(isLive || isBusy) && (
-              <span style={{ fontSize: "0.65rem", color: T.textMuted }}>{isBusy ? "Connecting…" : isSpeaking ? "Speaking" : isListening ? "Listening" : status}</span>
+              <span style={{ fontSize: "0.65rem", color: overlayMutedColor }}>{isBusy ? "Connecting…" : isSpeaking ? "Speaking" : isListening ? "Listening" : status}</span>
             )}
           </div>
-          <div style={{ width: "100%", height: 200, position: "relative" }}>
+          <div style={{ width: "100%", height: mediaHeight, position: "relative" }}>
             <AlexVisualAvatar isSpeaking={isSpeaking} isLive={isLive} />
             <div
               style={{
@@ -245,10 +362,10 @@ function AlexRoleplayInner({ T, contextualText }) {
           </div>
         </div>
 
-        <div style={{ position: "relative", borderRadius: "12px", overflow: "hidden", border: `1px solid ${T.border}`, background: T.cardBg, minHeight: 200 }}>
+        <div style={{ ...tileStyle, background: T.cardBg, minHeight: isFullscreen ? 0 : 200 }}>
           <div style={{ position: "absolute", top: 10, left: 10, zIndex: 1, display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: camOn ? "#3b82f6" : T.textHint }} />
-            <span style={{ fontSize: "0.7rem", fontWeight: 600, color: T.textPrimary }}>You (preview)</span>
+            <span style={{ fontSize: "0.7rem", fontWeight: 600, color: overlayTextColor }}>You (preview)</span>
           </div>
           {camOn ? (
             <video
@@ -256,10 +373,10 @@ function AlexRoleplayInner({ T, contextualText }) {
               autoPlay
               playsInline
               muted
-              style={{ width: "100%", height: 200, objectFit: "cover", background: "#0f172a" }}
+              style={{ width: "100%", height: mediaHeight, objectFit: "cover", background: "#0f172a" }}
             />
           ) : (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, color: T.textMuted, fontSize: "0.8rem" }}>Camera off</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: mediaHeight, color: T.textMuted, fontSize: "0.8rem" }}>Camera off</div>
           )}
         </div>
       </div>
@@ -271,42 +388,48 @@ function AlexRoleplayInner({ T, contextualText }) {
         @media (max-width: 700px) {
           .alex-roleplay-grid { grid-template-columns: 1fr !important; }
         }
+        .alex-roleplay-fullscreen .alex-avatar-tile {
+          min-height: 0 !important;
+        }
       `}</style>
 
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem" }}>
+      <div style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: "0.5rem",
+        ...(isFullscreen
+          ? {
+              position: "absolute",
+              right: 12,
+              bottom: 12,
+              zIndex: 3,
+              justifyContent: "flex-end",
+              maxWidth: "calc(100vw - 24px)",
+            }
+          : {}),
+      }}>
         <div>
-          <div style={labelStyle}>Camera (local preview)</div>
+          {!isFullscreen && <div style={labelStyle}>Camera (local preview)</div>}
           <button
             type="button"
             onClick={() => setCamOn((v) => !v)}
             style={{
-              padding: "0.4rem 0.9rem",
-              borderRadius: "8px",
-              border: `1px solid ${T.border}`,
-              background: camOn ? "rgba(59,130,246,0.12)" : T.cardBg,
-              color: T.textPrimary,
-              fontSize: "0.78rem",
-              cursor: "pointer",
-              fontFamily: "inherit",
+              ...controlButtonStyle,
+              background: camOn && !isFullscreen ? "rgba(59,130,246,0.12)" : controlButtonStyle.background,
             }}
           >
             {camOn ? "Turn camera off" : "Turn camera on"}
           </button>
         </div>
         <div>
-          <div style={labelStyle}>Microphone (Alex)</div>
+          {!isFullscreen && <div style={labelStyle}>Microphone (Alex)</div>}
           <button
             type="button"
             onClick={() => setMicOn((v) => !v)}
             style={{
-              padding: "0.4rem 0.9rem",
-              borderRadius: "8px",
-              border: `1px solid ${T.border}`,
-              background: micOn ? "rgba(34,197,94,0.12)" : T.cardBg,
-              color: T.textPrimary,
-              fontSize: "0.78rem",
-              cursor: "pointer",
-              fontFamily: "inherit",
+              ...controlButtonStyle,
+              background: micOn && !isFullscreen ? "rgba(34,197,94,0.12)" : controlButtonStyle.background,
             }}
           >
             {micOn ? "Mute microphone" : "Unmute microphone"}
@@ -318,15 +441,16 @@ function AlexRoleplayInner({ T, contextualText }) {
               type="button"
               onClick={handleStop}
               style={{
-                padding: "0.5rem 1.1rem",
+                padding: isFullscreen ? "0.45rem 0.75rem" : "0.5rem 1.1rem",
                 borderRadius: "10px",
-                border: `1px solid ${T.border}`,
-                background: T.cardBg,
-                color: T.textPrimary,
+                border: `1px solid ${isFullscreen ? "rgba(255,255,255,0.22)" : T.border}`,
+                background: isFullscreen ? "rgba(15,23,42,0.72)" : T.cardBg,
+                color: isFullscreen ? "white" : T.textPrimary,
                 fontSize: "0.85rem",
                 fontWeight: 600,
                 cursor: "pointer",
                 fontFamily: "inherit",
+                backdropFilter: isFullscreen ? "blur(10px)" : undefined,
               }}
             >
               End session
@@ -336,15 +460,16 @@ function AlexRoleplayInner({ T, contextualText }) {
               type="button"
               disabled
               style={{
-                padding: "0.5rem 1.1rem",
+                padding: isFullscreen ? "0.45rem 0.75rem" : "0.5rem 1.1rem",
                 borderRadius: "10px",
                 border: "none",
-                background: T.border,
-                color: T.textMuted,
+                background: isFullscreen ? "rgba(15,23,42,0.72)" : T.border,
+                color: isFullscreen ? "white" : T.textMuted,
                 fontSize: "0.85rem",
                 fontWeight: 600,
                 cursor: "not-allowed",
                 fontFamily: "inherit",
+                backdropFilter: isFullscreen ? "blur(10px)" : undefined,
               }}
             >
               Connecting…
@@ -354,7 +479,7 @@ function AlexRoleplayInner({ T, contextualText }) {
               type="button"
               onClick={handleStart}
               style={{
-                padding: "0.5rem 1.1rem",
+                padding: isFullscreen ? "0.45rem 0.75rem" : "0.5rem 1.1rem",
                 borderRadius: "10px",
                 border: "none",
                 background: "#1d4ed8",
@@ -368,11 +493,60 @@ function AlexRoleplayInner({ T, contextualText }) {
               Start interview
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setIsFullscreen((v) => !v)}
+            style={{
+              padding: isFullscreen ? "0.45rem 0.75rem" : "0.5rem 1.1rem",
+              borderRadius: "10px",
+              border: `1px solid ${isFullscreen ? "rgba(255,255,255,0.22)" : T.border}`,
+              background: isFullscreen ? "rgba(15,23,42,0.72)" : T.cardBg,
+              color: isFullscreen ? "white" : T.textPrimary,
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              backdropFilter: isFullscreen ? "blur(10px)" : undefined,
+            }}
+          >
+            {isFullscreen ? "Exit full screen" : "Full screen"}
+          </button>
         </div>
       </div>
 
-      <div style={{ fontSize: "0.72rem", color: T.textMuted, lineHeight: 1.5 }}>
-        Status: <strong style={{ color: T.textSecondary }}>{status}</strong>
+      {isLive && micOn && !isFullscreen && (
+        <div style={{ marginTop: "-0.25rem" }}>
+          <div style={{ ...labelStyle, marginBottom: 4 }}>Mic signal (should move when you speak)</div>
+          <div
+            style={{
+              height: 6,
+              borderRadius: 4,
+              background: T.border,
+              overflow: "hidden",
+              maxWidth: 280,
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${Math.round(inputLevel * 100)}%`,
+                background: inputLevel > 0.02 ? "#22c55e" : "transparent",
+                transition: "width 50ms linear",
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      <div style={{
+        fontSize: "0.72rem",
+        color: isFullscreen ? "rgba(255,255,255,0.72)" : T.textMuted,
+        lineHeight: 1.5,
+        ...(isFullscreen
+          ? { position: "absolute", left: 12, bottom: 14, zIndex: 3, textShadow: "0 1px 3px rgba(0,0,0,0.55)" }
+          : {}),
+      }}>
+        Status: <strong style={{ color: isFullscreen ? "white" : T.textSecondary }}>{status}</strong>
         {localError && <span style={{ color: "#f87171", marginLeft: 8 }}>— {localError}</span>}
       </div>
     </div>
@@ -383,9 +557,10 @@ function AlexRoleplayInner({ T, contextualText }) {
  * PRO-only: voice mock interview with local camera preview.
  */
 export default function AlexRoleplayTab({ T, contextualText }) {
+  const [micOn, setMicOn] = useState(true);
   return (
-    <ConversationProvider>
-      <AlexRoleplayInner T={T} contextualText={contextualText} />
+    <ConversationProvider isMuted={!micOn}>
+      <AlexRoleplayInner T={T} contextualText={contextualText} micOn={micOn} setMicOn={setMicOn} />
     </ConversationProvider>
   );
 }

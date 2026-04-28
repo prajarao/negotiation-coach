@@ -1771,8 +1771,8 @@ export default function OfferAdvisor() {
         </div>
       )}
 
-            <div style={{ padding: "0.7rem 1.25rem", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", background: T.headerBg, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+            <div style={{ padding: "0.7rem 1.25rem", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem 0.75rem", background: T.headerBg, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", minWidth: 0 }}>
           <LogoMark size={30} />
           <div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontWeight: 600, fontSize: "0.97rem", color: T.textPrimary, letterSpacing: "-0.01em" }}>
@@ -1781,7 +1781,7 @@ export default function OfferAdvisor() {
             <div style={{ fontSize: "0.6rem", color: T.textMuted, letterSpacing: "0.07em", textTransform: "uppercase" }}>AI Offer Coach</div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "0.35rem", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end", minWidth: 0 }}>
           {/* Community wins pill — always visible */}
           {stats.totalUsers > 0 ? (
             <div style={{ fontSize: "0.68rem", color: "#34d399", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: "10px" }}>
@@ -1800,8 +1800,12 @@ export default function OfferAdvisor() {
             ? Help
           </button>
 
-          {/* Auth section */}
-          {!isLoaded ? null : isSignedIn ? (
+          {/* Auth section — while Clerk loads we show a hint (was null before, so Sign in vanished in dev if Clerk hung) */}
+          {!isLoaded ? (
+            <span style={{ fontSize: "0.68rem", color: T.textMuted, whiteSpace: "nowrap", padding: "0.2rem 0" }} title="Connecting to Clerk…">
+              Session…
+            </span>
+          ) : isSignedIn ? (
             <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
               {/* Plan badge */}
               <div style={{
