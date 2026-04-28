@@ -324,7 +324,7 @@ function AlexRoleplayInner({ T, contextualText, micOn, setMicOn }) {
 
       <div
         style={gridStyle}
-        className="alex-roleplay-grid"
+        className={`alex-roleplay-grid${isFullscreen ? " alex-roleplay-grid-fullscreen" : ""}`}
       >
         <div style={{ ...tileStyle, background: "linear-gradient(160deg, rgba(29,78,216,0.12), rgba(124,58,237,0.08))" }}>
           <div style={{ position: "absolute", top: 10, left: 10, zIndex: 1, display: "flex", alignItems: "center", gap: 8 }}>
@@ -387,6 +387,12 @@ function AlexRoleplayInner({ T, contextualText, micOn, setMicOn }) {
         }
         @media (max-width: 700px) {
           .alex-roleplay-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (min-width: 701px) {
+          .alex-roleplay-grid-fullscreen {
+            grid-template-columns: 1fr 1fr !important;
+            grid-template-rows: 1fr !important;
+          }
         }
         .alex-roleplay-fullscreen .alex-avatar-tile {
           min-height: 0 !important;
