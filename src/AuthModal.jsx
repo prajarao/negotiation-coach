@@ -303,7 +303,12 @@ export default function AuthModal({ mode, onClose, T }) {
                       <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "2px" }}>30-day access · invite codes adjust price at checkout</div>
                     </div>
                     <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", flex: 1 }}>
-                      {["Same tools as Offer Sprint", "Built for new grads & campus programs", "Use optional invite code for school pricing", "Campuses can also grant access without Stripe (admin)"].map((f) => (
+                      {[
+                        "Students hub — benchmarks, compare offers, paths & campus verification",
+                        "Coach chat strip while you're on Students (Share offer tab is Sprint / Pro)",
+                        "Built for new grads & campus programs",
+                        "Optional invite code for school pricing · campuses can grant access",
+                      ].map((f) => (
                         <li key={f} style={{ display: "flex", gap: "5px", fontSize: "0.75rem", color: "#94a3b8", marginBottom: "4px", alignItems: "center" }}>
                           <span style={{ color: "#2dd4bf", flexShrink: 0 }}>✓</span>{f}
                         </li>

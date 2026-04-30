@@ -13,9 +13,10 @@ const planDetails = {
   student_plus: {
     name: "Student Plus",
     features: [
-      "Same core tools as Offer Sprint: coach, benchmark, calculator, role-play, log win",
+      "Students hub — benchmarks, compare offers, career paths, campus verification",
+      "Coach chat strip on Students only (negotiation toolkit tabs unlock with Sprint / Pro)",
       "30 days of full access from purchase (or until your campus-granted end date)",
-      "Designed for students and campus partners — use invite codes at checkout for case-by-case pricing",
+      "Designed for students and campus partners — invite codes at checkout where applicable",
     ],
     price: "$19.99",
   },

@@ -138,14 +138,32 @@ const PLANS = {
   pro:           { label: "Offer in Hand",  color: "#7c3aed" },
 };
 
-// Features each plan can access
+// Features each plan can access (tab ids). Pathway guardrails:
+// — Student Plus → Students hub only · Sprint/Pro → professional tools only (no Students tab). Free keeps both for exploration.
 const PLAN_FEATURES = {
   free:   ["coach", "student"],
-  sprint: ["coach", "student", "benchmark", "calculate", "practice", "logwin"],
-  student_plus: ["coach", "student", "benchmark", "calculate", "practice", "logwin"],
-  pro:    ["coach", "student", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
-  // Pro: templates, playbook, history, alex (voice mock interview + ElevenLabs)
+  sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
+  student_plus: ["student"],
+  pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
 };
+
+/** Paid plans scoped to salary negotiation tooling (no Students tab). */
+function isProfessionalPaidPlan(plan) {
+  return plan === "sprint" || plan === "pro";
+}
+
+/** Student Plus SKU — Students hub only in the UI. */
+function isStudentPaidPlan(plan) {
+  return plan === "student_plus";
+}
+
+/** Tab locked because plan type doesn't include this surface (not a generic upgrade gap). */
+function pathwayTabBlocked(plan, tabId) {
+  if (!plan || plan === "free") return false;
+  if (isProfessionalPaidPlan(plan) && tabId === "student") return true;
+  if (isStudentPaidPlan(plan) && tabId !== "student") return true;
+  return false;
+}
 
 // Check if a plan can access a given tab
 const canAccess = (plan, tabId) => {
@@ -201,7 +219,9 @@ function MarkdownText({ text, T, isDark }) {
 }
 
 // ── Lock screen for unpaid features ──────────────────────────────────────────
-function LockScreen({ title, description, T, onUpgrade, isSignedIn }) {
+function LockScreen({ title, description, T, onUpgrade, isSignedIn, primaryAction = null, hidePricingFootnote = false }) {
+  const primaryLabel = primaryAction?.label ?? (isSignedIn ? "View plans & unlock →" : "Sign up to unlock →");
+  const primaryHandler = primaryAction?.onClick ?? onUpgrade;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3rem 2rem", textAlign: "center" }}>
       <div style={{ width: 52, height: 52, borderRadius: "14px", background: T.cardBg, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "1.25rem" }}>
@@ -212,15 +232,17 @@ function LockScreen({ title, description, T, onUpgrade, isSignedIn }) {
       </div>
       <div style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.2rem", color: T.textPrimary, marginBottom: "0.6rem" }}>{title}</div>
       <p style={{ fontSize: "0.85rem", color: T.textSecondary, lineHeight: 1.65, maxWidth: 340, marginBottom: "1.5rem" }}>{description}</p>
-      <button onClick={onUpgrade}
+      <button onClick={primaryHandler}
         style={{ padding: "0.6rem 1.5rem", borderRadius: "10px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.85rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-        {isSignedIn ? "View plans & unlock →" : "Sign up to unlock →"}
+        {primaryLabel}
       </button>
-      <p style={{ fontSize: "0.72rem", color: T.textMuted, marginTop: "0.6rem" }}>
-        {isSignedIn
-          ? "Student Plus $19.99 · Sprint $29 · Pro $49 · Student Plus & Sprint = 30 days"
-          : "Free account · Student Plus $19.99 · Sprint $29 · Pro $49 (no subscription)"}
-      </p>
+      {!hidePricingFootnote ? (
+        <p style={{ fontSize: "0.72rem", color: T.textMuted, marginTop: "0.6rem" }}>
+          {isSignedIn
+            ? "Student Plus $19.99 · Sprint $29 · Pro $49 · Student Plus & Sprint = 30 days"
+            : "Free account · Student Plus $19.99 · Sprint $29 · Pro $49 (no subscription)"}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -334,6 +356,8 @@ export default function OfferAdvisor() {
 
   // Auth modal state
   const [authModal, setAuthModal] = useState(null); // null | "signin" | "signup" | "upgrade"
+  /** Brief modal when user taps a tab their plan path doesn't include (Sprint vs Student Plus). */
+  const [pathwayBarrier, setPathwayBarrier] = useState(null); // null | { title, body, suggestTab }
 
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
@@ -395,6 +419,15 @@ export default function OfferAdvisor() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState("coach");
   const canPractice = canAccess(userPlan, "practice");
+
+  useEffect(() => {
+    setActiveTab((prev) => {
+      if (canAccess(userPlan, prev)) return prev;
+      const fallback = TABS.find((t) => canAccess(userPlan, t.id));
+      return fallback?.id ?? "coach";
+    });
+  }, [userPlan]);
+
   useEffect(() => {
     if (!canPractice && mode === "roleplay") setMode("coach");
   }, [canPractice, mode]);
@@ -895,28 +928,54 @@ export default function OfferAdvisor() {
   // ── Render tab content ────────────────────────────────────────────────────────
   const renderTabContent = () => {
     const practiceUnlocked = canAccess(userPlan, "practice");
-    // For tool tabs: show LockScreen if user doesn't have access
-    if (activeTab !== "coach" && !canAccess(userPlan, activeTab)) {
-      const tab = TABS.find(t => t.id === activeTab);
-      const lockDescription = (() => {
-        if (activeTab === "alex") {
-          return isSignedIn
-            ? "Voice mock interview with Alex (camera preview + live audio) is included with Offer in Hand (Pro). Upgrade to unlock."
-            : "Sign in, then upgrade to Offer in Hand (Pro) to use the voice mock interview with Alex.";
-        }
-        if (!isSignedIn) {
-          return "Create a free account, then unlock with Student Plus ($19.99 USD), Offer Sprint ($29), or Offer in Hand ($49). Student Plus & Sprint include 30 days of full tool access.";
-        }
-        return "Unlock benchmark, calculator, role-play, log win. Student Plus $19.99 · Sprint $29 (each 30 days) · Pro $49 (no expiry). Students tab stays useful on Free for basics.";
-      })();
+    if (!canAccess(userPlan, activeTab)) {
+      const tab = TABS.find((t) => t.id === activeTab);
+      const pathway = pathwayTabBlocked(userPlan, activeTab);
+
+      let title = tab?.label || "Premium feature";
+      let description = "";
+      let primaryAction = null;
+      let hidePricingFootnote = false;
+
+      if (pathway && isProfessionalPaidPlan(userPlan) && activeTab === "student") {
+        title = "Students hub isn't on Sprint / Pro";
+        description =
+          "Offer Sprint and Offer in Hand focus on negotiation workflows — Share offer, Benchmark, Calculator, Practice, and Log win. The Students hub is for Student Plus and for signed-out or Free exploration.";
+        primaryAction = {
+          label: "Go to Share offer →",
+          onClick: () => setActiveTab("coach"),
+        };
+        hidePricingFootnote = true;
+      } else if (pathway && isStudentPaidPlan(userPlan)) {
+        title = "Student Plus — Students hub only";
+        description =
+          "Your plan unlocks the Students tab (benchmarks, compare offers, paths, campus verification). Upgrade to Offer Sprint or Offer in Hand for Share offer, Benchmark, Calculator, Practice, Log win, and Pro-only tools.";
+        primaryAction = {
+          label: "View upgrade options →",
+          onClick: () => setAuthModal("upgrade"),
+        };
+      } else if (activeTab === "alex") {
+        description = isSignedIn
+          ? "Voice mock interview with Alex (camera preview + live audio) is included with Offer in Hand (Pro). Upgrade to unlock."
+          : "Sign in, then upgrade to Offer in Hand (Pro) to use the voice mock interview with Alex.";
+      } else if (!isSignedIn) {
+        description =
+          "Create a free account. Student Plus ($19.99) unlocks the Students pathway; Offer Sprint ($29) unlocks Share offer and negotiation tools; Pro ($49) adds lifetime professional tools. Free accounts can explore both Students and Share offer at starter limits.";
+      } else {
+        description =
+          "Offer Sprint ($29) or Pro ($49) unlock Benchmark, Calculator, Practice, Log win, and Pro extras. Student Plus is Students-hub-only — upgrade if you need this tab.";
+      }
+
       return (
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           <LockScreen
-            title={tab?.label || "Premium feature"}
-            description={lockDescription}
+            title={title}
+            description={description}
             T={T}
             isSignedIn={isSignedIn}
             onUpgrade={() => setAuthModal(isSignedIn ? "upgrade" : "signup")}
+            primaryAction={primaryAction}
+            hidePricingFootnote={hidePricingFootnote}
           />
           <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId={activeTab} />
         </div>
@@ -1461,6 +1520,83 @@ export default function OfferAdvisor() {
 
       {/* Auth modal — shown when user clicks sign-in / sign-up / hits a paywall */}
       <AuthModal mode={authModal} onClose={() => setAuthModal(null)} T={T} />
+
+      {pathwayBarrier ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="oa-pathway-title"
+          onClick={() => setPathwayBarrier(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10080,
+            background: "rgba(0,0,0,0.65)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 420,
+              width: "100%",
+              background: T.headerBg,
+              border: `1px solid ${T.border}`,
+              borderRadius: 14,
+              padding: "1.35rem 1.25rem",
+              boxShadow: "0 24px 48px rgba(0,0,0,0.35)",
+            }}
+          >
+            <h2 id="oa-pathway-title" style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.15rem", color: T.textPrimary, margin: "0 0 0.65rem" }}>
+              {pathwayBarrier.title}
+            </h2>
+            <p style={{ fontSize: "0.84rem", color: T.textSecondary, lineHeight: 1.6, margin: "0 0 1.1rem" }}>
+              {pathwayBarrier.body}
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setPathwayBarrier(null)}
+                style={{
+                  padding: "0.45rem 1rem",
+                  borderRadius: 10,
+                  border: `1px solid ${T.border}`,
+                  background: "transparent",
+                  color: T.textMuted,
+                  fontSize: "0.82rem",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab(pathwayBarrier.suggestTab);
+                  setPathwayBarrier(null);
+                }}
+                style={{
+                  padding: "0.45rem 1rem",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#1d4ed8",
+                  color: "white",
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Go to {pathwayBarrier.suggestTab === "student" ? "Students" : "Share offer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showUserProfileModal && (
         <div
@@ -2025,14 +2161,29 @@ export default function OfferAdvisor() {
             <button key={tab.id}
               onClick={() => {
                 if (locked) {
-                  // Not signed in → show sign-up; signed in but no plan → show upgrade
+                  if (isSignedIn && pathwayTabBlocked(userPlan, tab.id)) {
+                    const suggestTab = userPlan === "student_plus" ? "student" : "coach";
+                    const title = suggestTab === "student" ? "Students hub only" : "Professional tools";
+                    const body =
+                      userPlan === "student_plus"
+                        ? "Student Plus includes the Students tab only. Upgrade to Sprint or Pro to open this section."
+                        : "Offer Sprint / Pro doesn't include the Students hub — that's for Student Plus (and Free exploration).";
+                    setPathwayBarrier({ title, body, suggestTab });
+                    return;
+                  }
                   if (!isSignedIn) setAuthModal("signup");
                   else setAuthModal("upgrade");
                 } else {
                   setActiveTab(tab.id);
                 }
               }}
-              title={locked ? `Upgrade to access ${tab.label}` : tab.desc}
+              title={
+                locked
+                  ? pathwayTabBlocked(userPlan, tab.id)
+                    ? "Not part of your plan path"
+                    : `Upgrade to access ${tab.label}`
+                  : tab.desc
+              }
               style={{ padding: "0.65rem 0.9rem", fontSize: "0.78rem", fontWeight: isActive ? 500 : 400, color: isActive ? "#1d4ed8" : locked ? T.textHint : T.textMuted, border: "none", borderBottom: isActive ? "2px solid #1d4ed8" : "2px solid transparent", background: "transparent", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "4px", opacity: locked ? 0.6 : 1 }}>
               {tab.label}
               {locked && (

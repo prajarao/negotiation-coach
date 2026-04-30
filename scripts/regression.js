@@ -1098,22 +1098,41 @@ const TESTS = [
   {
     id: "plan-features-mapping",
     category: "Plan Gating",
-    name: "PLAN_FEATURES correctly maps plans to features",
+    name: "PLAN_FEATURES pathways (student vs professional tabs)",
     fn: async () => {
       const PLAN_FEATURES = {
-        free:   ["coach"],
+        free: ["coach", "student"],
         sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-        pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
+        student_plus: ["student"],
+        pro: ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
       };
-      const freeCoachOnly = PLAN_FEATURES.free.includes("coach") && !PLAN_FEATURES.free.includes("calculate") && !PLAN_FEATURES.free.includes("benchmark");
-      const sprintAll = ["coach", "benchmark", "calculate", "practice", "logwin"].every(f => PLAN_FEATURES.sprint.includes(f));
-      const proAll    = ["coach", "benchmark", "calculate", "practice", "logwin"].every(f => PLAN_FEATURES.pro.includes(f));
+      const freeBothPaths =
+        PLAN_FEATURES.free.includes("coach") &&
+        PLAN_FEATURES.free.includes("student") &&
+        !PLAN_FEATURES.free.includes("benchmark");
+      const sprintProOk =
+        PLAN_FEATURES.sprint.includes("coach") &&
+        !PLAN_FEATURES.sprint.includes("student") &&
+        PLAN_FEATURES.pro.includes("coach") &&
+        !PLAN_FEATURES.pro.includes("student");
+      const studentPlusStudentsOnly =
+        PLAN_FEATURES.student_plus.includes("student") &&
+        !PLAN_FEATURES.student_plus.includes("coach") &&
+        !PLAN_FEATURES.student_plus.includes("benchmark");
+      const sprintAll = ["coach", "benchmark", "calculate", "practice", "logwin"].every((f) =>
+        PLAN_FEATURES.sprint.includes(f)
+      );
+      const proAll = ["coach", "benchmark", "calculate", "practice", "logwin"].every((f) =>
+        PLAN_FEATURES.pro.includes(f)
+      );
+      const pass =
+        freeBothPaths && sprintProOk && studentPlusStudentsOnly && sprintAll && proAll;
       return {
-        pass: freeCoachOnly && sprintAll && proAll,
-        message: freeCoachOnly && sprintAll && proAll
-          ? "Free=coach only, Sprint/Pro include all paid tabs"
-          : `Mapping incorrect — free:${PLAN_FEATURES.free} sprint:${PLAN_FEATURES.sprint.length} pro:${PLAN_FEATURES.pro.length}`,
-        detail: `free:[${PLAN_FEATURES.free}] sprint:[${PLAN_FEATURES.sprint}] pro:[${PLAN_FEATURES.pro}]`,
+        pass,
+        message: pass
+          ? "Free dual-path · Sprint/Pro no Students tab · Student Plus Students-only · Sprint/Pro core tabs ✓"
+          : `Mapping incorrect — student_plus:${PLAN_FEATURES.student_plus.join(",")}`,
+        detail: `free:[${PLAN_FEATURES.free}] sprint:[${PLAN_FEATURES.sprint}] stud+:[${PLAN_FEATURES.student_plus}] pro:[${PLAN_FEATURES.pro}]`,
       };
     },
   },
@@ -1124,25 +1143,32 @@ const TESTS = [
     name: "canAccess() correctly gates features by plan",
     fn: async () => {
       const PLAN_FEATURES = {
-        free:   ["coach"],
+        free: ["coach", "student"],
         sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-        pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
+        student_plus: ["student"],
+        pro: ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history"],
       };
       const canAccess = (plan, tabId) => {
         const allowed = PLAN_FEATURES[plan] || PLAN_FEATURES.free;
         return allowed.includes(tabId);
       };
       const tests = [
-        { plan: "free",   tab: "coach",     expected: true },
-        { plan: "free",   tab: "benchmark", expected: false },
-        { plan: "free",   tab: "calculate", expected: false },
-        { plan: "free",   tab: "practice",  expected: false },
-        { plan: "free",   tab: "logwin",    expected: false },
-        { plan: "sprint", tab: "coach",     expected: true },
+        { plan: "free", tab: "coach", expected: true },
+        { plan: "free", tab: "student", expected: true },
+        { plan: "free", tab: "benchmark", expected: false },
+        { plan: "free", tab: "calculate", expected: false },
+        { plan: "free", tab: "practice", expected: false },
+        { plan: "free", tab: "logwin", expected: false },
+        { plan: "sprint", tab: "coach", expected: true },
+        { plan: "sprint", tab: "student", expected: false },
         { plan: "sprint", tab: "benchmark", expected: true },
-        { plan: "sprint", tab: "practice",  expected: true },
-        { plan: "pro",    tab: "logwin",    expected: true },
-        { plan: "unknown",tab: "benchmark", expected: false },
+        { plan: "sprint", tab: "practice", expected: true },
+        { plan: "student_plus", tab: "student", expected: true },
+        { plan: "student_plus", tab: "coach", expected: false },
+        { plan: "student_plus", tab: "benchmark", expected: false },
+        { plan: "pro", tab: "logwin", expected: true },
+        { plan: "pro", tab: "student", expected: false },
+        { plan: "unknown", tab: "benchmark", expected: false },
       ];
       const results = tests.map(t => ({ ...t, got: canAccess(t.plan, t.tab), pass: canAccess(t.plan, t.tab) === t.expected }));
       const allPass = results.every(r => r.pass);
@@ -1256,7 +1282,7 @@ const TESTS = [
   {
     id: "plan-gate-parity-free-calculate",
     category: "Plan Gating",
-    name: "api/_plan-gate.js PLAN_FEATURES matches App.jsx",
+    name: "api/_plan-gate.js tab-visible PLAN_FEATURES matches App.jsx",
     fn: async () => {
       const fs = await import("fs");
       const path = await import("path");
@@ -1267,25 +1293,51 @@ const TESTS = [
         app = fs.readFileSync(path.resolve("src/App.jsx"), "utf8");
       } catch (e) {
         return { pass: false, message: "Could not read source files" };
-      }
-      const extractFree = (src) => {
-        const m = src.match(/PLAN_FEATURES\s*=\s*\{[\s\S]*?free:\s*\[([^\]]*)\]/);
+      };
+      const TAB_IDS = new Set([
+        "coach",
+        "student",
+        "benchmark",
+        "calculate",
+        "practice",
+        "logwin",
+        "alex",
+        "templates",
+        "playbook",
+        "history",
+      ]);
+      const extractTabsForPlan = (src, planKey) => {
+        const re = new RegExp(`${planKey}:\\s*\\[([^\\]]*)\\]`);
+        const m = src.match(re);
         if (!m) return null;
-        return m[1]
+        const ids = m[1]
           .split(",")
           .map((s) => s.replace(/['"\s]/g, "").trim())
           .filter(Boolean)
+          .filter((id) => TAB_IDS.has(id))
           .sort()
           .join(",");
+        return ids;
       };
-      const g = extractFree(gate);
-      const a = extractFree(app);
-      const pass = g && a && g === a;
+      const plans = ["free", "sprint", "student_plus", "pro"];
+      const mismatches = [];
+      for (const p of plans) {
+        const g = extractTabsForPlan(gate, p);
+        const a = extractTabsForPlan(app, p);
+        if (!g || !a) {
+          mismatches.push(`${p}:missing extract gate=[${g || "?"}] app=[${a || "?"}]`);
+          continue;
+        }
+        const gSet = new Set(g.split(","));
+        const missing = a.split(",").filter((id) => id && !gSet.has(id));
+        if (missing.length) mismatches.push(`${p}:API gate missing tabs:${missing.join(",")}`);
+      }
+      const pass = mismatches.length === 0;
       return {
         pass,
         message: pass
-          ? `PLAN_FEATURES.free aligned: [${g.split(",").join(", ")}]`
-          : `Mismatch — _plan-gate: [${g || "?"}] vs App.jsx: [${a || "?"}]`,
+          ? "Every UI tab id in App.jsx PLAN_FEATURES is allowed by api/_plan-gate.js (gate may add API-only extras)"
+          : mismatches.join(" | "),
       };
     },
   },

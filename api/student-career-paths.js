@@ -1,6 +1,6 @@
 /**
  * POST /api/student-career-paths
- * Evidence-grounded lateral career trajectories for students (student plan gate).
+ * Evidence-grounded lateral career trajectories for students (requires student_paths plan gate).
  */
 import { requirePlan } from "./_plan-gate.js";
 
@@ -72,7 +72,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const gate = await requirePlan(req, res, "student");
+  const gate = await requirePlan(req, res, "student_paths");
   if (!gate.ok) return;
 
   const groqKey = process.env.GROQ_API_KEY;

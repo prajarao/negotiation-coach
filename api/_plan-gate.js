@@ -18,13 +18,14 @@
  */
 import { supabase } from "./_supabase.js";
 
-// Which features each plan can access (mirrors frontend PLAN_FEATURES)
+// Which features each plan can access (mirrors frontend tab ids where applicable).
+// Extra keys: "salary" (POST /api/salary), "student_paths" (POST /api/student-career-paths).
 const PLAN_FEATURES = {
-  free: ["coach", "student"],
-  sprint: ["coach", "student", "benchmark", "calculate", "practice", "logwin"],
-  /** Campus / student SKU — feature parity with Sprint (30-day window from Stripe webhook or manual Clerk/Supabase grant). */
-  student_plus: ["coach", "student", "benchmark", "calculate", "practice", "logwin"],
-  pro: ["coach", "student", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
+  free: ["coach", "student", "salary", "student_paths"],
+  sprint: ["coach", "benchmark", "calculate", "practice", "logwin", "salary"],
+  /** Student hub SKU — Students tab in UI; coach API allowed so ChatStrip on Students works (Share offer tab stays gated in App.jsx). */
+  student_plus: ["student", "coach", "salary", "student_paths"],
+  pro: ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex", "salary"],
 };
 
 // Usage limits per plan
