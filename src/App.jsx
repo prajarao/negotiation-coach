@@ -218,8 +218,8 @@ function LockScreen({ title, description, T, onUpgrade, isSignedIn }) {
       </button>
       <p style={{ fontSize: "0.72rem", color: T.textMuted, marginTop: "0.6rem" }}>
         {isSignedIn
-          ? "Student Plus $24 · Sprint $29 · Pro $49 · Student Plus & Sprint = 30 days"
-          : "Free account · Student Plus $24 · Sprint $29 · Pro $49 (no subscription)"}
+          ? "Student Plus $19.99 · Sprint $29 · Pro $49 · Student Plus & Sprint = 30 days"
+          : "Free account · Student Plus $19.99 · Sprint $29 · Pro $49 (no subscription)"}
       </p>
     </div>
   );
@@ -746,7 +746,7 @@ export default function OfferAdvisor() {
           marginBottom: "1.5rem",
         }}>
           <div style={{ fontSize: "0.85rem", color: "#1d4ed8", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>From Student Plus (USD)</div>
-          <div style={{ fontSize: "2rem", fontWeight: 700, color: "#1d4ed8" }}>$24+</div>
+          <div style={{ fontSize: "2rem", fontWeight: 700, color: "#1d4ed8" }}>$19.99+</div>
           <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>Student Plus USD · Sprint &amp; Pro also available</div>
         </div>
 
@@ -760,7 +760,7 @@ export default function OfferAdvisor() {
             border: "1px solid rgba(13,148,136,0.35)",
           }}>
             <div style={{ fontSize: "0.72rem", color: "#0f766e", marginBottom: "0.35rem", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>Student Plus</div>
-            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f766e" }}>$24</div>
+            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f766e" }}>$19.99</div>
             <div style={{ fontSize: "0.78rem", color: T.textSecondary, lineHeight: 1.45, marginTop: "0.25rem" }}>USD · 30 days · invite codes for campus pricing</div>
           </div>
           {/* Offer Sprint */}
@@ -905,9 +905,9 @@ export default function OfferAdvisor() {
             : "Sign in, then upgrade to Offer in Hand (Pro) to use the voice mock interview with Alex.";
         }
         if (!isSignedIn) {
-          return "Create a free account, then unlock with Student Plus ($24 USD), Offer Sprint ($29), or Offer in Hand ($49). Student Plus & Sprint include 30 days of full tool access.";
+          return "Create a free account, then unlock with Student Plus ($19.99 USD), Offer Sprint ($29), or Offer in Hand ($49). Student Plus & Sprint include 30 days of full tool access.";
         }
-        return "Unlock benchmark, calculator, role-play, log win. Student Plus $24 · Sprint $29 (each 30 days) · Pro $49 (no expiry). Students tab stays useful on Free for basics.";
+        return "Unlock benchmark, calculator, role-play, log win. Student Plus $19.99 · Sprint $29 (each 30 days) · Pro $49 (no expiry). Students tab stays useful on Free for basics.";
       })();
       return (
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>

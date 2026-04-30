@@ -2,7 +2,7 @@
   "name": "OfferAdvisor — AI Offer Coach",
   "short_name": "OfferAdvisor",
   "description": "AI negotiation coach for professionals and students — benchmarks, counters, role-play, career paths, and campus verification.",
-  "start_url": "/",
+  "start_url": "/app",
   "display": "standalone",
   "background_color": "#0a0f1a",
   "theme_color": "#1d4ed8",

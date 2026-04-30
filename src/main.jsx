@@ -17,10 +17,10 @@ createRoot(document.getElementById("root")).render(
   <StrictMode>
     <ClerkProvider
       publishableKey={PUBLISHABLE_KEY}
-      afterSignInUrl="/"
-      afterSignUpUrl="/"
-      signInFallbackRedirectUrl="/"
-      signUpFallbackRedirectUrl="/"
+      afterSignInUrl="/app"
+      afterSignUpUrl="/app"
+      signInFallbackRedirectUrl="/app"
+      signUpFallbackRedirectUrl="/app"
       appearance={offeradvisorClerkAppearance()}
     >
       <OfferAdvisor />

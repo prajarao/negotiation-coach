@@ -297,7 +297,7 @@ export default function AuthModal({ mode, onClose, T }) {
                       </div>
                       <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e2e8f0" }}>Student Plus</div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginTop: "6px" }}>
-                        <span style={{ fontSize: "1.6rem", fontWeight: 700, color: "#e2e8f0" }}>$24</span>
+                        <span style={{ fontSize: "1.6rem", fontWeight: 700, color: "#e2e8f0" }}>$19.99</span>
                         <span style={{ fontSize: "0.72rem", color: "#64748b" }}>USD · one-time</span>
                       </div>
                       <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "2px" }}>30-day access · invite codes adjust price at checkout</div>

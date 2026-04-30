@@ -4,9 +4,9 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>OfferAdvisor — AI Salary Negotiation Coach</title>
-<meta name="description" content="Benchmark your offer, build your counter, practice the conversation. AI coaching that helps you earn what you're worth — in minutes, not months."/>
+<meta name="description" content="Benchmark your offer, build your counter, and practice the conversation — plus a Students hub for first offers, career paths, and university campus access when your school partners with OfferAdvisor."/>
 <meta property="og:title" content="OfferAdvisor — AI Salary Negotiation Coach"/>
-<meta property="og:description" content="The same negotiation coaching top executives pay thousands for. Powered by AI, available for $29."/>
+<meta property="og:description" content="Professionals and new grads: AI negotiation coaching, salary benchmarks, counters & role-play. Students tab — compare offers, five-year snapshots, path explorer, campus verification. Plans from free — Student Plus $19.99 · Sprint $29 · Pro $49."/>
 <meta property="og:image" content="https://offeradvisor.ai/og-image.png"/>
 <meta property="og:url" content="https://offeradvisor.ai"/>
 <meta name="twitter:card" content="summary_large_image"/>
@@ -199,8 +199,31 @@ section{position:relative;z-index:1}
   margin-bottom:1.25rem;
 }
 .feat-icon svg{width:20px;height:20px;stroke:#60a5fa;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.feat-icon.teal{background:rgba(13,148,136,.12);border-color:rgba(45,212,191,.22)}
+.feat-icon.teal svg{stroke:#2dd4bf}
 .feat-title{font-weight:600;font-size:1rem;margin-bottom:.5rem;color:var(--text)}
 .feat-body{font-size:.9rem;color:var(--text-muted);line-height:1.65}
+
+/* ── Students & universities ── */
+.students-band{
+  padding:clamp(4rem,10vw,7rem) clamp(1.5rem,6vw,4rem);
+  border-top:1px solid var(--border);
+  background:radial-gradient(ellipse 70% 55% at 50% 0%,rgba(13,148,136,.12) 0%,transparent 62%),var(--navy);
+}
+.students-inner{max-width:1100px;margin:0 auto}
+.students-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.25rem;margin-top:2.5rem;
+}
+.students-card{
+  background:var(--navy2);border:1px solid rgba(45,212,191,.22);
+  border-radius:12px;padding:1.5rem 1.6rem;
+}
+.students-card h3{font-size:1rem;font-weight:600;color:var(--text);margin-bottom:.5rem}
+.students-card p{font-size:.88rem;color:var(--text-muted);line-height:1.65}
+.students-card .tag{
+  display:inline-block;font-size:.68rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:#5eead4;margin-bottom:.65rem;
+}
 
 /* ── Testimonials ── */
 .testimonials{padding:clamp(4rem,10vw,8rem) clamp(1.5rem,6vw,4rem);max-width:1100px;margin:0 auto}
@@ -236,8 +259,14 @@ section{position:relative;z-index:1}
   padding:clamp(4rem,10vw,8rem) clamp(1.5rem,6vw,4rem);
   background:var(--navy2);border-top:1px solid var(--border);
 }
-.pricing-inner{max-width:900px;margin:0 auto}
-.pricing-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem;margin-top:3rem}
+.pricing-inner{max-width:1180px;margin:0 auto}
+.pricing-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem;margin-top:3rem}
+.pricing-card.student{
+  border-color:rgba(45,212,191,.35);
+  background:linear-gradient(135deg,#060d1f 0%,#0a1c1a 100%);
+}
+.pricing-card.student .plan-name{color:#5eead4}
+.pricing-card.student .plan-features li::before{color:#2dd4bf}
 .pricing-card{
   background:var(--navy);border:1px solid var(--border);
   border-radius:14px;padding:2rem;position:relative;overflow:hidden;
@@ -270,6 +299,8 @@ section{position:relative;z-index:1}
 .plan-btn-primary:hover{background:#1e40af}
 .plan-btn-outline{background:transparent;color:var(--text-muted);border:1px solid var(--border-bright)}
 .plan-btn-outline:hover{color:var(--text);border-color:var(--text-muted)}
+.plan-btn-teal{background:#0f766e;color:#fff}
+.plan-btn-teal:hover{background:#0d9488}
 .pricing-note{text-align:center;margin-top:1.5rem;font-size:.85rem;color:var(--text-dim)}
 .pricing-note strong{color:var(--text-muted)}
 
@@ -374,6 +405,7 @@ footer{
     <div class="nav-wordmark">Offer<span>Advisor</span></div>
   </a>
   <div class="nav-links">
+    <a href="#students">Students</a>
     <a href="#how-it-works">How it works</a>
     <a href="#features">Features</a>
     <a href="#pricing">Pricing</a>
@@ -385,17 +417,17 @@ footer{
 <section class="hero">
   <div class="hero-kicker">
     <span class="hero-kicker-dot"></span>
-    AI Salary Negotiation Coach
+    AI offer coach · Professionals &amp; campuses
   </div>
-  <h1>You're leaving<br><em>$12,000</em> on the table</h1>
-  <p class="hero-sub">Most professionals never negotiate their first offer. OfferAdvisor gives you the benchmarks, the counter-offer strategy, and the practice reps — in 30 minutes.</p>
+  <h1>You're leaving<br><em>money</em> on the table</h1>
+  <p class="hero-sub">Whether you're closing a senior offer or evaluating your <strong>first</strong> out of school — OfferAdvisor benchmarks your comp, builds your counter, and helps you rehearse the conversation. New grads: a dedicated <strong>Students</strong> hub for offer checks, five-year snapshots, career path ideas, and <strong>campus verification</strong> when your university partners with us.</p>
   <div class="hero-actions">
-    <a href="/app" class="btn-primary">Get my offer reviewed →</a>
-    <a href="#how-it-works" class="btn-secondary">See how it works</a>
+    <a href="/app" class="btn-primary">Open the app →</a>
+    <a href="#students" class="btn-secondary">Students &amp; universities</a>
   </div>
   <div class="hero-proof">
     <span class="hero-proof-stars">★★★★★</span>
-    <span>Avg. user negotiates +$14,200 · One-time $29 · 30-day guarantee</span>
+    <span>Avg. user negotiates +$14,200 · Student Plus $19.99 · Sprint $29 · Pro $49</span>
   </div>
 
   <!-- App mockup -->
@@ -443,10 +475,44 @@ footer{
     <div class="num-label">of offers have flexibility</div>
   </div>
   <div class="num-item">
-    <div class="num-val"><span>$29</span></div>
-    <div class="num-label">one-time, 30-day guarantee</div>
+    <div class="num-val"><span>$19.99</span></div>
+    <div class="num-label">Student Plus (USD) · campus-friendly</div>
   </div>
 </div>
+
+<!-- STUDENTS & UNIVERSITIES -->
+<section class="students-band" id="students">
+  <div class="students-inner">
+    <div class="section-label reveal">Students &amp; universities</div>
+    <h2 class="section-heading reveal">First offers, campus partners, same rigorous benchmarks</h2>
+    <p class="hero-sub reveal" style="max-width:640px;margin:-2rem auto 0;text-align:left">The <strong>Students</strong> tab is built for interns, new grads, and career services: market checks grounded in official data, offer comparison, and paths — not generic career advice.</p>
+    <div class="students-grid reveal">
+      <div class="students-card">
+        <span class="tag">Benchmark &amp; compare</span>
+        <h3>First-offer &amp; intern checks</h3>
+        <p>Single-offer or side-by-side compare. See where you sit vs 25th / median / 75th — with methodology you can trust (BLS, ONS, and more).</p>
+      </div>
+      <div class="students-card">
+        <span class="tag">Cash trajectory</span>
+        <h3>Five-year snapshot</h3>
+        <p>Model cumulative earnings with raises so you're not only looking at year-one base — the same discipline we use for full counter strategy.</p>
+      </div>
+      <div class="students-card">
+        <span class="tag">Paths</span>
+        <h3>Career path explorer</h3>
+        <p>Skills-grounded trajectory ideas versus your default plan — a structured way to stress-test “what if I optimize for X?” before you sign.</p>
+      </div>
+      <div class="students-card">
+        <span class="tag">Campus access</span>
+        <h3>School verification</h3>
+        <p>When your university partners with OfferAdvisor, verify with a campus email or <strong>invite code</strong>. Schools can also grant access directly — ask career services.</p>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:2.25rem" class="reveal">
+      <a href="/app" class="btn-primary" style="display:inline-block">Try Students in the app →</a>
+    </div>
+  </div>
+</section>
 
 <!-- HOW IT WORKS -->
 <section class="how" id="how-it-works">
@@ -484,7 +550,7 @@ footer{
 <section class="features" id="features">
   <div class="features-inner">
     <div class="section-label reveal">Features</div>
-    <h2 class="section-heading reveal">Everything you need to negotiate with confidence</h2>
+    <h2 class="section-heading reveal">Professionals, students &amp; career centers — one platform</h2>
     <div class="features-grid reveal">
       <div class="feat">
         <div class="feat-icon">
@@ -505,7 +571,7 @@ footer{
           <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
         </div>
         <div class="feat-title">AI recruiter role-play</div>
-        <p class="feat-body">Practice the actual conversation before it happens. The AI plays a realistic recruiter who pushes back — and coaches you after every exchange.</p>
+        <p class="feat-body">Practice the conversation in the <strong>Practice</strong> tab before it happens — realistic pushback and coaching after each exchange. (Voice mock interview with <strong>Alex</strong> is included on Offer in Hand.)</p>
       </div>
       <div class="feat">
         <div class="feat-icon">
@@ -520,6 +586,20 @@ footer{
         </div>
         <div class="feat-title">Global currency support</div>
         <p class="feat-body">Works in USD, GBP, INR, EUR, CAD, AUD, SGD, and AED. Auto-detects from your location so the benchmarks always show in the right currency.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon teal">
+          <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+        </div>
+        <div class="feat-title">Students hub</div>
+        <p class="feat-body">Dedicated flows for interns and new grads: benchmark one or two offers, five-year earnings snapshots, and <strong>Career path explorer</strong> — alongside the same AI coach professionals use.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon teal">
+          <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="feat-title">Universities &amp; invite codes</div>
+        <p class="feat-body">Partner schools can verify <strong>campus email</strong> or distribute <strong>invite codes</strong> for cohort pricing. Career services teams can also grant access administratively.</p>
       </div>
       <div class="feat">
         <div class="feat-icon">
@@ -568,56 +648,65 @@ footer{
 <section class="pricing" id="pricing">
   <div class="pricing-inner">
     <div class="section-label reveal">Pricing</div>
-    <h2 class="section-heading reveal">One negotiation pays for this many times over</h2>
+    <h2 class="section-heading reveal">Plans for professionals, students &amp; campuses</h2>
     <div class="pricing-cards reveal">
       <div class="pricing-card">
         <div class="plan-name">Free</div>
         <div class="plan-price"><sup>$</sup>0</div>
-        <div class="plan-cadence">forever</div>
+        <div class="plan-cadence">forever · create an account</div>
         <ul class="plan-features">
-          <li>1 coaching session</li>
-          <li>1 email script</li>
-          <li>AI negotiation coach</li>
+          <li>1 AI coaching session &amp; 1 email script</li>
+          <li><strong>Students</strong> tab — explore benchmarks, compare offers &amp; path ideas</li>
+          <li>Upgrade to unlock calculator, Practice role-play &amp; deeper tooling</li>
         </ul>
-        <button class="plan-btn plan-btn-outline" onclick="window.location='/app'">Try free →</button>
+        <button type="button" class="plan-btn plan-btn-outline" onclick="window.location='/app'">Try free →</button>
+      </div>
+      <div class="pricing-card student">
+        <div class="plan-name">Student Plus</div>
+        <div class="plan-price"><sup>$</sup>24</div>
+        <div class="plan-cadence">USD · one-time · 30 days from purchase</div>
+        <ul class="plan-features">
+          <li><strong>Same core tools as Offer Sprint</strong> — coach, benchmark, calculator, Practice &amp; log win</li>
+          <li>Full <strong>Students</strong> hub for new grads &amp; interns</li>
+          <li>Optional <strong>invite codes</strong> for campus pricing at checkout</li>
+          <li>Partner universities verify campus email or grant access directly</li>
+        </ul>
+        <button type="button" class="plan-btn plan-btn-teal" onclick="window.location='/app'">Get Student Plus →</button>
       </div>
       <div class="pricing-card featured">
         <div class="plan-name">Offer Sprint</div>
         <div class="plan-price"><sup>$</sup>29</div>
         <div class="plan-cadence">one-time · 30 days from purchase</div>
         <ul class="plan-features">
-          <li>Full access to coach, benchmark, calculator, role-play &amp; log-win for 30 days</li>
-          <li>Unlimited use of those tools during your Sprint window</li>
-          <li>Salary benchmark (US, UK, India · multi-currency)</li>
-          <li>Counter-offer calculator with 4-year offer vs counter totals</li>
-          <li>AI recruiter role-play (Alex)</li>
-          <li>Outcome / win tracker</li>
+          <li>Unlimited coaching &amp; scripts during your Sprint window</li>
+          <li>Salary benchmarks · counter calculator · Practice role-play · win tracker</li>
+          <li>Students hub included — same breadth as Student Plus</li>
+          <li>Multi-currency · US, UK, India &amp; more</li>
         </ul>
-        <button class="plan-btn plan-btn-primary" onclick="window.location='/app'">Get Offer Sprint →</button>
+        <button type="button" class="plan-btn plan-btn-primary" onclick="window.location='/app'">Get Offer Sprint →</button>
       </div>
       <div class="pricing-card">
         <div class="plan-name">Offer in Hand</div>
         <div class="plan-price"><sup>$</sup>49</div>
-        <div class="plan-cadence">one-time · no expiry</div>
+        <div class="plan-cadence">Pro · one-time · no expiry</div>
         <ul class="plan-features">
-          <li>Everything in Sprint, with no time limit</li>
-          <li>Pro-only tabs: Templates, Playbook &amp; History</li>
-          <li>Same counter calculator &amp; 4-year comparison as Sprint (ongoing)</li>
-          <li>Priority support</li>
-          <li>New Pro-tier features as we ship them</li>
+          <li>Everything in Sprint with <strong>no time limit</strong></li>
+          <li><strong>Templates</strong>, field <strong>Playbook</strong> &amp; <strong>History</strong> tabs</li>
+          <li><strong>Voice mock interview</strong> with Alex (Pro)</li>
+          <li>Priority support · new Pro features as shipped</li>
         </ul>
-        <button class="plan-btn plan-btn-outline" onclick="window.location='/app'">Get Offer in Hand →</button>
+        <button type="button" class="plan-btn plan-btn-outline" onclick="window.location='/app'">Get Offer in Hand →</button>
       </div>
     </div>
-    <p class="pricing-note">All plans include a <strong>30-day money-back guarantee</strong>, no questions asked. · Secure checkout via Stripe.</p>
+    <p class="pricing-note"><strong>Student Plus</strong> &amp; <strong>Offer Sprint</strong> are both 30-day windows from purchase (or campus grant). Offer in Hand is lifetime access to Pro tools. All paid plans include a <strong>30-day money-back guarantee</strong>. Secure checkout via Stripe.</p>
   </div>
 </section>
 
 <!-- CTA -->
 <section class="cta-section">
-  <h2>Stop leaving money<br>on the <em>table</em></h2>
-  <p>Your next offer is negotiable. The only question is whether you'll ask.</p>
-  <a href="/app" class="btn-primary" style="font-size:1.05rem;padding:.9rem 2.25rem">Review my offer now →</a>
+  <h2>Professionals or new grad —<br>negotiate like you mean it</h2>
+  <p>Open the app for AI coaching, benchmarks &amp; counters — or jump straight to <strong>Students</strong> for first-offer checks and campus access.</p>
+  <a href="/app" class="btn-primary" style="font-size:1.05rem;padding:.9rem 2.25rem">Go to OfferAdvisor →</a>
 </section>
 
 <!-- Privacy Modal -->
@@ -647,7 +736,7 @@ footer{
     <div style="font-size:.92rem;color:#8899b4;line-height:1.75;display:flex;flex-direction:column;gap:1.25rem;">
       <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">The service</strong>OfferAdvisor provides AI-powered salary negotiation coaching tools. The service is intended for adults (18+) who are actively negotiating or planning to negotiate their compensation.</div>
       <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Not professional advice</strong>OfferAdvisor is an AI coaching tool — not a licensed financial advisor, employment attorney, or HR professional. The information provided is for educational and informational purposes only. Always use your own judgment and consult qualified professionals for decisions with significant financial or legal consequences.</div>
-      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Payment and refunds</strong>Paid plans are one-time payments. Offer Sprint ($29) includes full access to the core tools for 30 days from the date of purchase. Offer in Hand ($49) includes the same core tools plus Pro-tier features with no fixed expiration (subject to fair use and these Terms). We offer a 30-day money-back guarantee, no questions asked. To request a refund, contact us via the support chat and we will process it within 2 business days.</div>
+      <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Payment and refunds</strong>Paid plans are one-time payments. <strong>Student Plus</strong> ($19.99 USD) and <strong>Offer Sprint</strong> ($29) each include full access to the core coaching and negotiation tools for 30 days from the date of purchase (or from a campus grant where applicable). <strong>Offer in Hand</strong> ($49) includes the same core tools plus Pro-tier features — including Templates, Playbook, History, and voice mock interview — with no fixed expiration (subject to fair use and these Terms). Invite codes may adjust checkout pricing for eligible cohorts. We offer a 30-day money-back guarantee, no questions asked. To request a refund, contact us via the support chat and we will process it within 2 business days.</div>
       <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Acceptable use</strong>You agree not to misuse the service — including attempting to reverse-engineer the AI, scrape data, create multiple accounts to circumvent usage limits, or use the platform for any unlawful purpose.</div>
       <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Intellectual property</strong>The OfferAdvisor platform, brand, and underlying code are owned by OfferAdvisor. Content you input remains yours. AI-generated coaching output is provided for your personal use.</div>
       <div><strong style="color:#e8edf5;display:block;margin-bottom:.3rem;">Limitation of liability</strong>OfferAdvisor is provided "as is." We are not liable for the outcome of any salary negotiation conducted using the platform. Results vary based on individual circumstances, employer policies, and market conditions.</div>
@@ -689,7 +778,7 @@ footer{
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-copy">© 2025 OfferAdvisor · Built with AI, for humans who want more</div>
+  <div class="footer-copy">© 2026 OfferAdvisor · Built with AI, for humans who want more</div>
   <div class="footer-links">
     <a href="#" onclick="event.preventDefault();document.getElementById('modal-privacy').style.display='block'">Privacy</a>
     <a href="#" onclick="event.preventDefault();document.getElementById('modal-terms').style.display='block'">Terms</a>

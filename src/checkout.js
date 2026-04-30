@@ -93,8 +93,8 @@ export default async function handler(req, res) {
 
       metadata: { clerkUserId, plan },
 
-      success_url: `${APP_URL}/?checkout=success&plan=${plan}&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url:  `${APP_URL}/?checkout=cancelled`,
+      success_url: `${APP_URL}/app?checkout=success&plan=${plan}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url:  `${APP_URL}/app?checkout=cancelled`,
 
       allow_promotion_codes: true,
     };

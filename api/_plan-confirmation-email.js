@@ -17,7 +17,7 @@ const planDetails = {
       "30 days of full access from purchase (or until your campus-granted end date)",
       "Designed for students and campus partners — use invite codes at checkout for case-by-case pricing",
     ],
-    price: "USD (set in Stripe)",
+    price: "$19.99",
   },
   sprint: {
     name: "Offer Sprint",
