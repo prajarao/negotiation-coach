@@ -173,10 +173,10 @@ const canAccess = (plan, tabId) => {
 
 // Usage limits per plan (checked server-side too, this is UI-only)
 const USAGE_LIMITS = {
-  free:   { sessions: 1,   emails: 1   },
-  sprint: { sessions: 999, emails: 999 },
-  student_plus: { sessions: 999, emails: 999 },
-  pro:    { sessions: 999, emails: 999 },
+  free: { sessions: 1, emails: 1, studentOfferCompares: 1 },
+  sprint: { sessions: 999, emails: 999, studentOfferCompares: 999 },
+  student_plus: { sessions: 999, emails: 999, studentOfferCompares: 999 },
+  pro: { sessions: 999, emails: 999, studentOfferCompares: 999 },
 };
 
 // ── Logo mark SVG ────────────────────────────────────────────────────────────
@@ -568,12 +568,34 @@ export default function OfferAdvisor() {
     const messagesToSend = apiMessages.length > 0 ? apiMessages : [{ role: "user", content: userText }];
 
     try {
+      const headers = { "Content-Type": "application/json" };
+      if (isSignedIn) {
+        const token = await getToken();
+        if (token) headers.Authorization = `Bearer ${token}`;
+      }
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ system: systemPrompt, messages: messagesToSend, roleplay: useRoleplayPrompt }),
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        let errBody = {};
+        try {
+          errBody = await response.json();
+        } catch {
+          /* ignore */
+        }
+        if (response.status === 403 && errBody.code === "USAGE_LIMIT") {
+          const msg =
+            typeof errBody.error === "string"
+              ? errBody.error
+              : "You've reached your free coaching limit. Upgrade to continue.";
+          setMessages([...newMessages, { role: "assistant", content: msg }]);
+          setAuthModal("upgrade");
+          return;
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
       const reply = data.content?.[0]?.text || "Something went wrong. Please try again.";
       setMessages([...newMessages, { role: "assistant", content: reply }]);
@@ -664,11 +686,29 @@ export default function OfferAdvisor() {
       const counterTotalAnnual = counterBase + counterAnnualBonus + counterAnnualEquity;
       const counterTotal4Year = counterTotalAnnual * 4 + counterSigning;
       const fourYearGap = counterTotal4Year - total4Year;
+      const calcHeaders = { "Content-Type": "application/json" };
+      if (isSignedIn) {
+        const token = await getToken();
+        if (token) calcHeaders.Authorization = `Bearer ${token}`;
+      }
       const aiRes = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: calcHeaders,
         body: JSON.stringify({ system: "You are an elite salary negotiation coach. Write a sharp strategy in 3 short sections: 1. YOUR LEVERAGE 2. COUNTER SCRIPT (exact words) 3. FALLBACK MOVE", messages: [{ role: "user", content: `Offer: Base $${base.toLocaleString()}, Bonus ${bonusPct}%, Equity $${equityTotal.toLocaleString()}/${equityYears}yr, Signing $${signing.toLocaleString()}. Counter: Base $${counterBase.toLocaleString()}, Signing $${counterSigning.toLocaleString()}. 4yr gain: $${fourYearGap.toLocaleString()}.` }] }),
       });
+      if (!aiRes.ok) {
+        let errBody = {};
+        try {
+          errBody = await aiRes.json();
+        } catch {
+          /* ignore */
+        }
+        if (aiRes.status === 403 && errBody.code === "USAGE_LIMIT") {
+          setAuthModal("upgrade");
+          throw new Error(errBody.error || "Coaching limit reached");
+        }
+        throw new Error(`HTTP ${aiRes.status}`);
+      }
       const aiData = await aiRes.json();
       setCounterResult({ current: { base, annualBonus, annualEquity, signing, totalAnnual, total4Year }, counter: { base: counterBase, annualBonus: counterAnnualBonus, annualEquity: counterAnnualEquity, signing: counterSigning, totalAnnual: counterTotalAnnual, total4Year: counterTotal4Year }, gap: { annual: counterTotalAnnual - totalAnnual, fourYear: fourYearGap }, strategy: aiData.content?.[0]?.text || "" });
       // Send counter-offer email summary
@@ -1057,7 +1097,7 @@ export default function OfferAdvisor() {
       // ── STUDENTS TAB — fresh grad MVP scaffold ───────────────────────────────
       case "student": return (
         <>
-          <StudentMvpTab T={T} onSignIn={() => setAuthModal("signin")} onDiscussWithCoach={sendMessage} />
+          <StudentMvpTab T={T} userPlan={userPlan} onSignIn={() => setAuthModal("signin")} onDiscussWithCoach={sendMessage} />
           <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="student" />
         </>
       );

@@ -28,12 +28,13 @@ const PLAN_FEATURES = {
   pro: ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex", "salary"],
 };
 
-// Usage limits per plan
+// Usage limits per plan (enforce server-side only here).
+// usage_count = coach (/api/chat) completions; student_offer_compare_count = Students-tab dual-offer compare.
 const PLAN_LIMITS = {
-  free: { sessions: 5 },
-  sprint: { sessions: 999 },
-  student_plus: { sessions: 999 },
-  pro: { sessions: 999 },
+  free: { coachSessions: 1, studentOfferCompares: 1 },
+  sprint: { coachSessions: 999, studentOfferCompares: 999 },
+  student_plus: { coachSessions: 999, studentOfferCompares: 999 },
+  pro: { coachSessions: 999, studentOfferCompares: 999 },
 };
 
 /**
@@ -64,10 +65,11 @@ function extractClerkId(req) {
  * @param {object}  [opts]
  * @param {boolean} [opts.allowGuest=false]  — let unauthenticated users through (with limits)
  * @param {number}  [opts.guestLimit=5]      — max requests for guests (tracked per IP, not enforced yet)
+ * @param {"default"|"student_compare"} [opts.salaryUsageKind="default"] — free-tier salary caps (Students compare only)
  * @returns {Promise<{ok:boolean, user?:object}>}
  */
 export async function requirePlan(req, res, feature, opts = {}) {
-  const { allowGuest = false } = opts;
+  const { allowGuest = false, salaryUsageKind = "default" } = opts;
   const clerkId = extractClerkId(req);
 
   // ── No auth token ──────────────────────────────────────────────────────────
@@ -80,38 +82,29 @@ export async function requirePlan(req, res, feature, opts = {}) {
   }
 
   // ── Look up user in Supabase ───────────────────────────────────────────────
-  const { data: user, error } = await supabase
+  const { data: dbUser, error: dbErr } = await supabase
     .from("users")
     .select("*")
     .eq("clerk_id", clerkId)
     .single();
 
-  if (error || !user) {
-    // User exists in Clerk but not yet in Supabase (webhook lag).
-    // Treat as free plan so the request isn't blocked.
-    const fallbackUser = { clerk_id: clerkId, plan: "free", usage_count: 0 };
-    const allowed = (PLAN_FEATURES[fallbackUser.plan] || PLAN_FEATURES.free).includes(feature);
-    if (!allowed) {
-      res.status(403).json({
-        error: "Upgrade your plan to access this feature",
-        code: "PLAN_REQUIRED",
-        requiredPlan: "sprint",
-      });
-      return { ok: false };
-    }
-    return { ok: true, user: fallbackUser };
-  }
+  // Webhook lag: treat as free with zero usage until Supabase row exists.
+  const user =
+    dbErr || !dbUser
+      ? {
+          clerk_id: clerkId,
+          plan: "free",
+          usage_count: 0,
+          student_offer_compare_count: 0,
+        }
+      : dbUser;
 
   // ── Check plan expiry ──────────────────────────────────────────────────────
   let effectivePlan = user.plan;
   if (user.plan !== "free" && user.plan_expires_at) {
     if (new Date(user.plan_expires_at) < new Date()) {
       effectivePlan = "free";
-      // Downgrade in DB
-      await supabase
-        .from("users")
-        .update({ plan: "free" })
-        .eq("clerk_id", clerkId);
+      await supabase.from("users").update({ plan: "free" }).eq("clerk_id", clerkId);
     }
   }
 
@@ -127,16 +120,41 @@ export async function requirePlan(req, res, feature, opts = {}) {
     return { ok: false };
   }
 
-  // ── Check usage limits (for free plan) ─────────────────────────────────────
+  // ── Check usage limits (free plan only; scoped by feature) ─────────────────
   const limits = PLAN_LIMITS[effectivePlan] || PLAN_LIMITS.free;
-  if (effectivePlan === "free" && user.usage_count >= limits.sessions) {
-    res.status(403).json({
-      error: "You've reached the free plan limit. Upgrade to continue.",
-      code: "USAGE_LIMIT",
-      currentUsage: user.usage_count,
-      limit: limits.sessions,
-    });
-    return { ok: false };
+
+  if (effectivePlan === "free" && feature === "coach") {
+    const cap = limits.coachSessions;
+    if ((user.usage_count ?? 0) >= cap) {
+      res.status(403).json({
+        error: "You've reached the free coaching limit. Upgrade to continue.",
+        code: "USAGE_LIMIT",
+        limitKind: "coach",
+        currentUsage: user.usage_count ?? 0,
+        limit: cap,
+      });
+      return { ok: false };
+    }
+  }
+
+  if (
+    effectivePlan === "free" &&
+    feature === "salary" &&
+    salaryUsageKind === "student_compare"
+  ) {
+    const cap = limits.studentOfferCompares;
+    const used = user.student_offer_compare_count ?? 0;
+    if (used >= cap) {
+      res.status(403).json({
+        error:
+          "You've used your free student offer compare (two-offer benchmark). Upgrade for unlimited compares.",
+        code: "USAGE_LIMIT",
+        limitKind: "student_compare",
+        currentUsage: used,
+        limit: cap,
+      });
+      return { ok: false };
+    }
   }
 
   return { ok: true, user: { ...user, plan: effectivePlan } };

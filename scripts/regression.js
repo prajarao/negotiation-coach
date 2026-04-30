@@ -1188,18 +1188,24 @@ const TESTS = [
     name: "Usage limits defined for all plans",
     fn: async () => {
       const PLAN_LIMITS = {
-        free:   { sessions: 5   },
-        sprint: { sessions: 999 },
-        pro:    { sessions: 999 },
+        free: { coachSessions: 1, studentOfferCompares: 1 },
+        sprint: { coachSessions: 999, studentOfferCompares: 999 },
+        student_plus: { coachSessions: 999, studentOfferCompares: 999 },
+        pro: { coachSessions: 999, studentOfferCompares: 999 },
       };
-      const freeCapped   = PLAN_LIMITS.free.sessions > 0 && PLAN_LIMITS.free.sessions <= 10;
-      const sprintHigh   = PLAN_LIMITS.sprint.sessions >= 100;
-      const proHigh      = PLAN_LIMITS.pro.sessions >= 100;
+      const freeCapped =
+        PLAN_LIMITS.free.coachSessions > 0 && PLAN_LIMITS.free.coachSessions <= 10;
+      const sprintHigh = PLAN_LIMITS.sprint.coachSessions >= 100;
+      const proHigh = PLAN_LIMITS.pro.coachSessions >= 100;
+      const compareCapped =
+        PLAN_LIMITS.free.studentOfferCompares > 0 &&
+        PLAN_LIMITS.free.studentOfferCompares <= 10;
       return {
-        pass: freeCapped && sprintHigh && proHigh,
-        message: freeCapped && sprintHigh && proHigh
-          ? `Free: ${PLAN_LIMITS.free.sessions} sessions, Sprint: ${PLAN_LIMITS.sprint.sessions}, Pro: ${PLAN_LIMITS.pro.sessions}`
-          : "Usage limits misconfigured",
+        pass: freeCapped && sprintHigh && proHigh && compareCapped,
+        message:
+          freeCapped && sprintHigh && proHigh && compareCapped
+            ? `Free: ${PLAN_LIMITS.free.coachSessions} coach replies, ${PLAN_LIMITS.free.studentOfferCompares} student compare(s)`
+            : "Usage limits misconfigured",
         detail: JSON.stringify(PLAN_LIMITS),
       };
     },
@@ -1237,16 +1243,20 @@ const TESTS = [
         return { pass: false, message: "src/App.jsx not found" };
       }
       const hasUsageLimits = code.includes("USAGE_LIMITS") && code.includes("PLAN_FEATURES");
+      const forwardsJwtWithCoach =
+        code.includes("/api/chat") &&
+        code.includes("Authorization") &&
+        code.includes("getToken");
       const guestNudgeAfterExchange =
         code.includes("Save your coaching session") &&
         code.includes("messages.length >= 3") &&
         code.includes("!isSignedIn");
-      const pass = hasUsageLimits && guestNudgeAfterExchange;
+      const pass = hasUsageLimits && guestNudgeAfterExchange && forwardsJwtWithCoach;
       return {
         pass,
         message: pass
-          ? "USAGE_LIMITS + guest coach sign-up nudge after first exchanges present"
-          : `Missing — usageLimits:${hasUsageLimits} guestNudge:${guestNudgeAfterExchange}`,
+          ? "USAGE_LIMITS + JWT on /api/chat + guest coach sign-up nudge present"
+          : `Missing — usageLimits:${hasUsageLimits} jwtCoach:${forwardsJwtWithCoach} guestNudge:${guestNudgeAfterExchange}`,
       };
     },
   },
@@ -1395,7 +1405,7 @@ const TESTS = [
     category: "Supabase Schema",
     name: "Users table has required columns defined in schema",
     fn: async () => {
-      const requiredCols = ["id", "clerk_id", "email", "plan", "usage_count", "plan_expires_at", "created_at", "updated_at"];
+      const requiredCols = ["id", "clerk_id", "email", "plan", "usage_count", "student_offer_compare_count", "plan_expires_at", "created_at", "updated_at"];
       // Validate against the schema SQL file
       const fs = await import("fs");
       const path = await import("path");

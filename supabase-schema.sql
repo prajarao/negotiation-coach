@@ -11,6 +11,7 @@ create table if not exists public.users (
   plan            text not null default 'free'
                     check (plan in ('free', 'sprint', 'pro')),
   usage_count     integer not null default 0,
+  student_offer_compare_count integer not null default 0,
   plan_expires_at timestamptz,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
@@ -212,7 +213,14 @@ create unique index if not exists university_invite_codes_code_hash_uidx
   on public.university_invite_codes (code_hash);
 
 -- ============================================================
--- 9. Reload PostgREST API schema (fixes PGRST205 after creating tables)
---    Run once after section 7 if REST still says table not in schema cache.
+-- 10. Migration — student offer compare counter (existing DBs only)
+--     Safe to run on new DBs too (IF NOT EXISTS).
+-- ============================================================
+alter table public.users
+  add column if not exists student_offer_compare_count integer not null default 0;
+
+-- ============================================================
+-- 11. Reload PostgREST API schema (fixes PGRST205 after creating tables)
+--     Run once after section 7 if REST still says table not in schema cache.
 -- ============================================================
 notify pgrst, 'reload schema';

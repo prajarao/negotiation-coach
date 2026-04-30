@@ -120,7 +120,7 @@ function emptyCompareOffer() {
  * Student onboarding: POST /api/student-verify-university;
  * GET /api/student-verification-status hydrates verified state after refresh.
  */
-export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach }) {
+export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPlan = "free" }) {
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const [path, setPath] = useState(null);
@@ -178,6 +178,8 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach }) {
   const [compareCurrencyB, setCompareCurrencyB] = useState("USD");
   /** Shared notes for mentor-style coaching (priorities beyond pay). */
   const [compareMentorNotes, setCompareMentorNotes] = useState("");
+  /** Free tier: one dual-offer compare (tracked server-side); cached locally for UX. */
+  const [studentCompareQuotaExhausted, setStudentCompareQuotaExhausted] = useState(false);
 
   useEffect(() => {
     try {
@@ -226,6 +228,36 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach }) {
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    if (userPlan !== "free" || !user?.id) {
+      setStudentCompareQuotaExhausted(false);
+      return;
+    }
+    try {
+      if (sessionStorage.getItem(`oa_free_student_compare_used_${user.id}`) === "1") {
+        setStudentCompareQuotaExhausted(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [userPlan, user?.id]);
+
+  useEffect(() => {
+    if (userPlan !== "free" || !user?.id) return;
+    if (
+      benchmarkMode === "compare" &&
+      compareResultA?.median != null &&
+      compareResultB?.median != null
+    ) {
+      try {
+        sessionStorage.setItem(`oa_free_student_compare_used_${user.id}`, "1");
+      } catch {
+        /* ignore */
+      }
+      setStudentCompareQuotaExhausted(true);
+    }
+  }, [userPlan, user?.id, benchmarkMode, compareResultA, compareResultB]);
 
   useEffect(() => {
     try {
@@ -433,25 +465,33 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach }) {
     }
   };
 
-  const fetchSalaryForOfferInput = async (offer) => {
+  const fetchSalaryForOfferInput = async (offer, compareLeg = null) => {
     const jwt = await getToken();
     if (!jwt) return { ok: false, error: "Could not load session. Try signing in again.", data: null };
     const currency = inferSalaryCurrencyFromLocation(offer.location);
+    const body = {
+      jobTitle: offer.jobTitle.trim(),
+      location: offer.location.trim() || "United States",
+      offeredSalary: offer.offeredSalary ? parseFloat(String(offer.offeredSalary)) : null,
+      currency,
+      careerStage: offer.careerStage,
+      experienceYears: offer.experienceYears,
+    };
+    if (compareLeg === 1 || compareLeg === 2) body.studentOfferCompareLeg = compareLeg;
     const res = await fetch("/api/salary", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
-      body: JSON.stringify({
-        jobTitle: offer.jobTitle.trim(),
-        location: offer.location.trim() || "United States",
-        offeredSalary: offer.offeredSalary ? parseFloat(String(offer.offeredSalary)) : null,
-        currency,
-        careerStage: offer.careerStage,
-        experienceYears: offer.experienceYears,
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      return { ok: false, error: data.error || data.message || `Request failed (${res.status})`, data: null };
+      return {
+        ok: false,
+        error: data.error || data.message || `Request failed (${res.status})`,
+        data: null,
+        code: data.code,
+        limitKind: data.limitKind,
+      };
     }
     return { ok: true, error: null, data, currency };
   };
@@ -463,12 +503,15 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach }) {
     setCompareResultA(null);
     setCompareResultB(null);
     try {
-      const [ra, rb] = await Promise.all([fetchSalaryForOfferInput(compareA), fetchSalaryForOfferInput(compareB)]);
+      const ra = await fetchSalaryForOfferInput(compareA, 1);
       if (!ra.ok) {
+        if (ra.limitKind === "student_compare") setStudentCompareQuotaExhausted(true);
         setCompareError(ra.error || "Offer A lookup failed.");
         return;
       }
+      const rb = await fetchSalaryForOfferInput(compareB, 2);
       if (!rb.ok) {
+        if (rb.limitKind === "student_compare") setStudentCompareQuotaExhausted(true);
         setCompareError(rb.error || "Offer B lookup failed.");
         return;
       }
@@ -476,6 +519,14 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach }) {
       setCompareResultB(rb.data);
       setCompareCurrencyA(ra.currency);
       setCompareCurrencyB(rb.currency);
+      if (userPlan === "free" && user?.id) {
+        try {
+          sessionStorage.setItem(`oa_free_student_compare_used_${user.id}`, "1");
+        } catch {
+          /* ignore */
+        }
+        setStudentCompareQuotaExhausted(true);
+      }
       try {
         localStorage.setItem(
           STORAGE_KEY_STUDENT_BENCHMARK,
@@ -1079,25 +1130,49 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach }) {
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem", marginBottom: compareError ? "0.5rem" : "0.65rem" }}>
                 <button
                   type="button"
-                  disabled={!compareA.jobTitle.trim() || !compareB.jobTitle.trim() || compareLoading || !isSignedIn}
+                  disabled={
+                    !compareA.jobTitle.trim() ||
+                    !compareB.jobTitle.trim() ||
+                    compareLoading ||
+                    !isSignedIn ||
+                    (userPlan === "free" && studentCompareQuotaExhausted)
+                  }
                   onClick={studentCompareBenchmarks}
-                  title={!isSignedIn ? "Sign in to compare offers" : undefined}
+                  title={
+                    !isSignedIn
+                      ? "Sign in to compare offers"
+                      : userPlan === "free" && studentCompareQuotaExhausted
+                        ? "Free plan includes one two-offer compare"
+                        : undefined
+                  }
                   style={{
                     padding: "0.5rem 1rem",
                     borderRadius: "10px",
                     border: "none",
                     background:
-                      !compareA.jobTitle.trim() || !compareB.jobTitle.trim() || compareLoading || !isSignedIn
+                      !compareA.jobTitle.trim() ||
+                      !compareB.jobTitle.trim() ||
+                      compareLoading ||
+                      !isSignedIn ||
+                      (userPlan === "free" && studentCompareQuotaExhausted)
                         ? T.border
                         : "#1d4ed8",
                     color:
-                      !compareA.jobTitle.trim() || !compareB.jobTitle.trim() || compareLoading || !isSignedIn
+                      !compareA.jobTitle.trim() ||
+                      !compareB.jobTitle.trim() ||
+                      compareLoading ||
+                      !isSignedIn ||
+                      (userPlan === "free" && studentCompareQuotaExhausted)
                         ? T.textMuted
                         : "white",
                     fontSize: "0.85rem",
                     fontWeight: 600,
                     cursor:
-                      !compareA.jobTitle.trim() || !compareB.jobTitle.trim() || compareLoading || !isSignedIn
+                      !compareA.jobTitle.trim() ||
+                      !compareB.jobTitle.trim() ||
+                      compareLoading ||
+                      !isSignedIn ||
+                      (userPlan === "free" && studentCompareQuotaExhausted)
                         ? "not-allowed"
                         : "pointer",
                     fontFamily: "inherit",
@@ -1106,6 +1181,11 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach }) {
                   {compareLoading ? "Looking up both…" : "Compare both →"}
                 </button>
               </div>
+              {userPlan === "free" && studentCompareQuotaExhausted ? (
+                <p style={{ fontSize: "0.72rem", color: T.textMuted, margin: "0 0 0.65rem", lineHeight: 1.55 }}>
+                  Free accounts include one two-offer compare on this tab. Upgrade (Student Plus or Sprint) for unlimited compares.
+                </p>
+              ) : null}
 
               {compareError && (
                 <p style={{ fontSize: "0.78rem", color: "#f87171", margin: "0 0 0.65rem", lineHeight: 1.55 }}>{compareError}</p>

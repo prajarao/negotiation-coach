@@ -136,6 +136,7 @@ export default async function handler(req, res) {
             clerk_id:        clerkUserId,
             plan,
             usage_count:     0,
+            student_offer_compare_count: 0,
             plan_expires_at: planExpiresAtIso,
           },
           { onConflict: "clerk_id" }

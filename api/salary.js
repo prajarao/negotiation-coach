@@ -1,4 +1,5 @@
 import { requirePlan } from "./_plan-gate.js";
+import { supabase } from "./_supabase.js";
 import {
   normalizeCareerStage,
   normalizeExperienceYears,
@@ -14,7 +15,12 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const gate = await requirePlan(req, res, "salary");
+  const legRaw = req.body?.studentOfferCompareLeg;
+  const compareLeg =
+    legRaw === 1 || legRaw === "1" ? 1 : legRaw === 2 || legRaw === "2" ? 2 : null;
+  const salaryUsageKind = compareLeg ? "student_compare" : "default";
+
+  const gate = await requirePlan(req, res, "salary", { salaryUsageKind });
   if (!gate.ok) return;
 
   try {
@@ -329,7 +335,7 @@ export default async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({
+    const payload = {
       ...salaryData,
       offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null,
       percentileRating,
@@ -338,7 +344,21 @@ export default async function handler(req, res) {
       estimateKind,
       ...(benchmarkDisclaimer ? { benchmarkDisclaimer } : {}),
       ...(occupationWidePercentiles ? { occupationWidePercentiles } : {}),
-    });
+    };
+
+    if (
+      compareLeg === 2 &&
+      gate.user?.clerk_id &&
+      gate.user.plan === "free"
+    ) {
+      const prev = gate.user.student_offer_compare_count ?? 0;
+      await supabase
+        .from("users")
+        .update({ student_offer_compare_count: prev + 1 })
+        .eq("clerk_id", gate.user.clerk_id);
+    }
+
+    return res.status(200).json(payload);
   } catch (error) {
     console.error("Salary error:", error);
     return res.status(500).json({ error: "Could not fetch salary data" });
