@@ -607,6 +607,14 @@ export default function OfferAdvisor() {
     }
   };
 
+  /** Students hub CTAs call this so replies are visible (Coach tab or inline transcript for Student Plus). */
+  const sendCoachFromStudentHub = async (text) => {
+    if (canAccess(userPlan, "coach")) {
+      setActiveTab("coach");
+    }
+    await sendMessage(text);
+  };
+
   const handleKey = (e) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
@@ -1097,8 +1105,44 @@ export default function OfferAdvisor() {
       // ── STUDENTS TAB — fresh grad MVP scaffold ───────────────────────────────
       case "student": return (
         <>
-          <StudentMvpTab T={T} userPlan={userPlan} onSignIn={() => setAuthModal("signin")} onDiscussWithCoach={sendMessage} />
-          <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="student" />
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+            <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+              <StudentMvpTab
+                T={T}
+                userPlan={userPlan}
+                onSignIn={() => setAuthModal("signin")}
+                onDiscussWithCoach={sendCoachFromStudentHub}
+              />
+            </div>
+            {!canAccess(userPlan, "coach") && (messages.some((m) => m.role === "user") || loading) ? (
+              <div
+                style={{
+                  flexShrink: 0,
+                  borderTop: `1px solid ${T.border}`,
+                  maxHeight: "min(42vh, 380px)",
+                  overflowY: "auto",
+                  padding: "0.65rem 1rem",
+                  background: T.headerBg,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.62rem",
+                    color: T.textMuted,
+                    marginBottom: "0.45rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                  }}
+                >
+                  Coach (this tab)
+                </div>
+                <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+                  {coachMessageList()}
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <ChatStrip onSend={sendCoachFromStudentHub} loading={loading} T={T} tabId="student" />
         </>
       );
 
