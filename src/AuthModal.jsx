@@ -11,26 +11,40 @@ import { offeradvisorClerkAppearance } from "./clerkAppearance.js";
  */
 export default function AuthModal({ mode, onClose, T }) {
   const { user } = useUser();
-  const [checkoutLoading, setCheckoutLoading] = useState(null); // "sprint" | "pro" | null
+  const [checkoutLoading, setCheckoutLoading] = useState(null); // "sprint" | "pro" | "student_plus" | null
   const [checkoutError, setCheckoutError]     = useState(null);
   const [promotionCode, setPromotionCode]       = useState("");
 
   if (!mode) return null;
 
   // Match App.jsx: Sprint expiry in metadata; expired Sprint is treated like free for upgrades.
+  // Sync with Stripe webhook: plan "student_plus" uses same 30-day expiresAt metadata as sprint.
   const clerkPlan = (user?.publicMetadata?.plan) || "free";
-  const sprintExpiresAtIso =
+  const planWindowExpiresAtIso =
     user?.publicMetadata?.expiresAt ?? user?.publicMetadata?.planExpiresAt ?? null;
-  const isSprintExpired =
-    clerkPlan === "sprint"
-    && sprintExpiresAtIso
-    && new Date() > new Date(sprintExpiresAtIso);
-  const effectivePlan = isSprintExpired ? "free" : clerkPlan;
+  const isTimedPlanExpired =
+    (clerkPlan === "sprint" || clerkPlan === "student_plus")
+    && planWindowExpiresAtIso
+    && new Date() > new Date(planWindowExpiresAtIso);
+  const effectivePlan = isTimedPlanExpired ? "free" : clerkPlan;
   const isActiveSprint = effectivePlan === "sprint";
+  const isActiveStudentPlus = effectivePlan === "student_plus";
   const isPro = effectivePlan === "pro";
 
   // ── Redirect to Stripe Checkout ─────────────────────────────────────────────
   const handleCheckout = async (plan) => {
+    if (plan === "student_plus" && isActiveStudentPlus) {
+      setCheckoutError("You're already on Student Plus.");
+      return;
+    }
+    if (plan === "sprint" && isActiveStudentPlus) {
+      setCheckoutError("You already have Student Plus (same access tier). Upgrade to Pro for Templates, Playbook, History & no expiry.");
+      return;
+    }
+    if (plan === "student_plus" && isActiveSprint) {
+      setCheckoutError("You already have Offer Sprint (same access tier). Upgrade to Pro for Templates, Playbook, History & no expiry.");
+      return;
+    }
     if (plan === "sprint" && isActiveSprint) {
       setCheckoutError("You're already on Offer Sprint.");
       return;
@@ -150,7 +164,7 @@ export default function AuthModal({ mode, onClose, T }) {
             border: "1px solid #1e293b",
             borderRadius: "16px",
             padding: "2rem",
-            maxWidth: isPro ? 440 : 520,
+            maxWidth: isPro ? 440 : 800,
             width: "100%",
             animation: "oa-slide-up 0.22s ease forwards",
           }}>
@@ -186,7 +200,7 @@ export default function AuthModal({ mode, onClose, T }) {
                   <p style={{ fontSize: "0.83rem", color: "#94a3b8", lineHeight: 1.65, margin: 0 }}>
                     {isActiveSprint
                       ? "You're on Offer Sprint. Move to Pro for no expiry and Pro-only tabs — one-time payment, no subscription."
-                      : "One-time payment. No subscription. Offer Sprint: 30 days from purchase. Offer in Hand: no expiry."}
+                      : "One-time payments, no subscription. Sprint & Student Plus: 30 days from purchase. Pro: no expiry."}
                   </p>
                 </div>
 
@@ -220,7 +234,7 @@ export default function AuthModal({ mode, onClose, T }) {
                 </div>
 
                 {/* Plan cards — side by side */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.75rem", marginBottom: "1rem" }}>
 
                   {/* Offer Sprint — $29 */}
                   <div
@@ -264,21 +278,74 @@ export default function AuthModal({ mode, onClose, T }) {
                     </button>
                   </div>
 
+                  {/* Student Plus — USD list (set identical one-time Price in Stripe) */}
+                  <div
+                    className="oa-plan-card"
+                    style={{
+                      border: isActiveStudentPlus ? "1.5px solid #334155" : "1.5px solid #0d9488",
+                      borderRadius: "12px",
+                      padding: "1.15rem",
+                      background: isActiveStudentPlus ? "rgba(51,65,85,0.2)" : "rgba(13,148,136,0.06)",
+                      display: "flex",
+                      flexDirection: "column",
+                      opacity: isActiveStudentPlus ? 0.92 : 1,
+                    }}
+                  >
+                    <div style={{ marginBottom: "0.6rem" }}>
+                      <div style={{ fontSize: "0.68rem", color: isActiveStudentPlus ? "#94a3b8" : "#5eead4", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>
+                        {isActiveStudentPlus ? "Current plan" : "Students & campus"}
+                      </div>
+                      <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e2e8f0" }}>Student Plus</div>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginTop: "6px" }}>
+                        <span style={{ fontSize: "1.6rem", fontWeight: 700, color: "#e2e8f0" }}>$24</span>
+                        <span style={{ fontSize: "0.72rem", color: "#64748b" }}>USD · one-time</span>
+                      </div>
+                      <div style={{ fontSize: "0.7rem", color: "#475569", marginTop: "2px" }}>30-day access · invite codes adjust price at checkout</div>
+                    </div>
+                    <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", flex: 1 }}>
+                      {["Same tools as Offer Sprint", "Built for new grads & campus programs", "Use optional invite code for school pricing", "Campuses can also grant access without Stripe (admin)"].map((f) => (
+                        <li key={f} style={{ display: "flex", gap: "5px", fontSize: "0.75rem", color: "#94a3b8", marginBottom: "4px", alignItems: "center" }}>
+                          <span style={{ color: "#2dd4bf", flexShrink: 0 }}>✓</span>{f}
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      className="oa-checkout-btn"
+                      type="button"
+                      onClick={() => handleCheckout("student_plus")}
+                      disabled={!!checkoutLoading || isActiveStudentPlus}
+                      style={{
+                        width: "100%",
+                        padding: "0.6rem",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: isActiveStudentPlus ? "#334155" : "#0f766e",
+                        color: "white",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        cursor: isActiveStudentPlus ? "default" : "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {isActiveStudentPlus ? "Current plan" : checkoutLoading === "student_plus" ? "Redirecting…" : "Get Student Plus →"}
+                    </button>
+                  </div>
+
                   {/* Offer in Hand — $49 */}
                   <div
                     className="oa-plan-card"
                     style={{
-                      border: isActiveSprint ? "2px solid #7c3aed" : "1px solid #2d1b69",
+                      border: (isActiveSprint || isActiveStudentPlus) ? "2px solid #7c3aed" : "1px solid #2d1b69",
                       borderRadius: "12px",
                       padding: "1.15rem",
-                      background: isActiveSprint ? "rgba(124,58,237,0.12)" : "rgba(124,58,237,0.05)",
+                      background: (isActiveSprint || isActiveStudentPlus) ? "rgba(124,58,237,0.12)" : "rgba(124,58,237,0.05)",
                       display: "flex",
                       flexDirection: "column",
                     }}
                   >
                     <div style={{ marginBottom: "0.6rem" }}>
                       <div style={{ fontSize: "0.68rem", color: "#a78bfa", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>
-                        {isActiveSprint ? "Upgrade" : "High-stakes offers"}
+                        {(isActiveSprint || isActiveStudentPlus) ? "Upgrade" : "High-stakes offers"}
                       </div>
                       <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e2e8f0" }}>Offer in Hand</div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginTop: "6px" }}>
@@ -301,7 +368,7 @@ export default function AuthModal({ mode, onClose, T }) {
                       disabled={!!checkoutLoading}
                       style={{ width: "100%", padding: "0.6rem", borderRadius: "8px", border: "none", background: "#6d28d9", color: "white", fontSize: "0.8rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
                     >
-                      {checkoutLoading === "pro" ? "Redirecting…" : isActiveSprint ? "Upgrade to Pro →" : "Get Offer in Hand →"}
+                      {checkoutLoading === "pro" ? "Redirecting…" : (isActiveSprint || isActiveStudentPlus) ? "Upgrade to Pro →" : "Get Offer in Hand →"}
                     </button>
                   </div>
                 </div>

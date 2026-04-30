@@ -20,16 +20,19 @@ import { supabase } from "./_supabase.js";
 
 // Which features each plan can access (mirrors frontend PLAN_FEATURES)
 const PLAN_FEATURES = {
-  free:   ["coach"],
-  sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-  pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
+  free: ["coach", "student"],
+  sprint: ["coach", "student", "benchmark", "calculate", "practice", "logwin"],
+  /** Campus / student SKU — feature parity with Sprint (30-day window from Stripe webhook or manual Clerk/Supabase grant). */
+  student_plus: ["coach", "student", "benchmark", "calculate", "practice", "logwin"],
+  pro: ["coach", "student", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
 };
 
 // Usage limits per plan
 const PLAN_LIMITS = {
-  free:   { sessions: 5  },
+  free: { sessions: 5 },
   sprint: { sessions: 999 },
-  pro:    { sessions: 999 },
+  student_plus: { sessions: 999 },
+  pro: { sessions: 999 },
 };
 
 /**

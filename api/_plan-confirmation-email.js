@@ -10,6 +10,15 @@ const planDetails = {
     features: ["Coach Tab Only", "1 Coaching Session"],
     price: "Free",
   },
+  student_plus: {
+    name: "Student Plus",
+    features: [
+      "Same core tools as Offer Sprint: coach, benchmark, calculator, role-play, log win",
+      "30 days of full access from purchase (or until your campus-granted end date)",
+      "Designed for students and campus partners — use invite codes at checkout for case-by-case pricing",
+    ],
+    price: "USD (set in Stripe)",
+  },
   sprint: {
     name: "Offer Sprint",
     features: [

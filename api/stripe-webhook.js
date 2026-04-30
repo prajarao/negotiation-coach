@@ -80,9 +80,9 @@ export default async function handler(req, res) {
         break;
       }
 
-      // Sprint: 30-day access. Pro: lifetime (no expiry).
+      // Sprint & Student Plus: 30-day access. Pro: lifetime (no expiry).
       let planExpiresAtIso = null;
-      if (plan === "sprint") {
+      if (plan === "sprint" || plan === "student_plus") {
         const d = new Date();
         d.setDate(d.getDate() + 30);
         planExpiresAtIso = d.toISOString();
@@ -94,7 +94,7 @@ export default async function handler(req, res) {
             plan,
             planActivatedAt: new Date().toISOString(),
             // App.jsx reads `expiresAt`; keep `planExpiresAt` for older clients / tools
-            ...(plan === "sprint" && planExpiresAtIso
+            ...((plan === "sprint" || plan === "student_plus") && planExpiresAtIso
               ? { planExpiresAt: planExpiresAtIso, expiresAt: planExpiresAtIso }
               : { planExpiresAt: null, expiresAt: null }),
             stripeSessionId: session.id,

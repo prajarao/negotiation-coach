@@ -7,6 +7,8 @@ import CrispChat from "./components/CrispChat";
 import TemplatesTab from "./components/TemplatesTab.jsx";
 import PlaybookTab from "./components/PlaybookTab.jsx";
 import AlexRoleplayTab from "./components/AlexRoleplayTab.jsx";
+import StudentMvpTab from "./components/StudentMvpTab.jsx";
+import { salaryBenchmarkMethodologyLine } from "./utils/salaryBenchmarkMethodology.js";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -37,12 +39,11 @@ const WELCOME_MESSAGE = {
 
 I'm your personal offer negotiation coach — the same sharp, specific advice top executives pay thousands for.
 
-**Tell me about your situation to get started:**
-- What role and company is the offer for?
-- What's the current offer (base, bonus, equity)?
-- Any competing offers or context I should know?
+**Professionals:** Tell me about your situation below — role, company, numbers, and leverage.
 
-*The more you share, the sharper my coaching gets.*`,
+**Students & new grads:** Open the **Students** tab for first-offer benchmarks (single or compare), a five-year cash snapshot, **Career path explorer** (skills-grounded trajectory ideas vs your default plan), and **School access** if your university partners with us (verify with your school email or invite code).
+
+*The more you share in chat or in Students tools, the sharper my coaching gets.*`,
 };
 
 // Personalised version shown when we know the user's name
@@ -50,11 +51,14 @@ const welcomeMessageFor = (name) => ({
   role: "assistant",
   content: `# Welcome back, ${name}
 
-Ready to negotiate? Tell me about your offer — role, company, and the numbers on the table. I'll give you the same sharp coaching top executives pay thousands for.`,
+Ready to negotiate? Tell me about your offer — role, company, and the numbers on the table.
+
+Or jump to **Students** for benchmarks, path explorer, and campus verification if you're finishing school.`,
 });
 
 const TABS = [
   { id: "coach",     label: "Share offer", shortLabel: "Coach",     icon: "coach",     desc: "Tell me about your offer" },
+  { id: "student",   label: "Students",    shortLabel: "Students",  icon: "student",   desc: "First offers · paths · campus access" },
   { id: "benchmark", label: "Benchmark",   shortLabel: "Benchmark", icon: "benchmark", desc: "Compare to market data" },
   { id: "calculate", label: "Calculate",   shortLabel: "Calculate", icon: "calculate", desc: "Build your counter-offer" },
   { id: "practice",  label: "Practice",    shortLabel: "Practice",  icon: "practice",  desc: "Role-play the conversation" },
@@ -105,6 +109,11 @@ const PROMPTS = {
     "Summarize my offer before I start the voice interview",
     "What should I lead with in the mock interview?",
   ],
+  student: [
+    "Is my first offer fair for my city and role?",
+    "How do I compare two new-grad offers side by side?",
+    "What could this offer mean for my salary in 5 years?",
+  ],
 };
 
 const CURRENCIES = [
@@ -123,16 +132,18 @@ const getCurrencySymbol = (code) => CURRENCIES.find((c) => c.code === code)?.sym
 // Source of truth: Clerk publicMetadata.plan
 // Set on sign-up (webhook) and updated after Stripe payment (coming in Step 6)
 const PLANS = {
-  free:   { label: "Free",         color: "#64748b" },
-  sprint: { label: "Offer Sprint", color: "#2563eb" },
-  pro:    { label: "Offer in Hand",color: "#7c3aed" },
+  free:          { label: "Free",           color: "#64748b" },
+  sprint:        { label: "Offer Sprint",   color: "#2563eb" },
+  student_plus:  { label: "Student Plus",   color: "#0d9488" },
+  pro:           { label: "Offer in Hand",  color: "#7c3aed" },
 };
 
 // Features each plan can access
 const PLAN_FEATURES = {
-  free:   ["coach"],                                               // chat only
-  sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-  pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
+  free:   ["coach", "student"],
+  sprint: ["coach", "student", "benchmark", "calculate", "practice", "logwin"],
+  student_plus: ["coach", "student", "benchmark", "calculate", "practice", "logwin"],
+  pro:    ["coach", "student", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
   // Pro: templates, playbook, history, alex (voice mock interview + ElevenLabs)
 };
 
@@ -146,6 +157,7 @@ const canAccess = (plan, tabId) => {
 const USAGE_LIMITS = {
   free:   { sessions: 1,   emails: 1   },
   sprint: { sessions: 999, emails: 999 },
+  student_plus: { sessions: 999, emails: 999 },
   pro:    { sessions: 999, emails: 999 },
 };
 
@@ -202,10 +214,12 @@ function LockScreen({ title, description, T, onUpgrade, isSignedIn }) {
       <p style={{ fontSize: "0.85rem", color: T.textSecondary, lineHeight: 1.65, maxWidth: 340, marginBottom: "1.5rem" }}>{description}</p>
       <button onClick={onUpgrade}
         style={{ padding: "0.6rem 1.5rem", borderRadius: "10px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.85rem", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}>
-        {isSignedIn ? "Unlock for $29 →" : "Sign up to unlock →"}
+        {isSignedIn ? "View plans & unlock →" : "Sign up to unlock →"}
       </button>
       <p style={{ fontSize: "0.72rem", color: T.textMuted, marginTop: "0.6rem" }}>
-        {isSignedIn ? "Sprint $29 · 30 days from purchase · Pro $49 · no expiry" : "Free account · then unlock for $29 (Sprint) or $49 (Pro)"}
+        {isSignedIn
+          ? "Student Plus $24 · Sprint $29 · Pro $49 · Student Plus & Sprint = 30 days"
+          : "Free account · Student Plus $24 · Sprint $29 · Pro $49 (no subscription)"}
       </p>
     </div>
   );
@@ -258,19 +272,19 @@ export default function OfferAdvisor() {
   // updated by Stripe webhook after payment)
   const clerkPlan = (user?.publicMetadata?.plan) || "free";
   
-  // Sprint 30-day window: Stripe webhook sets `expiresAt` + `planExpiresAt` (ISO). Pro has both null.
-  const sprintExpiresAtIso =
+  // Sprint & Student Plus window: Stripe webhook sets expiresAt + planExpiresAt (ISO). Pro has both null.
+  const planWindowExpiresAtIso =
     user?.publicMetadata?.expiresAt ?? user?.publicMetadata?.planExpiresAt ?? null;
-  const isSprintExpired =
-    clerkPlan === "sprint"
-    && sprintExpiresAtIso
-    && new Date() > new Date(sprintExpiresAtIso);
+  const isTimedPlanExpired =
+    (clerkPlan === "sprint" || clerkPlan === "student_plus")
+    && planWindowExpiresAtIso
+    && new Date() > new Date(planWindowExpiresAtIso);
 
-  // Effective plan: expired Sprint is treated as free in the UI (Clerk metadata unchanged until you sync)
-  const effectivePlan = isSprintExpired ? "free" : clerkPlan;
-  const daysLeftOnSprint =
-    clerkPlan === "sprint" && sprintExpiresAtIso
-      ? Math.max(0, Math.ceil((new Date(sprintExpiresAtIso) - new Date()) / (1000 * 60 * 60 * 24)))
+  // Effective plan: expired time-boxed plans are treated as free in the UI until Clerk/sync refreshes metadata
+  const effectivePlan = isTimedPlanExpired ? "free" : clerkPlan;
+  const daysLeftOnTimedPlan =
+    (clerkPlan === "sprint" || clerkPlan === "student_plus") && planWindowExpiresAtIso
+      ? Math.max(0, Math.ceil((new Date(planWindowExpiresAtIso) - new Date()) / (1000 * 60 * 60 * 24)))
       : 0;
 
   // ── Admin / test override ─────────────────────────────────────────────────
@@ -278,6 +292,7 @@ export default function OfferAdvisor() {
   // Open browser console and run:
   //   localStorage.setItem("oa_admin_plan", "pro")   → unlock everything
   //   localStorage.setItem("oa_admin_plan", "sprint") → Offer Sprint
+  //   localStorage.setItem("oa_admin_plan", "student_plus") → Student Plus
   //   localStorage.setItem("oa_admin_plan", "free")  → back to free
   //   localStorage.removeItem("oa_admin_plan")        → use real Clerk plan
   const [adminPlan, setAdminPlan] = useState(() => localStorage.getItem("oa_admin_plan") || null);
@@ -337,7 +352,7 @@ export default function OfferAdvisor() {
   }, [accountMenuOpen]);
 
   // Stripe return — detect ?checkout=success in URL after payment
-  const [checkoutSuccess, setCheckoutSuccess] = useState(null); // null | "sprint" | "pro"
+  const [checkoutSuccess, setCheckoutSuccess] = useState(null); // null | "sprint" | "pro" | "student_plus"
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -672,11 +687,12 @@ export default function OfferAdvisor() {
   };
 
   const onboardingSlides = [
-    { title: "Welcome to OfferAdvisor", body: "AI-powered negotiation coaching that gives you the same sharp advice top executives pay thousands for — in minutes.", cta: "How does it work?" },
+    { title: "Welcome to OfferAdvisor", body: "AI negotiation coaching for professionals — plus a dedicated Students hub for first offers, comparing paths, career exploration, and university verification when your school partners with us.", cta: "How does it work?" },
     { title: "Start by sharing your offer", body: "Type anything about your situation in the chat. Role, company, offer numbers. The coach asks the right questions.", cta: "Got it" },
-    { title: "Then benchmark your numbers", body: "Use the Benchmark tab to see where your offer sits against real market data — by role, city, and country.", cta: "Makes sense" },
+    { title: "Students & universities", body: "Use the Students tab for market checks on one or two offers, a five-year snapshot, Career path explorer, and School access with your campus email or invite code.", cta: "Next" },
+    { title: "Benchmark your numbers", body: "Use the Benchmark tab to see where your offer sits against market ranges — by role, city, and country.", cta: "Makes sense" },
     { title: "Build your counter-offer", body: "The Calculate tab shows exactly what to counter with and your 4-year financial gain if you negotiate.", cta: "Love it" },
-    { title: "Practice the conversation", body: "Switch to Practice and the AI plays your recruiter. Get coached after every exchange — for free.", cta: "Let's go" },
+    { title: "Practice the conversation", body: "Switch to Practice and the AI plays your recruiter. Get coached after every exchange.", cta: "Let's go" },
   ];
 
   // ── Shared style helpers ──────────────────────────────────────────────────────
@@ -704,7 +720,7 @@ export default function OfferAdvisor() {
         background: T.surfaceBg,
         borderRadius: "16px",
         padding: "2rem",
-        maxWidth: "500px",
+        maxWidth: "560px",
         width: "100%",
         textAlign: "center",
         boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
@@ -716,9 +732,9 @@ export default function OfferAdvisor() {
 
         {/* Description */}
         <p style={{ color: T.textSecondary, marginBottom: "1.5rem", fontSize: "0.95rem", lineHeight: 1.6 }}>
-          Your counter offer could be worth <strong>$500K+</strong> over 4 years.
-          <br/>
-          Unlock the full calculator to see the exact numbers.
+          Your counter offer could be worth <strong>$500K+</strong> over 4 years — unlock the full calculator to see exact numbers.
+          <br />
+          <span style={{ fontSize: "0.88rem", opacity: 0.95 }}>New grads: use <strong>Students</strong> for offer benchmarks &amp; career paths; universities can verify campus access there.</span>
         </p>
 
         {/* Price highlight */}
@@ -729,13 +745,24 @@ export default function OfferAdvisor() {
           borderRadius: "12px",
           marginBottom: "1.5rem",
         }}>
-          <div style={{ fontSize: "0.85rem", color: "#1d4ed8", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>Unlock full access:</div>
-          <div style={{ fontSize: "2.2rem", fontWeight: 700, color: "#1d4ed8" }}>$29</div>
-          <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>one-time payment</div>
+          <div style={{ fontSize: "0.85rem", color: "#1d4ed8", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>From Student Plus (USD)</div>
+          <div style={{ fontSize: "2rem", fontWeight: 700, color: "#1d4ed8" }}>$24+</div>
+          <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>Student Plus USD · Sprint &amp; Pro also available</div>
         </div>
 
-        {/* Two plan options */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1.5rem" }}>
+        {/* Plan options */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.75rem", marginBottom: "1.5rem" }}>
+          <div style={{
+            textAlign: "left",
+            padding: "0.85rem",
+            background: "rgba(13,148,136,0.08)",
+            borderRadius: "10px",
+            border: "1px solid rgba(13,148,136,0.35)",
+          }}>
+            <div style={{ fontSize: "0.72rem", color: "#0f766e", marginBottom: "0.35rem", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>Student Plus</div>
+            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f766e" }}>$24</div>
+            <div style={{ fontSize: "0.78rem", color: T.textSecondary, lineHeight: 1.45, marginTop: "0.25rem" }}>USD · 30 days · invite codes for campus pricing</div>
+          </div>
           {/* Offer Sprint */}
           <div style={{
             textAlign: "left",
@@ -794,7 +821,7 @@ export default function OfferAdvisor() {
           onMouseEnter={(e) => e.currentTarget.style.background = "#1e40af"}
           onMouseLeave={(e) => e.currentTarget.style.background = "#1d4ed8"}
         >
-          Unlock Now — $29 or $49
+          Unlock plans — Student Plus · Sprint · Pro
         </button>
 
         <button
@@ -878,9 +905,9 @@ export default function OfferAdvisor() {
             : "Sign in, then upgrade to Offer in Hand (Pro) to use the voice mock interview with Alex.";
         }
         if (!isSignedIn) {
-          return "Create a free account to get started, then unlock with Offer Sprint ($29, 30 days) or Offer in Hand ($49, no expiry).";
+          return "Create a free account, then unlock with Student Plus ($24 USD), Offer Sprint ($29), or Offer in Hand ($49). Student Plus & Sprint include 30 days of full tool access.";
         }
-        return "Unlock coach tools — benchmark, counter calculator, role-play, log win. Offer Sprint $29 (30 days from purchase) or Offer in Hand $49 (no expiry).";
+        return "Unlock benchmark, calculator, role-play, log win. Student Plus $24 · Sprint $29 (each 30 days) · Pro $49 (no expiry). Students tab stays useful on Free for basics.";
       })();
       return (
         <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
@@ -968,6 +995,14 @@ export default function OfferAdvisor() {
         </>
       );
 
+      // ── STUDENTS TAB — fresh grad MVP scaffold ───────────────────────────────
+      case "student": return (
+        <>
+          <StudentMvpTab T={T} onSignIn={() => setAuthModal("signin")} onDiscussWithCoach={sendMessage} />
+          <ChatStrip onSend={sendMessage} loading={loading} T={T} tabId="student" />
+        </>
+      );
+
       // ── BENCHMARK TAB ─────────────────────────────────────────────────────
       case "benchmark": return (
         <>
@@ -1005,6 +1040,14 @@ export default function OfferAdvisor() {
               {salaryData && !salaryLoading && (
                 <div style={{ marginTop: "1.25rem", borderTop: `1px solid ${T.border}`, paddingTop: "1rem", animation: "fadeIn 0.2s ease" }}>
                   <div style={{ fontSize: "0.68rem", color: T.textMuted, marginBottom: "0.65rem" }}>{salaryData.occupation} · {salaryData.location} · {salaryData.source}</div>
+                  {(() => {
+                    const methodologyLine = salaryBenchmarkMethodologyLine(salaryData);
+                    return methodologyLine ? (
+                      <p style={{ fontSize: "0.72rem", color: T.textSecondary, margin: "0 0 0.65rem", lineHeight: 1.55 }}>
+                        {methodologyLine}
+                      </p>
+                    ) : null;
+                  })()}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.65rem" }}>
                     {[{ label: "25th percentile", value: salaryData.p25, color: "#f59e0b" }, { label: "Median (50th)", value: salaryData.median, color: "#3b82f6" }, { label: "75th percentile", value: salaryData.p75, color: "#10b981" }].map(({ label, value, color }) => (
                       <div key={label} style={{ padding: "0.6rem 0.75rem", background: T.cardBg, borderRadius: "8px", border: `1px solid ${T.border}` }}>
@@ -1524,7 +1567,7 @@ export default function OfferAdvisor() {
             <div style={{ padding: "0.75rem", borderRadius: "10px", background: T.cardBg, border: `1px solid ${T.border}`, marginBottom: "0.75rem" }}>
               <div style={{ fontSize: "0.68rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.35rem" }}>Current plan</div>
               <div style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary }}>{PLANS[userPlan]?.label || userPlan}</div>
-              {userPlan === "sprint" && planExpiresLabel ? (
+              {(userPlan === "sprint" || userPlan === "student_plus") && planExpiresLabel ? (
                 <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.4rem" }}>
                   Full access until <strong style={{ color: T.textSecondary }}>{planExpiresLabel}</strong>
                 </div>
@@ -1532,8 +1575,10 @@ export default function OfferAdvisor() {
                 <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.4rem" }}>No expiration — ongoing access.</div>
               ) : userPlan === "free" ? (
                 <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.4rem" }}>Upgrade to unlock every tool.</div>
-              ) : userPlan === "sprint" && !planExpiresLabel ? (
-                <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.4rem" }}>Sprint access — 30 days from purchase (refresh if dates are missing).</div>
+              ) : (userPlan === "sprint" || userPlan === "student_plus") && !planExpiresLabel ? (
+                <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.4rem" }}>
+                  Time-boxed plan — 30 days from purchase or campus grant (refresh if dates are missing).
+                </div>
               ) : null}
               {adminPlan ? (
                 <div style={{ fontSize: "0.72rem", color: "#a78bfa", marginTop: "0.5rem" }}>Admin test override active (local only).</div>
@@ -1623,11 +1668,16 @@ export default function OfferAdvisor() {
           <span style={{ fontSize: "1.1rem" }}>🎉</span>
           <div>
             <div style={{ fontSize: "0.85rem", fontWeight: 600, color: "#4ade80" }}>
-              {checkoutSuccess === "sprint" ? "Offer Sprint" : "Offer in Hand"} unlocked!
+              {checkoutSuccess === "sprint"
+                ? "Offer Sprint"
+                : checkoutSuccess === "student_plus"
+                  ? "Student Plus"
+                  : "Offer in Hand"}{" "}
+              unlocked!
             </div>
             <div style={{ fontSize: "0.72rem", color: "#86efac", maxWidth: 320, lineHeight: 1.35 }}>
-              {checkoutSuccess === "sprint"
-                ? "Coach, benchmark, calculator, role-play and log win — 30 days from checkout. Upgrade anytime for Pro tabs with no expiry."
+              {checkoutSuccess === "sprint" || checkoutSuccess === "student_plus"
+                ? "Coach, benchmark, calculator, role-play and log win — 30 days from checkout. Upgrade to Pro anytime for Templates, Playbook, History & no expiry."
                 : "Core tools plus Templates, Playbook and History — no expiry. Start below."}
             </div>
           </div>
@@ -1639,9 +1689,12 @@ export default function OfferAdvisor() {
       )}
 
       {/* Sprint Plan Expiration Countdown */}
-      {isLoaded && isSignedIn && clerkPlan === "sprint" && !isSprintExpired && sprintExpiresAtIso && (
+      {(isLoaded && isSignedIn
+        && (clerkPlan === "sprint" || clerkPlan === "student_plus")
+        && !isTimedPlanExpired
+        && planWindowExpiresAtIso) && (
         <div style={{
-          background: daysLeftOnSprint <= 3 
+          background: daysLeftOnTimedPlan <= 3 
             ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
             : "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
           color: "white",
@@ -1656,13 +1709,13 @@ export default function OfferAdvisor() {
           gap: "0.5rem",
         }}>
           <span>
-            {daysLeftOnSprint <= 0
-              ? "⏰ Your Sprint access ends today"
-              : daysLeftOnSprint <= 3
-                ? `⏰ Your Sprint access expires in ${daysLeftOnSprint} day${daysLeftOnSprint !== 1 ? "s" : ""}`
-                : `✅ Sprint plan active — ${daysLeftOnSprint} days remaining`}
+            {daysLeftOnTimedPlan <= 0
+              ? "⏰ Your access ends today"
+              : daysLeftOnTimedPlan <= 3
+                ? `⏰ Your plan expires in ${daysLeftOnTimedPlan} day${daysLeftOnTimedPlan !== 1 ? "s" : ""}`
+                : `✅ ${clerkPlan === "student_plus" ? "Student Plus" : "Sprint"} active — ${daysLeftOnTimedPlan} days remaining`}
           </span>
-          {daysLeftOnSprint <= 3 && (
+          {daysLeftOnTimedPlan <= 3 && (
             <button 
               onClick={() => setAuthModal("upgrade")}
               style={{
@@ -1686,7 +1739,7 @@ export default function OfferAdvisor() {
       )}
 
       {/* Sprint Plan Expired Banner */}
-      {isLoaded && isSignedIn && isSprintExpired && (
+      {isLoaded && isSignedIn && isTimedPlanExpired && (
         <div style={{
           background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
           color: "white",
@@ -1701,7 +1754,7 @@ export default function OfferAdvisor() {
           gap: "1rem",
         }}>
           <span>
-            ⏱️ Your Sprint plan (30-day trial) has ended. Upgrade to Pro for lifetime access.
+            ⏱️ Your limited-time plan (Sprint or Student Plus) has ended. Upgrade to Pro for lifetime access.
           </span>
           <button 
             onClick={() => setAuthModal("upgrade")}
@@ -1758,10 +1811,10 @@ export default function OfferAdvisor() {
         <div style={{ background: "#1e1a2e", borderBottom: "1px solid #4c1d95", padding: "0.35rem 1rem", display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap", flexShrink: 0 }}>
           <span style={{ fontSize: "0.65rem", color: "#a78bfa", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>🛠 Admin mode</span>
           <span style={{ fontSize: "0.65rem", color: "#7c3aed" }}>Plan:</span>
-          {["free", "sprint", "pro"].map((p) => (
+          {["free", "sprint", "student_plus", "pro"].map((p) => (
             <button key={p} onClick={() => setTestPlan(p)}
               style={{ padding: "2px 10px", borderRadius: "10px", border: `1px solid ${userPlan === p ? "#7c3aed" : "#4c1d95"}`, background: userPlan === p ? "#7c3aed" : "transparent", color: userPlan === p ? "white" : "#a78bfa", fontSize: "0.65rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
-              {p === "sprint" ? "Offer Sprint" : p === "pro" ? "Offer in Hand" : "Free"}
+              {p === "sprint" ? "Sprint" : p === "pro" ? "Pro" : p === "student_plus" ? "Stud+" : "Free"}
             </button>
           ))}
           <button onClick={() => setTestPlan("off")}
@@ -1814,6 +1867,8 @@ export default function OfferAdvisor() {
                   ? { background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#fff", border: "1px solid #7c3aed", boxShadow: "0 0 8px rgba(124,58,237,0.35)" }
                   : userPlan === "sprint"
                   ? { background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#fff", border: "1px solid #2563eb", boxShadow: "0 0 8px rgba(37,99,235,0.35)" }
+                  : userPlan === "student_plus"
+                  ? { background: "linear-gradient(135deg, #0d9488, #0f766e)", color: "#fff", border: "1px solid #0d9488", boxShadow: "0 0 8px rgba(13,148,136,0.35)" }
                   : { background: T.cardBg, color: T.textMuted, border: `1px solid ${T.border}` }),
               }}>
                 {PLANS[userPlan]?.label || "Free"}

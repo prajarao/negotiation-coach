@@ -1,17 +1,32 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import alexTokenHandler from "./api/alex-token.js";
+import studentVerificationStatusHandler from "./api/student-verification-status.js";
+import studentVerifyUniversityHandler from "./api/student-verify-university.js";
+import studentCareerPathsHandler from "./api/student-career-paths.js";
+import {
+  normalizeCareerStage,
+  normalizeExperienceYears,
+  shouldAdjustOccupationWidePercentiles,
+  shouldAugmentSalaryPrompts,
+  buildCohortPromptSegment,
+  buildFallbackEntryLevelSystemAugmentation,
+  groqAdjustBlsToEntryPercentiles,
+} from "./api/_salary-cohort.js";
 
-dotenv.config();
+// `.env` is loaded in `api/_supabase.js` (imported before this file runs; `dotenv.config({ quiet: true })`).
 
 const app = express();
-app.use(cors({ origin: "http://localhost:5173" }));
+app.use(cors({ origin: true }));
 app.use(express.json());
 
 // ElevenLabs ConvAI token (PRO) — mirrors `api/alex-token.js` for local dev
 app.get("/api/alex-token", (req, res) => alexTokenHandler(req, res));
 app.post("/api/alex-token", (req, res) => alexTokenHandler(req, res));
+
+app.get("/api/student-verification-status", (req, res) => studentVerificationStatusHandler(req, res));
+app.post("/api/student-verify-university", (req, res) => studentVerifyUniversityHandler(req, res));
+app.post("/api/student-career-paths", (req, res) => studentCareerPathsHandler(req, res));
 
 // ─── existing chat route ──────────────────────────────────────
 app.post("/api/chat", async (req, res) => {
@@ -67,6 +82,14 @@ function detectUK(location) {
 app.post("/api/salary", async (req, res) => {
   try {
     const { jobTitle, location, offeredSalary } = req.body;
+    const careerStage = normalizeCareerStage(req.body?.careerStage);
+    const experienceYears = normalizeExperienceYears(req.body?.experienceYears);
+    const augmentPrompts = shouldAugmentSalaryPrompts(careerStage, experienceYears);
+    const cohortSegment =
+      careerStage || experienceYears != null ? buildCohortPromptSegment(careerStage, experienceYears) : "";
+    const fallbackAugment = buildFallbackEntryLevelSystemAugmentation(careerStage, experienceYears);
+    const groqKey = process.env.GROQ_API_KEY;
+
     const loc = (location || "").trim();
     const isUK = detectUK(loc);
 
@@ -162,7 +185,13 @@ app.post("/api/salary", async (req, res) => {
         source: "ONS ASHE via Nomis API + AI occupation estimate",
         year: new Date().getFullYear().toString(),
         currency: "GBP",
+        country: "UK",
+        careerStage,
+        experienceYears,
       };
+
+      let estimateKindUk = "ai_estimate";
+      let benchmarkDisclaimerUk = null;
 
       const baselineContext = asheBaseline.median
         ? `The latest ONS ASHE data shows UK full-time workers earn: 25th=£${asheBaseline.p25?.toLocaleString()}, Median=£${asheBaseline.median?.toLocaleString()}, 75th=£${asheBaseline.p75?.toLocaleString()} annually.`
@@ -189,14 +218,15 @@ app.post("/api/salary", async (req, res) => {
                   Use this baseline to calibrate your estimates for specific occupations.
                   Return ONLY a JSON object, no other text, no markdown, no backticks.
                   Format: {"p25": 35000, "median": 45000, "p75": 60000,
-                  "note": "Brief note about the estimate"}`,
+                  "note": "Brief note about the estimate"}${fallbackAugment}`,
                 },
                 {
                   role: "user",
                   content: `Provide realistic UK salary percentiles (25th, 50th, 75th)
                   in GBP for: "${jobTitle}" (UK SOC: ${socCode} - ${occupationTitle})
                   in "${loc}". Consider the specific location's cost of living
-                  within the UK. Return only the JSON.`,
+                  within the UK.${cohortSegment ? `\n\n${cohortSegment}` : ""}
+                  Return only the JSON.`,
                 },
               ],
             }),
@@ -211,6 +241,11 @@ app.post("/api/salary", async (req, res) => {
         salaryData.median = parsed.median;
         salaryData.p75 = parsed.p75;
         if (parsed.note) salaryData.note = parsed.note;
+        estimateKindUk = augmentPrompts ? "ai_estimate_entry" : "ai_estimate";
+        if (augmentPrompts) {
+          benchmarkDisclaimerUk =
+            "AI estimates target your cohort (internship / entry-level / early-career), not typical mid-career occupation medians.";
+        }
 
         if (asheBaseline.median) {
           salaryData.asheBaseline = asheBaseline;
@@ -256,6 +291,8 @@ app.post("/api/salary", async (req, res) => {
         percentileRating,
         negotiationStrength,
         location: loc,
+        estimateKind: estimateKindUk,
+        ...(benchmarkDisclaimerUk ? { benchmarkDisclaimer: benchmarkDisclaimerUk } : {}),
       });
 
     } else {
@@ -284,8 +321,9 @@ app.post("/api/salary", async (req, res) => {
               },
               {
                 role: "user",
-                content: `Map this job title to its closest BLS OES occupation
-                code: "${jobTitle}". Return only the JSON.`,
+                content:
+                  `Map this job title to its closest BLS OES occupation code: "${jobTitle}". Return only the JSON.` +
+                  (augmentPrompts && cohortSegment ? ` Additional mapping hint: ${cohortSegment}` : ""),
               },
             ],
           }),
@@ -324,7 +362,14 @@ app.post("/api/salary", async (req, res) => {
         source: "BLS Occupational Employment & Wage Statistics",
         year: "2024",
         currency: "USD",
+        country: "US",
+        careerStage,
+        experienceYears,
       };
+
+      let estimateKindUs = "occupation_wide_bls";
+      let benchmarkDisclaimerUs = null;
+      let occupationWidePercentilesUs = null;
 
       try {
         const blsResponse = await fetch("https://api.bls.gov/publicAPI/v2/timeseries/data/", {
@@ -349,6 +394,51 @@ app.post("/api/salary", async (req, res) => {
             if (id.endsWith("08")) salaryData.p75 = Math.round(annual);
           }
         }
+
+        const blsHasMedian = salaryData.median != null;
+        const wantsAdjustment = blsHasMedian && shouldAdjustOccupationWidePercentiles(careerStage, experienceYears);
+
+        if (wantsAdjustment && groqKey) {
+          occupationWidePercentilesUs = {
+            p25: salaryData.p25,
+            median: salaryData.median,
+            p75: salaryData.p75,
+          };
+
+          const adj = await groqAdjustBlsToEntryPercentiles({
+            groqApiKey: groqKey,
+            jobTitle,
+            location: loc || "United States",
+            careerStage,
+            experienceYears,
+            p25: salaryData.p25,
+            median: salaryData.median,
+            p75: salaryData.p75,
+          });
+
+          if (adj.ok) {
+            salaryData.p25 = adj.p25;
+            salaryData.median = adj.median;
+            salaryData.p75 = adj.p75;
+            estimateKindUs = "entry_level_adjusted";
+            benchmarkDisclaimerUs =
+              (adj.adjustmentSummary ? `${adj.adjustmentSummary} ` : "") +
+              "Figures aim to reflect internships / entry-level hiring rather than occupation-wide mixed-experience medians.";
+          } else {
+            estimateKindUs = "occupation_wide_bls";
+            benchmarkDisclaimerUs =
+              "BLS publishes occupation-wide wages (all experience levels). Typical internships and first-job offers often fall below the occupation median — interpret these bands as an upper-context market range, not a new-grad target.";
+          }
+        } else if (wantsAdjustment && !groqKey && blsHasMedian) {
+          estimateKindUs = "occupation_wide_bls";
+          benchmarkDisclaimerUs =
+            "BLS publishes occupation-wide wages (all experience levels). Typical internships and first-job offers often fall below the occupation median — interpret these bands as directional context.";
+        } else if (blsHasMedian && augmentPrompts && !wantsAdjustment) {
+          benchmarkDisclaimerUs =
+            "Published benchmarks are occupation-wide (multiple experience levels). Early-career offers vary — use this as directional context.";
+          estimateKindUs = "occupation_wide_bls";
+        }
+
         console.log("✅ BLS data fetched");
       } catch (e) {
         console.log("⚠️ BLS fetch failed:", e.message);
@@ -376,12 +466,13 @@ app.post("/api/salary", async (req, res) => {
                     content: `You are a compensation data expert. Return ONLY
                     a JSON object, no other text, no markdown, no backticks.
                     Format: {"p25": 85000, "median": 105000, "p75": 130000,
-                    "note": "Based on market data"}`,
+                    "note": "Based on market data"}${fallbackAugment}`,
                   },
                   {
                     role: "user",
                     content: `Provide realistic 2024-2025 US salary percentiles
                     for: "${jobTitle}" in "${loc || "United States"}".
+                    ${cohortSegment ? `\n\nCohort context:\n${cohortSegment}` : ""}
                     Return only the JSON.`,
                   },
                 ],
@@ -396,6 +487,14 @@ app.post("/api/salary", async (req, res) => {
           salaryData.median = fb.median;
           salaryData.p75 = fb.p75;
           salaryData.source = "AI-estimated market data (BLS unavailable)";
+          {
+            const entryCue = augmentPrompts || shouldAdjustOccupationWidePercentiles(careerStage, experienceYears);
+            estimateKindUs = entryCue ? "ai_estimate_entry" : "ai_estimate";
+            if (!benchmarkDisclaimerUs && entryCue) {
+              benchmarkDisclaimerUs =
+                "AI estimates target your cohort (internship / entry-level / early-career), not typical mid-career occupation medians.";
+            }
+          }
         } catch (e) {
           console.log("⚠️ Fallback also failed");
         }
@@ -430,6 +529,9 @@ app.post("/api/salary", async (req, res) => {
         percentileRating,
         negotiationStrength,
         location: loc,
+        estimateKind: estimateKindUs,
+        ...(benchmarkDisclaimerUs ? { benchmarkDisclaimer: benchmarkDisclaimerUs } : {}),
+        ...(occupationWidePercentilesUs ? { occupationWidePercentiles: occupationWidePercentilesUs } : {}),
       });
     }
   } catch (error) {

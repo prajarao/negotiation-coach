@@ -8,9 +8,10 @@
  *
  * Environment variables required (set in Vercel dashboard):
  *   STRIPE_SECRET_KEY          — sk_live_... or sk_test_...
- *   STRIPE_SPRINT_PRICE_ID     — price_... for the $29 Offer Sprint product
- *   STRIPE_PRO_PRICE_ID        — price_... for the $49 Offer in Hand product
- *   NEXT_PUBLIC_APP_URL        — https://offeradvisor.ai  (used for redirect URLs)
+ *   STRIPE_SPRINT_PRICE_ID       — price_... Offer Sprint ($29)
+ *   STRIPE_PRO_PRICE_ID          — price_... Offer in Hand ($49)
+ *   STRIPE_STUDENT_PLUS_PRICE_ID — price_... Student Plus (USD one-time — set amount in Stripe; 30-day app access via webhook)
+ *   NEXT_PUBLIC_APP_URL          — https://offeradvisor.ai  (used for redirect URLs)
  *
  * Optional curated promotion codes (50% off, etc.):
  *   STRIPE_CHECKOUT_PROMO_MAP  — JSON object: { "YOURCODE": "promo_xxx", ... }
@@ -20,7 +21,7 @@
  *   Stripe still shows “Add promotion code” if you use public codes in Stripe.
  *
  * Request body:
- *   { plan: "sprint" | "pro", clerkUserId: string, userEmail: string, promotionCode?: string }
+ *   { plan: "sprint" | "pro" | "student_plus", clerkUserId: string, userEmail: string, promotionCode?: string }
  *
  * Response:
  *   { url: "https://checkout.stripe.com/..." }
@@ -62,9 +63,9 @@ export default async function handler(req, res) {
   const { plan, clerkUserId, userEmail, promotionCode } = req.body;
 
   // ── Validate inputs ─────────────────────────────────────────────────────────
-  if (!plan || !["sprint", "pro"].includes(plan)) {
+  if (!plan || !["sprint", "pro", "student_plus"].includes(plan)) {
     return res.status(400).json({
-      error: `Invalid plan "${plan}". Must be "sprint" or "pro".`,
+      error: `Invalid plan "${plan}". Must be "sprint", "pro", or "student_plus".`,
     });
   }
 
@@ -82,7 +83,12 @@ export default async function handler(req, res) {
     });
   }
 
-  const priceEnvKey = plan === "sprint" ? "STRIPE_SPRINT_PRICE_ID" : "STRIPE_PRO_PRICE_ID";
+  const priceEnvKey =
+    plan === "sprint"
+      ? "STRIPE_SPRINT_PRICE_ID"
+      : plan === "pro"
+        ? "STRIPE_PRO_PRICE_ID"
+        : "STRIPE_STUDENT_PLUS_PRICE_ID";
   const priceId = process.env[priceEnvKey];
   if (!priceId) {
     console.error(`${priceEnvKey} is not set`);

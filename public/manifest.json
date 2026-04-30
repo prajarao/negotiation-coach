@@ -1,7 +1,7 @@
 {
   "name": "OfferAdvisor — AI Offer Coach",
   "short_name": "OfferAdvisor",
-  "description": "AI-powered job offer negotiation coach. Benchmark your offer, build your counter, practice the conversation.",
+  "description": "AI negotiation coach for professionals and students — benchmarks, counters, role-play, career paths, and campus verification.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0f1a",

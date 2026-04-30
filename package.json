@@ -2,12 +2,15 @@
   "name": "negotiation-coach",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
     "predeploy": "node scripts/regression.js --env production --url https://negotiation-coach-pearl.vercel.app",
     "regression:prod": "node scripts/regression.js --env production --url https://negotiation-coach-pearl.vercel.app",
     "report:users": "node scripts/user-billing-report.mjs",
     "fix:tslib": "node scripts/ensure-tslib.cjs",
     "postinstall": "node scripts/ensure-tslib.cjs",
+    "test:student-verify": "node scripts/test-student-verify.mjs",
+    "diagnose:supabase-university": "node scripts/diagnose-supabase-university.mjs",
     "dev": "vite",
     "build": "vite build"
   },

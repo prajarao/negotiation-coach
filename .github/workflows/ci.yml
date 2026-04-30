@@ -1,0 +1,127 @@
+name: CI & Regression
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      regression_url:
+        description: Base URL to run regression against (no trailing slash)
+        required: false
+        default: https://negotiation-coach-pearl.vercel.app
+      skip_deploy_wait:
+        description: Skip the 90s wait (use if Vercel already deployed this commit)
+        required: false
+        type: boolean
+        default: false
+
+env:
+  DEFAULT_PRODUCTION_URL: https://negotiation-coach-pearl.vercel.app
+
+jobs:
+  pr-build:
+    name: PR build & optional preview regression
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # If repository variable REGRESSION_PREVIEW_URL is set (e.g. Vercel preview
+      # pattern or a staging host), run the full suite against that URL on every PR.
+      - name: Regression against preview URL (optional)
+        if: ${{ vars.REGRESSION_PREVIEW_URL != '' }}
+        env:
+          REGRESSION_AUTH_TOKEN: ${{ secrets.REGRESSION_AUTH_TOKEN }}
+        run: node scripts/regression.js --env production --url "${{ vars.REGRESSION_PREVIEW_URL }}" --report
+
+      - name: Upload regression report (PR)
+        if: ${{ always() && vars.REGRESSION_PREVIEW_URL != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-report-pr-${{ github.run_number }}
+          path: regression-report-*.txt
+          if-no-files-found: ignore
+
+  main-regression:
+    name: Main — build, wait for Vercel, production regression
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Resolve regression target URL
+        id: target
+        shell: bash
+        env:
+          VERCEL_PRODUCTION_URL: ${{ vars.VERCEL_PRODUCTION_URL }}
+        run: |
+          DEFAULT="${DEFAULT_PRODUCTION_URL}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INPUT="${{ github.event.inputs.regression_url }}"
+            if [ -n "$INPUT" ]; then
+              echo "url=$INPUT" >> "$GITHUB_OUTPUT"
+            else
+              echo "url=$DEFAULT" >> "$GITHUB_OUTPUT"
+            fi
+          elif [ -n "$VERCEL_PRODUCTION_URL" ]; then
+            echo "url=$VERCEL_PRODUCTION_URL" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=$DEFAULT" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for Vercel production deploy
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.event.inputs.skip_deploy_wait != 'true'
+        run: |
+          echo "Waiting 90s so Vercel can finish deploying main (runs in parallel with this job)."
+          sleep 90
+
+      - name: Skip deploy wait (manual run)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.skip_deploy_wait == 'true'
+        run: echo "Skipping deploy wait."
+
+      - name: Full regression
+        env:
+          REGRESSION_AUTH_TOKEN: ${{ secrets.REGRESSION_AUTH_TOKEN }}
+        run: node scripts/regression.js --env production --url "${{ steps.target.outputs.url }}" --report
+
+      - name: Upload regression report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-report-main-${{ github.run_number }}
+          path: regression-report-*.txt
+          if-no-files-found: ignore
