@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ClerkProvider } from "@clerk/clerk-react";
 import OfferAdvisor from "./App.jsx";
+import { RegionPreferencesProvider } from "./context/RegionPreferencesContext.jsx";
 import { offeradvisorClerkAppearance } from "./clerkAppearance.js";
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -23,7 +24,9 @@ createRoot(document.getElementById("root")).render(
       signUpFallbackRedirectUrl="/app"
       appearance={offeradvisorClerkAppearance()}
     >
-      <OfferAdvisor />
+      <RegionPreferencesProvider>
+        <OfferAdvisor />
+      </RegionPreferencesProvider>
     </ClerkProvider>
   </StrictMode>
 );

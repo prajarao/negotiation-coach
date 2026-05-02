@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useAuth, useUser } from "@clerk/clerk-react";
 import StudentCareerPathExplorer from "./StudentCareerPathExplorer.jsx";
 import { inferSalaryCurrencyFromLocation, salaryCurrencySymbol } from "../utils/inferSalaryCurrency.js";
 import { salaryBenchmarkMethodologyLine } from "../utils/salaryBenchmarkMethodology.js";
+import { useRegionPreferences } from "../context/RegionPreferencesContext.jsx";
 
 /**
  * Shared benchmark result UI for single-offer and compare flows.
@@ -121,6 +122,7 @@ function emptyCompareOffer() {
  * GET /api/student-verification-status hydrates verified state after refresh.
  */
 export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPlan = "free" }) {
+  const { preset, regionSeq } = useRegionPreferences();
   const { getToken, isSignedIn } = useAuth();
   const { user } = useUser();
   const [path, setPath] = useState(null);
@@ -180,6 +182,55 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
   const [compareMentorNotes, setCompareMentorNotes] = useState("");
   /** Free tier: one dual-offer compare (tracked server-side); cached locally for UX. */
   const [studentCompareQuotaExhausted, setStudentCompareQuotaExhausted] = useState(false);
+
+  const studentSalaryHydratedRef = useRef(false);
+  useLayoutEffect(() => {
+    if (studentSalaryHydratedRef.current) return;
+    studentSalaryHydratedRef.current = true;
+    let hasBench = false;
+    try {
+      hasBench = !!localStorage.getItem(STORAGE_KEY_STUDENT_BENCHMARK);
+    } catch {
+      /* ignore */
+    }
+    if (!hasBench) {
+      setStudentJobLocation(preset.defaultLocation);
+      setStudentCurrencyUsed(preset.currency);
+    }
+  }, [preset.defaultLocation, preset.currency]);
+
+  /** Region switch — wipe Students salary/compare/five-year state (verification untouched). */
+  useEffect(() => {
+    if (regionSeq === 0) return;
+    setStudentJobTitle("");
+    setStudentJobLocation(preset.defaultLocation);
+    setStudentOfferedSalary("");
+    setStudentCareerStage("new_grad");
+    setStudentExperienceYears(0);
+    setStudentSalaryLoading(false);
+    setStudentSalaryData(null);
+    setStudentSalaryError(null);
+    setStudentCurrencyUsed(preset.currency);
+    setBenchmarkMode("single");
+    setCompareA(emptyCompareOffer());
+    setCompareB(emptyCompareOffer());
+    setCompareLoading(false);
+    setCompareError(null);
+    setCompareResultA(null);
+    setCompareResultB(null);
+    setCompareCurrencyA(preset.currency);
+    setCompareCurrencyB(preset.currency);
+    setCompareMentorNotes("");
+    setFiveYearSalaryA("");
+    setFiveYearSalaryB("");
+    setFiveYearRaisePct("3");
+    try {
+      if (user?.id) sessionStorage.removeItem(`oa_free_student_compare_used_${user.id}`);
+    } catch {
+      /* ignore */
+    }
+    setStudentCompareQuotaExhausted(false);
+  }, [regionSeq, preset.defaultLocation, preset.currency, preset.id, user?.id]);
 
   useEffect(() => {
     try {
@@ -415,7 +466,7 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
     setStudentSalaryLoading(true);
     setStudentSalaryData(null);
     setStudentSalaryError(null);
-    const currency = inferSalaryCurrencyFromLocation(studentJobLocation);
+    const currency = inferSalaryCurrencyFromLocation(studentJobLocation, preset.currency);
     setStudentCurrencyUsed(currency);
     try {
       const jwt = await getToken();
@@ -428,7 +479,7 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
         body: JSON.stringify({
           jobTitle: studentJobTitle.trim(),
-          location: studentJobLocation.trim() || "United States",
+          location: studentJobLocation.trim() || preset.apiFallbackLocation,
           offeredSalary: studentOfferedSalary ? parseFloat(studentOfferedSalary) : null,
           currency,
           careerStage: studentCareerStage,
@@ -468,10 +519,10 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
   const fetchSalaryForOfferInput = async (offer, compareLeg = null) => {
     const jwt = await getToken();
     if (!jwt) return { ok: false, error: "Could not load session. Try signing in again.", data: null };
-    const currency = inferSalaryCurrencyFromLocation(offer.location);
+    const currency = inferSalaryCurrencyFromLocation(offer.location, preset.currency);
     const body = {
       jobTitle: offer.jobTitle.trim(),
-      location: offer.location.trim() || "United States",
+      location: offer.location.trim() || preset.apiFallbackLocation,
       offeredSalary: offer.offeredSalary ? parseFloat(String(offer.offeredSalary)) : null,
       currency,
       careerStage: offer.careerStage,
@@ -560,7 +611,7 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
 
   const studentDiscussCoach = async () => {
     if (!studentSalaryData?.median || typeof onDiscussWithCoach !== "function") return;
-    const currency = studentCurrencyUsed || inferSalaryCurrencyFromLocation(studentJobLocation);
+    const currency = studentCurrencyUsed || inferSalaryCurrencyFromLocation(studentJobLocation, preset.currency);
     const sym = studentSalaryData.currencySymbol || salaryCurrencySymbol(currency);
     const offerNum = studentOfferedSalary ? parseFloat(studentOfferedSalary) : NaN;
     const offerPart =
@@ -666,9 +717,9 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
 
   const primaryEmail = user?.primaryEmailAddress?.emailAddress || "";
   const studentSymDisplay = studentSalaryData?.currencySymbol || salaryCurrencySymbol(studentCurrencyUsed);
-  const inferredStudentCurrency = inferSalaryCurrencyFromLocation(studentJobLocation);
-  const inferredCompareA = inferSalaryCurrencyFromLocation(compareA.location);
-  const inferredCompareB = inferSalaryCurrencyFromLocation(compareB.location);
+  const inferredStudentCurrency = inferSalaryCurrencyFromLocation(studentJobLocation, preset.currency);
+  const inferredCompareA = inferSalaryCurrencyFromLocation(compareA.location, preset.currency);
+  const inferredCompareB = inferSalaryCurrencyFromLocation(compareB.location, preset.currency);
 
   const compareSameCurrency =
     compareResultA &&

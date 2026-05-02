@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
 import { useUser, useAuth, UserProfile } from "@clerk/clerk-react";
 import AuthModal from "./AuthModal.jsx";
 import { offeradvisorClerkAppearance } from "./clerkAppearance.js";
@@ -9,6 +9,8 @@ import PlaybookTab from "./components/PlaybookTab.jsx";
 import AlexRoleplayTab from "./components/AlexRoleplayTab.jsx";
 import StudentMvpTab from "./components/StudentMvpTab.jsx";
 import { salaryBenchmarkMethodologyLine } from "./utils/salaryBenchmarkMethodology.js";
+import { useRegionPreferences } from "./context/RegionPreferencesContext.jsx";
+import { REGION_OPTIONS, getPreset } from "./utils/regionPresets.js";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -286,6 +288,16 @@ function ChatStrip({ onSend, loading, T, tabId }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function OfferAdvisor() {
+  const {
+    preset,
+    regionId,
+    regionSeq,
+    requestRegionChange,
+    pendingNextId,
+    cancelPendingRegionChange,
+    confirmPendingRegionChange,
+  } = useRegionPreferences();
+
   // ── Clerk auth ───────────────────────────────────────────────────────────────
   const { isLoaded, isSignedIn, user } = useUser();
   const { signOut, getToken }          = useAuth();
@@ -484,6 +496,36 @@ export default function OfferAdvisor() {
   const [lastRole,       setLastRole]       = useState("");
   const [lastLocation,   setLastLocation]   = useState("");
 
+  /** Apply saved region defaults to Benchmark once on first paint (default US). */
+  const benchmarkRegionHydratedRef = useRef(false);
+  useLayoutEffect(() => {
+    if (benchmarkRegionHydratedRef.current) return;
+    benchmarkRegionHydratedRef.current = true;
+    setJobLocation(preset.defaultLocation);
+    setSelectedCurrency(preset.currency);
+  }, [preset.defaultLocation, preset.currency]);
+
+  /** Region switch confirmed — wipe salary modules + coach thread per plan. */
+  useEffect(() => {
+    if (regionSeq === 0) return;
+    setSalaryData(null);
+    setSalaryLoading(false);
+    setJobTitle("");
+    setOfferedSalary("");
+    setJobLocation(preset.defaultLocation);
+    setSelectedCurrency(preset.currency);
+    setLastRole("");
+    setLastLocation("");
+    setOffer({ base: "", bonus: "", equity: "", equityYears: "4", signing: "", pto: "15" });
+    setCounterResult(null);
+    setCalcLoading(false);
+    const welcomeAfterReset =
+      isLoaded && isSignedIn && userName ? welcomeMessageFor(userName) : WELCOME_MESSAGE;
+    setMessages([welcomeAfterReset]);
+    setLoading(false);
+    setInput("");
+  }, [regionSeq, preset.defaultLocation, preset.currency, preset.id, isLoaded, isSignedIn, userName]);
+
   // Calculator state
   const [calcLoading,   setCalcLoading]   = useState(false);
   const [counterResult, setCounterResult] = useState(null);
@@ -644,7 +686,7 @@ export default function OfferAdvisor() {
         method: "POST",
         headers: { "Content-Type": "application/json",
 				"Authorization": `Bearer ${token}`		},
-        body: JSON.stringify({ jobTitle: jobTitle.trim(), location: jobLocation.trim() || "United States", offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null, currency: autoCurrency }),
+        body: JSON.stringify({ jobTitle: jobTitle.trim(), location: jobLocation.trim() || preset.apiFallbackLocation, offeredSalary: offeredSalary ? parseFloat(offeredSalary) : null, currency: autoCurrency }),
       });
       const data = await res.json();
       setSalaryData(data);
@@ -658,7 +700,7 @@ export default function OfferAdvisor() {
             userName: user.firstName || "User",
             sessionType: "benchmark",
             role: jobTitle,
-            location: jobLocation || "United States",
+            location: jobLocation || preset.apiFallbackLocation,
             average: data.median,
             p25: data.p25,
             p75: data.p75,
@@ -1866,6 +1908,83 @@ export default function OfferAdvisor() {
         </div>
       )}
 
+      {pendingNextId ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="oa-region-switch-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) cancelPendingRegionChange();
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 10075,
+            background: "rgba(0,0,0,0.65)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 420,
+              padding: "1.35rem",
+              borderRadius: "14px",
+              border: `1px solid ${T.border}`,
+              background: T.headerBg,
+              boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
+            }}
+          >
+            <h2 id="oa-region-switch-title" style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.15rem", color: T.textPrimary, marginBottom: "0.65rem" }}>
+              Switch region?
+            </h2>
+            <p style={{ fontSize: "0.84rem", color: T.textSecondary, lineHeight: 1.65, marginBottom: "1rem" }}>
+              Switching to <strong style={{ color: T.textPrimary }}>{getPreset(pendingNextId).label}</strong> clears benchmarks, Students offer drafts, career path explorer, calculator inputs, and restarts your coach chat (fresh defaults for location and currency).
+            </p>
+            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={cancelPendingRegionChange}
+                style={{
+                  padding: "0.55rem 1rem",
+                  borderRadius: "10px",
+                  border: `1px solid ${T.border}`,
+                  background: "transparent",
+                  color: T.textMuted,
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmPendingRegionChange}
+                style={{
+                  padding: "0.55rem 1rem",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "#1d4ed8",
+                  color: "white",
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Stripe checkout success banner */}
       {checkoutSuccess && (
         <div style={{
@@ -2069,6 +2188,29 @@ export default function OfferAdvisor() {
           <button onClick={toggleTheme} style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
             {isDark ? "☀ Light" : "☾ Dark"}
           </button>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.68rem", color: T.textMuted, whiteSpace: "nowrap" }}>
+            <span>Region</span>
+            <select
+              value={regionId}
+              onChange={(e) => requestRegionChange(e.target.value)}
+              aria-label="Salary region; switching clears drafts and restarts coach"
+              style={{
+                padding: "0.25rem 0.45rem",
+                borderRadius: "8px",
+                border: `1px solid ${T.border}`,
+                background: T.surfaceBg,
+                color: T.textPrimary,
+                fontSize: "0.72rem",
+                fontFamily: "inherit",
+                cursor: "pointer",
+                maxWidth: "min(140px, 28vw)",
+              }}
+            >
+              {REGION_OPTIONS.map((o) => (
+                <option key={o.id} value={o.id}>{o.pickerLabel}</option>
+              ))}
+            </select>
+          </label>
           <button onClick={() => { setShowOnboarding(true); setOnboardingStep(0); }} style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
             ? Help
           </button>

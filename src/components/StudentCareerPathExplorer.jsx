@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useRegionPreferences } from "../context/RegionPreferencesContext.jsx";
 
 const STORAGE_KEY = "offeradvisor_student_career_path_v1";
 
@@ -23,11 +24,29 @@ function emptyAssessment() {
  * @param {boolean} props.isSignedIn
  */
 export default function StudentCareerPathExplorer({ T, onDiscussWithCoach, getToken, isSignedIn }) {
+  const { regionSeq } = useRegionPreferences();
   const [assessment, setAssessment] = useState(() => emptyAssessment());
   /** @type {null | { baselineEcho: object, alternatives: object[], globalDisclaimer: string, confidenceNote?: string }} */
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const resetForm = useCallback(() => {
+    setAssessment(emptyAssessment());
+    setResult(null);
+    setError(null);
+    setLoading(false);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (regionSeq === 0) return;
+    resetForm();
+  }, [regionSeq, resetForm]);
 
   useEffect(() => {
     try {
@@ -150,17 +169,6 @@ export default function StudentCareerPathExplorer({ T, onDiscussWithCoach, getTo
     ];
     await onDiscussWithCoach(lines.filter(Boolean).join("\n"));
   }, [result, assessment, onDiscussWithCoach]);
-
-  const resetForm = () => {
-    setAssessment(emptyAssessment());
-    setResult(null);
-    setError(null);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-  };
 
   return (
     <div
