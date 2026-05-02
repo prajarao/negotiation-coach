@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { SignIn, SignUp, useUser } from "@clerk/clerk-react";
 import { offeradvisorClerkAppearance } from "./clerkAppearance.js";
+import { BRIDGE_EXPANDED, BRIDGE_TAB_LABEL } from "./constants/bridgeProgram.js";
 
 /**
  * AuthModal
@@ -293,7 +294,7 @@ export default function AuthModal({ mode, onClose, T }) {
                   >
                     <div style={{ marginBottom: "0.6rem" }}>
                       <div style={{ fontSize: "0.68rem", color: isActiveStudentPlus ? "#94a3b8" : "#5eead4", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>
-                        {isActiveStudentPlus ? "Current plan" : "Students & campus"}
+                        {isActiveStudentPlus ? "Current plan" : `${BRIDGE_TAB_LABEL} & campus`}
                       </div>
                       <div style={{ fontSize: "0.95rem", fontWeight: 600, color: "#e2e8f0" }}>Student Plus</div>
                       <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginTop: "6px" }}>
@@ -304,8 +305,8 @@ export default function AuthModal({ mode, onClose, T }) {
                     </div>
                     <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", flex: 1 }}>
                       {[
-                        "Students hub — benchmarks, compare offers, paths & campus verification",
-                        "Coach chat strip while you're on Students (Share offer tab is Sprint / Pro)",
+                        `${BRIDGE_TAB_LABEL} workspace — benchmarks, compare offers, paths & campus verification (${BRIDGE_EXPANDED})`,
+                        `Coach chat strip while you're on ${BRIDGE_TAB_LABEL} (Share offer tab is Sprint / Pro)`,
                         "Built for new grads & campus programs",
                         "Optional invite code for school pricing · campuses can grant access",
                       ].map((f) => (

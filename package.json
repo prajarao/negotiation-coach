@@ -11,6 +11,7 @@
     "postinstall": "node scripts/ensure-tslib.cjs",
     "test:student-verify": "node scripts/test-student-verify.mjs",
     "diagnose:supabase-university": "node scripts/diagnose-supabase-university.mjs",
+    "extract:brahmasutras": "node scripts/extract-brahmasutras.mjs",
     "dev": "vite",
     "build": "vite build"
   },
@@ -38,6 +39,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "pdf-parse": "^2.4.5",
     "vite": "^8.0.1"
   }
 }

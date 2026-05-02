@@ -11,6 +11,12 @@ import StudentMvpTab from "./components/StudentMvpTab.jsx";
 import { salaryBenchmarkMethodologyLine } from "./utils/salaryBenchmarkMethodology.js";
 import { useRegionPreferences } from "./context/RegionPreferencesContext.jsx";
 import { REGION_OPTIONS, getPreset } from "./utils/regionPresets.js";
+import {
+  BRIDGE_EXPANDED,
+  BRIDGE_TAB_DESC,
+  BRIDGE_TAB_LABEL,
+  BRIDGE_TAB_SHORT_LABEL,
+} from "./constants/bridgeProgram.js";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -43,9 +49,9 @@ I'm your personal offer negotiation coach — the same sharp, specific advice to
 
 **Professionals:** Tell me about your situation below — role, company, numbers, and leverage.
 
-**Students & new grads:** Open the **Students** tab for first-offer benchmarks (single or compare), a five-year cash snapshot, **Career path explorer** (skills-grounded trajectory ideas vs your default plan), and **School access** if your university partners with us (verify with your school email or invite code).
+**Students & new grads:** Open the **${BRIDGE_TAB_LABEL}** tab — **${BRIDGE_EXPANDED}** — your structured pathway from campus to first role and lasting career momentum. Inside you'll find first-offer benchmarks (single or compare), a five-year cash snapshot, **Career path explorer** (skills-grounded trajectory ideas vs your default plan), and **School access** when your university partners with us (verify with your school email or invite code).
 
-*The more you share in chat or in Students tools, the sharper my coaching gets.*`,
+*The more you share in chat or in BRIDGE workflows, the sharper my coaching gets.*`,
 };
 
 // Personalised version shown when we know the user's name
@@ -55,12 +61,12 @@ const welcomeMessageFor = (name) => ({
 
 Ready to negotiate? Tell me about your offer — role, company, and the numbers on the table.
 
-Or jump to **Students** for benchmarks, path explorer, and campus verification if you're finishing school.`,
+Or jump to **${BRIDGE_TAB_LABEL}** (${BRIDGE_EXPANDED}) for benchmarks, career paths, and campus verification while you finish school.`,
 });
 
 const TABS = [
   { id: "coach",     label: "Share offer", shortLabel: "Coach",     icon: "coach",     desc: "Tell me about your offer" },
-  { id: "student",   label: "Students",    shortLabel: "Students",  icon: "student",   desc: "First offers · paths · campus access" },
+  { id: "student", label: BRIDGE_TAB_LABEL, shortLabel: BRIDGE_TAB_SHORT_LABEL, icon: "student", desc: BRIDGE_TAB_DESC },
   { id: "benchmark", label: "Benchmark",   shortLabel: "Benchmark", icon: "benchmark", desc: "Compare to market data" },
   { id: "calculate", label: "Calculate",   shortLabel: "Calculate", icon: "calculate", desc: "Build your counter-offer" },
   { id: "practice",  label: "Practice",    shortLabel: "Practice",  icon: "practice",  desc: "Role-play the conversation" },
@@ -810,9 +816,17 @@ export default function OfferAdvisor() {
   };
 
   const onboardingSlides = [
-    { title: "Welcome to OfferAdvisor", body: "AI negotiation coaching for professionals — plus a dedicated Students hub for first offers, comparing paths, career exploration, and university verification when your school partners with us.", cta: "How does it work?" },
+    {
+      title: "Welcome to OfferAdvisor",
+      body: `AI negotiation coaching for professionals — plus ${BRIDGE_TAB_LABEL}, our early-career program (${BRIDGE_EXPANDED}) for first offers, paths, career exploration, and campus verification when your school partners with us.`,
+      cta: "How does it work?",
+    },
     { title: "Start by sharing your offer", body: "Type anything about your situation in the chat. Role, company, offer numbers. The coach asks the right questions.", cta: "Got it" },
-    { title: "Students & universities", body: "Use the Students tab for market checks on one or two offers, a five-year snapshot, Career path explorer, and School access with your campus email or invite code.", cta: "Next" },
+    {
+      title: `${BRIDGE_TAB_LABEL} · campus & careers`,
+      body: `Open ${BRIDGE_TAB_LABEL} for market checks on one or two offers, a five-year snapshot, Career path explorer, and School access with your campus email or invite code — built around ${BRIDGE_EXPANDED} as you move toward your first role.`,
+      cta: "Next",
+    },
     { title: "Benchmark your numbers", body: "Use the Benchmark tab to see where your offer sits against market ranges — by role, city, and country.", cta: "Makes sense" },
     { title: "Build your counter-offer", body: "The Calculate tab shows exactly what to counter with and your 4-year financial gain if you negotiate.", cta: "Love it" },
     { title: "Practice the conversation", body: "Switch to Practice and the AI plays your recruiter. Get coached after every exchange.", cta: "Let's go" },
@@ -857,7 +871,7 @@ export default function OfferAdvisor() {
         <p style={{ color: T.textSecondary, marginBottom: "1.5rem", fontSize: "0.95rem", lineHeight: 1.6 }}>
           Your counter offer could be worth <strong>$500K+</strong> over 4 years — unlock the full calculator to see exact numbers.
           <br />
-          <span style={{ fontSize: "0.88rem", opacity: 0.95 }}>New grads: use <strong>Students</strong> for offer benchmarks &amp; career paths; universities can verify campus access there.</span>
+          <span style={{ fontSize: "0.88rem", opacity: 0.95 }}>New grads: open <strong>{BRIDGE_TAB_LABEL}</strong> ({BRIDGE_EXPANDED}) for offer benchmarks &amp; career paths; universities verify campus access there.</span>
         </p>
 
         {/* Price highlight */}
@@ -1028,18 +1042,18 @@ export default function OfferAdvisor() {
       let hidePricingFootnote = false;
 
       if (pathway && isProfessionalPaidPlan(userPlan) && activeTab === "student") {
-        title = "Students hub isn't on Sprint / Pro";
+        title = `${BRIDGE_TAB_LABEL} isn't on Sprint / Pro`;
         description =
-          "Offer Sprint and Offer in Hand focus on negotiation workflows — Share offer, Benchmark, Calculator, Practice, and Log win. The Students hub is for Student Plus and for signed-out or Free exploration.";
+          `Offer Sprint and Offer in Hand focus on negotiation workflows — Share offer, Benchmark, Calculator, Practice, and Log win. ${BRIDGE_TAB_LABEL} (${BRIDGE_EXPANDED}) is for Student Plus and for signed-out or Free exploration.`;
         primaryAction = {
           label: "Go to Share offer →",
           onClick: () => setActiveTab("coach"),
         };
         hidePricingFootnote = true;
       } else if (pathway && isStudentPaidPlan(userPlan)) {
-        title = "Student Plus — Students hub only";
+        title = `Student Plus — ${BRIDGE_TAB_LABEL} only`;
         description =
-          "Your plan unlocks the Students tab (benchmarks, compare offers, paths, campus verification). Upgrade to Offer Sprint or Offer in Hand for Share offer, Benchmark, Calculator, Practice, Log win, and Pro-only tools.";
+          `Your plan unlocks ${BRIDGE_TAB_LABEL} (benchmarks, compare offers, paths, campus verification). Upgrade to Offer Sprint or Offer in Hand for Share offer, Benchmark, Calculator, Practice, Log win, and Pro-only tools.`;
         primaryAction = {
           label: "View upgrade options →",
           onClick: () => setAuthModal("upgrade"),
@@ -1050,10 +1064,10 @@ export default function OfferAdvisor() {
           : "Sign in, then upgrade to Offer in Hand (Pro) to use the voice mock interview with Alex.";
       } else if (!isSignedIn) {
         description =
-          "Create a free account. Student Plus ($19.99) unlocks the Students pathway; Offer Sprint ($29) unlocks Share offer and negotiation tools; Pro ($49) adds lifetime professional tools. Free accounts can explore both Students and Share offer at starter limits.";
+          `Create a free account. Student Plus ($19.99) unlocks ${BRIDGE_TAB_LABEL}; Offer Sprint ($29) unlocks Share offer and negotiation tools; Pro ($49) adds lifetime professional tools. Free accounts can explore both ${BRIDGE_TAB_LABEL} and Share offer at starter limits.`;
       } else {
         description =
-          "Offer Sprint ($29) or Pro ($49) unlock Benchmark, Calculator, Practice, Log win, and Pro extras. Student Plus is Students-hub-only — upgrade if you need this tab.";
+          `Offer Sprint ($29) or Pro ($49) unlock Benchmark, Calculator, Practice, Log win, and Pro extras. Student Plus is ${BRIDGE_TAB_LABEL}-only — upgrade if you need professional negotiation tabs.`;
       }
 
       return (
@@ -1717,7 +1731,7 @@ export default function OfferAdvisor() {
                   fontFamily: "inherit",
                 }}
               >
-                Go to {pathwayBarrier.suggestTab === "student" ? "Students" : "Share offer"}
+                Go to {pathwayBarrier.suggestTab === "student" ? BRIDGE_TAB_LABEL : "Share offer"}
               </button>
             </div>
           </div>
@@ -1943,7 +1957,7 @@ export default function OfferAdvisor() {
               Switch region?
             </h2>
             <p style={{ fontSize: "0.84rem", color: T.textSecondary, lineHeight: 1.65, marginBottom: "1rem" }}>
-              Switching to <strong style={{ color: T.textPrimary }}>{getPreset(pendingNextId).label}</strong> clears benchmarks, Students offer drafts, career path explorer, calculator inputs, and restarts your coach chat (fresh defaults for location and currency).
+              Switching to <strong style={{ color: T.textPrimary }}>{getPreset(pendingNextId).label}</strong> clears benchmarks, {BRIDGE_TAB_LABEL} offer drafts, career path explorer, calculator inputs, and restarts your coach chat (fresh defaults for location and currency).
             </p>
             <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
               <button
@@ -2389,11 +2403,11 @@ export default function OfferAdvisor() {
                 if (locked) {
                   if (isSignedIn && pathwayTabBlocked(userPlan, tab.id)) {
                     const suggestTab = userPlan === "student_plus" ? "student" : "coach";
-                    const title = suggestTab === "student" ? "Students hub only" : "Professional tools";
+                    const title = suggestTab === "student" ? `${BRIDGE_TAB_LABEL} only` : "Professional tools";
                     const body =
                       userPlan === "student_plus"
-                        ? "Student Plus includes the Students tab only. Upgrade to Sprint or Pro to open this section."
-                        : "Offer Sprint / Pro doesn't include the Students hub — that's for Student Plus (and Free exploration).";
+                        ? `Student Plus includes ${BRIDGE_TAB_LABEL} only. Upgrade to Sprint or Pro to open professional negotiation tools.`
+                        : `Offer Sprint / Pro doesn't include ${BRIDGE_TAB_LABEL} — that's for Student Plus (and Free exploration).`;
                     setPathwayBarrier({ title, body, suggestTab });
                     return;
                   }

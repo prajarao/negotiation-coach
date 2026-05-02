@@ -4,6 +4,11 @@ import StudentCareerPathExplorer from "./StudentCareerPathExplorer.jsx";
 import { inferSalaryCurrencyFromLocation, salaryCurrencySymbol } from "../utils/inferSalaryCurrency.js";
 import { salaryBenchmarkMethodologyLine } from "../utils/salaryBenchmarkMethodology.js";
 import { useRegionPreferences } from "../context/RegionPreferencesContext.jsx";
+import {
+  BRIDGE_EXPANDED,
+  BRIDGE_PROGRAM_SUMMARY,
+  BRIDGE_TAB_LABEL,
+} from "../constants/bridgeProgram.js";
 
 /**
  * Shared benchmark result UI for single-offer and compare flows.
@@ -749,14 +754,17 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
       <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
         <div>
           <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.35rem", color: T.textPrimary, marginBottom: "0.35rem" }}>
-            Students & fresh grads
+            {BRIDGE_TAB_LABEL}
           </h2>
+          <p style={{ fontSize: "0.78rem", color: T.textMuted, margin: "0 0 0.5rem", lineHeight: 1.55, fontWeight: 600, letterSpacing: "0.02em" }}>
+            {BRIDGE_EXPANDED}
+          </p>
           <p style={{ fontSize: "0.82rem", color: T.textSecondary, margin: 0, lineHeight: 1.6 }}>
-            Negotiation coaching for professionals — plus benchmarks, compare offers, career path explorer, and university verification when your school partners with us.
+            {BRIDGE_PROGRAM_SUMMARY} Use the sections below for benchmarks, compare offers, career path explorer, and campus verification when your school partners with us.
           </p>
         </div>
 
-        <div role="tablist" aria-label="Student tools" style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem", marginBottom: "0.35rem" }}>
+        <div role="tablist" aria-label={`${BRIDGE_TAB_LABEL} sections`} style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem", marginBottom: "0.35rem" }}>
           {[
             { id: "paths", label: "Career paths" },
             { id: "offers", label: "Offers & pay" },
