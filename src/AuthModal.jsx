@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { SignIn, SignUp, useUser } from "@clerk/clerk-react";
 import { offeradvisorClerkAppearance } from "./clerkAppearance.js";
-import { BRIDGE_EXPANDED, BRIDGE_TAB_LABEL } from "./constants/bridgeProgram.js";
+import { BRIDGE_EXPANDED, BRIDGE_TAB_LABEL, BRIDGE_TAB_SHORT_LABEL } from "./constants/bridgeProgram.js";
 
 /**
  * AuthModal
@@ -305,7 +305,7 @@ export default function AuthModal({ mode, onClose, T }) {
                     </div>
                     <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", flex: 1 }}>
                       {[
-                        `${BRIDGE_TAB_LABEL} workspace — benchmarks, compare offers, paths & campus verification (${BRIDGE_EXPANDED})`,
+                        `${BRIDGE_TAB_LABEL} — benchmarks, compare offers, paths & campus verification (${BRIDGE_EXPANDED})`,
                         `Coach chat strip while you're on ${BRIDGE_TAB_LABEL} (Share offer tab is Sprint / Pro)`,
                         "Built for new grads & campus programs",
                         "Optional invite code for school pricing · campuses can grant access",

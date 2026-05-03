@@ -142,7 +142,7 @@ const getCurrencySymbol = (code) => CURRENCIES.find((c) => c.code === code)?.sym
 const PLANS = {
   free:          { label: "Free",           color: "#64748b" },
   sprint:        { label: "Offer Sprint",   color: "#2563eb" },
-  student_plus:  { label: "Student Plus",   color: "#0d9488" },
+  student_plus:  { label: "Student Plus",   hint: "BRIDGE tab — for students & new grads", color: "#0d9488" },
   pro:           { label: "Offer in Hand",  color: "#7c3aed" },
 };
 
@@ -247,8 +247,8 @@ function LockScreen({ title, description, T, onUpgrade, isSignedIn, primaryActio
       {!hidePricingFootnote ? (
         <p style={{ fontSize: "0.72rem", color: T.textMuted, marginTop: "0.6rem" }}>
           {isSignedIn
-            ? "Student Plus $19.99 · Sprint $29 · Pro $49 · Student Plus & Sprint = 30 days"
-            : "Free account · Student Plus $19.99 · Sprint $29 · Pro $49 (no subscription)"}
+            ? "Student Plus $19.99 (BRIDGE for students) · Sprint $29 · Pro $49 · Student Plus & Sprint = 30 days"
+            : "Free account · Student Plus $19.99 (BRIDGE for students) · Sprint $29 · Pro $49 (no subscription)"}
         </p>
       ) : null}
     </div>
@@ -818,12 +818,12 @@ export default function OfferAdvisor() {
   const onboardingSlides = [
     {
       title: "Welcome to OfferAdvisor",
-      body: `AI negotiation coaching for professionals — plus ${BRIDGE_TAB_LABEL}, our early-career program (${BRIDGE_EXPANDED}) for first offers, paths, career exploration, and campus verification when your school partners with us.`,
+      body: `AI negotiation coaching for professionals — plus ${BRIDGE_TAB_SHORT_LABEL} (${BRIDGE_EXPANDED}), the student & new-grad workspace for first offers, paths, career exploration, and campus verification when your school partners with us.`,
       cta: "How does it work?",
     },
     { title: "Start by sharing your offer", body: "Type anything about your situation in the chat. Role, company, offer numbers. The coach asks the right questions.", cta: "Got it" },
     {
-      title: `${BRIDGE_TAB_LABEL} · campus & careers`,
+      title: `Students · ${BRIDGE_TAB_SHORT_LABEL} & campus`,
       body: `Open ${BRIDGE_TAB_LABEL} for market checks on one or two offers, a five-year snapshot, Career path explorer, and School access with your campus email or invite code — built around ${BRIDGE_EXPANDED} as you move toward your first role.`,
       cta: "Next",
     },
@@ -871,7 +871,7 @@ export default function OfferAdvisor() {
         <p style={{ color: T.textSecondary, marginBottom: "1.5rem", fontSize: "0.95rem", lineHeight: 1.6 }}>
           Your counter offer could be worth <strong>$500K+</strong> over 4 years — unlock the full calculator to see exact numbers.
           <br />
-          <span style={{ fontSize: "0.88rem", opacity: 0.95 }}>New grads: open <strong>{BRIDGE_TAB_LABEL}</strong> ({BRIDGE_EXPANDED}) for offer benchmarks &amp; career paths; universities verify campus access there.</span>
+          <span style={{ fontSize: "0.88rem", opacity: 0.95 }}><strong>Students:</strong> open <strong>{BRIDGE_TAB_LABEL}</strong> ({BRIDGE_EXPANDED}) for offer benchmarks &amp; career paths; universities verify campus access there.</span>
         </p>
 
         {/* Price highlight */}
@@ -882,9 +882,9 @@ export default function OfferAdvisor() {
           borderRadius: "12px",
           marginBottom: "1.5rem",
         }}>
-          <div style={{ fontSize: "0.85rem", color: "#1d4ed8", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>From Student Plus (USD)</div>
+          <div style={{ fontSize: "0.85rem", color: "#1d4ed8", marginBottom: "0.5rem", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.5px" }}>Student Plus — BRIDGE for students (USD)</div>
           <div style={{ fontSize: "2rem", fontWeight: 700, color: "#1d4ed8" }}>$19.99+</div>
-          <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>Student Plus USD · Sprint &amp; Pro also available</div>
+          <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>BRIDGE workspace · Sprint &amp; Pro are for professional negotiation tools</div>
         </div>
 
         {/* Plan options */}
@@ -896,9 +896,9 @@ export default function OfferAdvisor() {
             borderRadius: "10px",
             border: "1px solid rgba(13,148,136,0.35)",
           }}>
-            <div style={{ fontSize: "0.72rem", color: "#0f766e", marginBottom: "0.35rem", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>Student Plus</div>
+            <div style={{ fontSize: "0.72rem", color: "#0f766e", marginBottom: "0.35rem", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.5px" }}>Student Plus · BRIDGE</div>
             <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "#0f766e" }}>$19.99</div>
-            <div style={{ fontSize: "0.78rem", color: T.textSecondary, lineHeight: 1.45, marginTop: "0.25rem" }}>USD · 30 days · invite codes for campus pricing</div>
+            <div style={{ fontSize: "0.78rem", color: T.textSecondary, lineHeight: 1.45, marginTop: "0.25rem" }}>Students &amp; new grads · USD · 30 days · invite codes for campus pricing</div>
           </div>
           {/* Offer Sprint */}
           <div style={{
@@ -958,7 +958,7 @@ export default function OfferAdvisor() {
           onMouseEnter={(e) => e.currentTarget.style.background = "#1e40af"}
           onMouseLeave={(e) => e.currentTarget.style.background = "#1d4ed8"}
         >
-          Unlock plans — Student Plus · Sprint · Pro
+          Unlock plans — Student Plus (students · BRIDGE) · Sprint · Pro
         </button>
 
         <button
@@ -1067,7 +1067,7 @@ export default function OfferAdvisor() {
           `Create a free account. Student Plus ($19.99) unlocks ${BRIDGE_TAB_LABEL}; Offer Sprint ($29) unlocks Share offer and negotiation tools; Pro ($49) adds lifetime professional tools. Free accounts can explore both ${BRIDGE_TAB_LABEL} and Share offer at starter limits.`;
       } else {
         description =
-          `Offer Sprint ($29) or Pro ($49) unlock Benchmark, Calculator, Practice, Log win, and Pro extras. Student Plus is ${BRIDGE_TAB_LABEL}-only — upgrade if you need professional negotiation tabs.`;
+          `Offer Sprint ($29) or Pro ($49) unlock Benchmark, Calculator, Practice, Log win, and Pro extras. Student Plus is for students — ${BRIDGE_TAB_SHORT_LABEL} workspace only — upgrade if you need professional negotiation tabs.`;
       }
 
       return (
@@ -1843,6 +1843,9 @@ export default function OfferAdvisor() {
             <div style={{ padding: "0.75rem", borderRadius: "10px", background: T.cardBg, border: `1px solid ${T.border}`, marginBottom: "0.75rem" }}>
               <div style={{ fontSize: "0.68rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "0.35rem" }}>Current plan</div>
               <div style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary }}>{PLANS[userPlan]?.label || userPlan}</div>
+              {PLANS[userPlan]?.hint ? (
+                <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.3rem", lineHeight: 1.45 }}>{PLANS[userPlan].hint}</div>
+              ) : null}
               {(userPlan === "sprint" || userPlan === "student_plus") && planExpiresLabel ? (
                 <div style={{ fontSize: "0.78rem", color: T.textMuted, marginTop: "0.4rem" }}>
                   Full access until <strong style={{ color: T.textSecondary }}>{planExpiresLabel}</strong>
