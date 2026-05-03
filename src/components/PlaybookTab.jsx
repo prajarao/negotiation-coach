@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { OA_CONTENT_MAX_PRIMARY, OA_PAGE_PAD_X } from "../constants/appLayout.js";
 
 /**
  * OfferAdvisor Playbook — original material for Pro subscribers.
@@ -189,8 +190,8 @@ export default function PlaybookTab({ T }) {
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ padding: "1.1rem 1rem", borderBottom: `1px solid ${T.border}`, flexShrink: 0, background: T.headerBg }}>
-        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: "0.75rem" }}>
+      <div style={{ padding: `1.15rem ${OA_PAGE_PAD_X}`, borderBottom: `1px solid ${T.border}`, flexShrink: 0, background: T.headerBg }}>
+        <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: "0.75rem" }}>
           <div>
             <div style={{ fontSize: "0.65rem", fontWeight: 600, color: "#a78bfa", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "0.35rem" }}>
               OfferAdvisor Pro
@@ -201,7 +202,7 @@ export default function PlaybookTab({ T }) {
             <p style={{ margin: 0, fontSize: "0.88rem", color: T.textSecondary, lineHeight: 1.5 }}>
               {PLAYBOOK_META.subtitle} · <span style={{ color: T.textMuted }}>v{PLAYBOOK_META.version}</span>
             </p>
-            <p style={{ margin: "0.45rem 0 0", fontSize: "0.78rem", color: T.textMuted, maxWidth: 520, lineHeight: 1.5 }}>
+            <p style={{ margin: "0.45rem 0 0", fontSize: "0.78rem", color: T.textMuted, maxWidth: 640, lineHeight: 1.55 }}>
               {PLAYBOOK_META.tagline} Original guide for subscribers — not a copy of any third-party book or PDF.
             </p>
           </div>
@@ -226,8 +227,8 @@ export default function PlaybookTab({ T }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
-        <article style={{ maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: `1.25rem ${OA_PAGE_PAD_X}` }}>
+        <article style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto" }}>
           {SECTIONS.map((sec) => (
             <section key={sec.id} style={{ marginBottom: "1.75rem" }}>
               <h3 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.08rem", color: T.textPrimary, margin: "0 0 0.65rem", borderBottom: `1px solid ${T.border}`, paddingBottom: "0.35rem" }}>

@@ -9,8 +9,7 @@ import {
   BRIDGE_PROGRAM_SUMMARY,
   BRIDGE_TAB_LABEL,
 } from "../constants/bridgeProgram.js";
-import { trackLandingEvent } from "../utils/landingAnalytics.js";
-
+import { OA_CONTENT_MAX_PRIMARY, OA_PAGE_PAD_X } from "../constants/appLayout.js";
 /**
  * Shared benchmark result UI for single-offer and compare flows.
  */
@@ -146,18 +145,9 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
 
   const STORAGE_KEY_STUDENT_BENCHMARK = "offeradvisor_student_benchmark_v1";
   const STORAGE_KEY_STUDENT_FIVE_YEAR = "offeradvisor_student_five_year_v1";
-  const STORAGE_KEY_STUDENT_SECTION_TAB = "offeradvisor_student_section_tab_v1";
 
-  /** @type {'offers' | 'paths' | 'school'} */
-  const [studentSectionTab, setStudentSectionTab] = useState(() => {
-    try {
-      const v = localStorage.getItem(STORAGE_KEY_STUDENT_SECTION_TAB);
-      if (v === "offers" || v === "paths" || v === "school") return v;
-    } catch {
-      /* ignore */
-    }
-    return "paths";
-  });
+  /** @type {'offers' | 'paths' | 'school' | 'five_year'} Always start on Career paths when opening BRIDGE (tab remounts on each entry). */
+  const [studentSectionTab, setStudentSectionTab] = useState("paths");
 
   const [fiveYearSalaryA, setFiveYearSalaryA] = useState("");
   const [fiveYearSalaryB, setFiveYearSalaryB] = useState("");
@@ -236,6 +226,7 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
       /* ignore */
     }
     setStudentCompareQuotaExhausted(false);
+    setStudentSectionTab("paths");
   }, [regionSeq, preset.defaultLocation, preset.currency, preset.id, user?.id]);
 
   useEffect(() => {
@@ -343,14 +334,6 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
       /* ignore */
     }
   }, [fiveYearSalaryA, fiveYearSalaryB, fiveYearRaisePct]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_STUDENT_SECTION_TAB, studentSectionTab);
-    } catch {
-      /* ignore */
-    }
-  }, [studentSectionTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -751,45 +734,16 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
   })();
 
   return (
-    <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
-      <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+    <div style={{ flex: 1, overflowY: "auto", padding: `1.25rem ${OA_PAGE_PAD_X}` }}>
+      <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
         <div>
           <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.35rem", color: T.textPrimary, marginBottom: "0.35rem" }}>
             {BRIDGE_TAB_LABEL}
           </h2>
           <p style={{ fontSize: "0.82rem", color: T.textSecondary, margin: "0 0 0.65rem", lineHeight: 1.55 }}>
-            Benchmark pay, compare offers, or explore paths — tap a tab below. Expand <strong>About BRIDGE</strong> if you want the full acronym and story.
+            Benchmark pay, compare offers, explore paths, or peek at five-year cash sketches — tap a tab below. Expand{" "}
+            <strong>About BRIDGE</strong> if you want the full acronym and story.
           </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.75rem" }}>
-            {[
-              { stage: "intern", label: "Internship offer" },
-              { stage: "new_grad", label: "New grad offer" },
-              { stage: "early_career", label: "Early career" },
-            ].map(({ stage, label }) => (
-              <button
-                key={stage}
-                type="button"
-                onClick={() => {
-                  setStudentCareerStage(/** @type {"intern" | "new_grad" | "early_career"} */ (stage));
-                  setStudentSectionTab("offers");
-                  trackLandingEvent("oa_bridge_stage_pick", { stage });
-                }}
-                style={{
-                  padding: "0.38rem 0.75rem",
-                  borderRadius: "999px",
-                  border: studentCareerStage === stage ? "2px solid #2563eb" : `1px solid ${T.border}`,
-                  background: studentCareerStage === stage ? "rgba(37, 99, 235, 0.12)" : T.surfaceBg || T.cardBg,
-                  color: T.textPrimary,
-                  fontSize: "0.74rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
           <details
             style={{
               marginBottom: "0.35rem",
@@ -820,6 +774,7 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
           {[
             { id: "paths", label: "Career paths" },
             { id: "offers", label: "Offers & pay" },
+            { id: "five_year", label: "Five-year snapshot" },
             { id: "school", label: "School access" },
           ].map(({ id, label }) => (
             <button
@@ -827,7 +782,7 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
               type="button"
               role="tab"
               aria-selected={studentSectionTab === id}
-              onClick={() => setStudentSectionTab(/** @type {'offers' | 'paths' | 'school'} */ (id))}
+              onClick={() => setStudentSectionTab(/** @type {'offers' | 'paths' | 'school' | 'five_year'} */ (id))}
               style={{
                 padding: "0.45rem 0.95rem",
                 borderRadius: "10px",
@@ -847,8 +802,9 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
         <p style={{ fontSize: "0.72rem", color: T.textMuted, margin: "0 0 1rem", lineHeight: 1.5 }}>
           {studentSectionTab === "paths" &&
             "Grounded lateral career arcs you can compare to your default assumption."}
-          {studentSectionTab === "offers" &&
-            "Market benchmarks, side-by-side offer compare, and a simple five-year cash illustration."}
+          {studentSectionTab === "offers" && "Market benchmarks and side-by-side offer compare — with mentor-style prompts."}
+          {studentSectionTab === "five_year" &&
+            "Illustrative cumulative cash over five years using the same YoY raise on both tracks — not tax, equity, or bonus modeling."}
           {studentSectionTab === "school" && "University verification or tell us you are learning independently."}
         </p>
 
@@ -1439,142 +1395,144 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
             </>
           )}
         </div>
+          </>
+        )}
 
-        <div
-          style={{
-            border: `1px solid ${T.border}`,
-            borderRadius: "12px",
-            padding: "1rem",
-            background: T.cardBg,
-          }}
-        >
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary, margin: "0 0 0.25rem" }}>
-            Five-year earnings snapshot
-          </h3>
-          <p style={{ fontSize: "0.78rem", color: T.textSecondary, margin: "0 0 0.65rem", lineHeight: 1.55 }}>
-            Rough cumulative cash over five years using the same year-over-year raise assumption for both tracks—helpful when headline salaries are close. Not tax, equity, or bonus modeling; illustrative only.
-          </p>
-
-          {canFillFiveYearFromCompare ? (
-            <div style={{ marginBottom: "0.65rem" }}>
-              <button
-                type="button"
-                onClick={fillFiveYearFromCompareOffers}
-                style={{
-                  padding: "0.35rem 0.75rem",
-                  borderRadius: "8px",
-                  border: `1px solid ${T.border}`,
-                  background: T.surfaceBg || T.cardBg,
-                  color: T.textPrimary,
-                  fontSize: "0.76rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                Fill starting salaries from compare offer amounts →
-              </button>
-            </div>
-          ) : null}
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.65rem", marginBottom: "0.65rem" }}>
-            <label>
-              <span style={labelStyle}>Track A — starting salary (annual)</span>
-              <input
-                type="number"
-                min={0}
-                value={fiveYearSalaryA}
-                onChange={(e) => setFiveYearSalaryA(e.target.value)}
-                placeholder="e.g. 95000"
-                style={inputStyle}
-              />
-            </label>
-            <label>
-              <span style={labelStyle}>Track B — starting salary (annual)</span>
-              <input
-                type="number"
-                min={0}
-                value={fiveYearSalaryB}
-                onChange={(e) => setFiveYearSalaryB(e.target.value)}
-                placeholder="e.g. 105000"
-                style={inputStyle}
-              />
-            </label>
-            <label>
-              <span style={labelStyle}>Assumed YoY raise (both tracks)</span>
-              <input
-                type="number"
-                step={0.5}
-                value={fiveYearRaisePct}
-                onChange={(e) => setFiveYearRaisePct(e.target.value)}
-                placeholder="3"
-                style={inputStyle}
-              />
-            </label>
-          </div>
-
-          <p style={{ fontSize: "0.68rem", color: T.textMuted, margin: "0 0 0.65rem", lineHeight: 1.5 }}>
-            Use the same currency for both tracks. Raise applies equally so you can compare shapes of the two paths—not forecast anyone&apos;s real merit cycles.
-          </p>
-
-          {fyCumA != null && fyCumB != null ? (
-            <div
-              style={{
-                padding: "0.65rem 0.85rem",
-                borderRadius: "10px",
-                border: `1px solid ${T.border}`,
-                background: T.surfaceBg || T.cardBg,
-                marginBottom: "0.65rem",
-              }}
-            >
-              <div style={{ fontSize: "0.72rem", color: T.textMuted, marginBottom: "0.45rem" }}>
-                Cumulative approx. cash ({fyRaiseEffective}% YoY), five years
-              </div>
-              <div style={{ fontSize: "0.82rem", color: T.textSecondary, lineHeight: 1.55 }}>
-                <span style={{ color: T.textPrimary, fontWeight: 600 }}>Track A:</span>{" "}
-                {Math.round(fyCumA).toLocaleString()}
-                {" · "}
-                <span style={{ color: T.textPrimary, fontWeight: 600 }}>Track B:</span>{" "}
-                {Math.round(fyCumB).toLocaleString()}
-              </div>
-              {fyDelta != null ? (
-                <div style={{ fontSize: "0.82rem", marginTop: "0.45rem", color: fyDelta >= 0 ? "#059669" : "#d97706" }}>
-                  Difference (B − A): {fyDelta >= 0 ? "+" : ""}
-                  {Math.round(fyDelta).toLocaleString()} over five years
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <p style={{ fontSize: "0.76rem", color: T.textMuted, margin: "0 0 0.65rem" }}>
-              Enter two positive starting salaries to see cumulative totals.
-            </p>
-          )}
-
-          <button
-            type="button"
-            disabled={typeof onDiscussWithCoach !== "function" || fyCumA == null || fyCumB == null}
-            onClick={studentDiscussFiveYearCoach}
+        {studentSectionTab === "five_year" && (
+          <div
             style={{
-              padding: "0.45rem 1rem",
-              borderRadius: "10px",
               border: `1px solid ${T.border}`,
-              background:
-                typeof onDiscussWithCoach === "function" && fyCumA != null && fyCumB != null
-                  ? "rgba(29, 78, 216, 0.12)"
-                  : T.border,
-              color:
-                typeof onDiscussWithCoach === "function" && fyCumA != null && fyCumB != null ? "#1d4ed8" : T.textMuted,
-              fontSize: "0.82rem",
-              fontWeight: 600,
-              cursor:
-                typeof onDiscussWithCoach === "function" && fyCumA != null && fyCumB != null ? "pointer" : "not-allowed",
-              fontFamily: "inherit",
+              borderRadius: "12px",
+              padding: "1rem",
+              background: T.cardBg,
             }}
           >
-            Discuss five-year tradeoffs with coach →
-          </button>
-        </div>
-          </>
+            <h3 style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary, margin: "0 0 0.25rem" }}>
+              Five-year earnings snapshot
+            </h3>
+            <p style={{ fontSize: "0.78rem", color: T.textSecondary, margin: "0 0 0.65rem", lineHeight: 1.55 }}>
+              Rough cumulative cash over five years using the same year-over-year raise assumption for both tracks—helpful when headline salaries are close. Not tax, equity, or bonus modeling; illustrative only.
+            </p>
+
+            {canFillFiveYearFromCompare ? (
+              <div style={{ marginBottom: "0.65rem" }}>
+                <button
+                  type="button"
+                  onClick={fillFiveYearFromCompareOffers}
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    borderRadius: "8px",
+                    border: `1px solid ${T.border}`,
+                    background: T.surfaceBg || T.cardBg,
+                    color: T.textPrimary,
+                    fontSize: "0.76rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  Fill starting salaries from compare offer amounts →
+                </button>
+              </div>
+            ) : null}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "0.65rem", marginBottom: "0.65rem" }}>
+              <label>
+                <span style={labelStyle}>Track A — starting salary (annual)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={fiveYearSalaryA}
+                  onChange={(e) => setFiveYearSalaryA(e.target.value)}
+                  placeholder="e.g. 95000"
+                  style={inputStyle}
+                />
+              </label>
+              <label>
+                <span style={labelStyle}>Track B — starting salary (annual)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={fiveYearSalaryB}
+                  onChange={(e) => setFiveYearSalaryB(e.target.value)}
+                  placeholder="e.g. 105000"
+                  style={inputStyle}
+                />
+              </label>
+              <label>
+                <span style={labelStyle}>Assumed YoY raise (both tracks)</span>
+                <input
+                  type="number"
+                  step={0.5}
+                  value={fiveYearRaisePct}
+                  onChange={(e) => setFiveYearRaisePct(e.target.value)}
+                  placeholder="3"
+                  style={inputStyle}
+                />
+              </label>
+            </div>
+
+            <p style={{ fontSize: "0.68rem", color: T.textMuted, margin: "0 0 0.65rem", lineHeight: 1.5 }}>
+              Use the same currency for both tracks. Raise applies equally so you can compare shapes of the two paths—not forecast anyone&apos;s real merit cycles.
+            </p>
+
+            {fyCumA != null && fyCumB != null ? (
+              <div
+                style={{
+                  padding: "0.65rem 0.85rem",
+                  borderRadius: "10px",
+                  border: `1px solid ${T.border}`,
+                  background: T.surfaceBg || T.cardBg,
+                  marginBottom: "0.65rem",
+                }}
+              >
+                <div style={{ fontSize: "0.72rem", color: T.textMuted, marginBottom: "0.45rem" }}>
+                  Cumulative approx. cash ({fyRaiseEffective}% YoY), five years
+                </div>
+                <div style={{ fontSize: "0.82rem", color: T.textSecondary, lineHeight: 1.55 }}>
+                  <span style={{ color: T.textPrimary, fontWeight: 600 }}>Track A:</span>{" "}
+                  {Math.round(fyCumA).toLocaleString()}
+                  {" · "}
+                  <span style={{ color: T.textPrimary, fontWeight: 600 }}>Track B:</span>{" "}
+                  {Math.round(fyCumB).toLocaleString()}
+                </div>
+                {fyDelta != null ? (
+                  <div style={{ fontSize: "0.82rem", marginTop: "0.45rem", color: fyDelta >= 0 ? "#059669" : "#d97706" }}>
+                    Difference (B − A): {fyDelta >= 0 ? "+" : ""}
+                    {Math.round(fyDelta).toLocaleString()} over five years
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <p style={{ fontSize: "0.76rem", color: T.textMuted, margin: "0 0 0.65rem" }}>
+                Enter two positive starting salaries to see cumulative totals.
+              </p>
+            )}
+
+            <button
+              type="button"
+              disabled={typeof onDiscussWithCoach !== "function" || fyCumA == null || fyCumB == null}
+              onClick={studentDiscussFiveYearCoach}
+              style={{
+                padding: "0.45rem 1rem",
+                borderRadius: "10px",
+                border: `1px solid ${T.border}`,
+                background:
+                  typeof onDiscussWithCoach === "function" && fyCumA != null && fyCumB != null
+                    ? "rgba(29, 78, 216, 0.12)"
+                    : T.border,
+                color:
+                  typeof onDiscussWithCoach === "function" && fyCumA != null && fyCumB != null ? "#1d4ed8" : T.textMuted,
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                cursor:
+                  typeof onDiscussWithCoach === "function" && fyCumA != null && fyCumB != null ? "pointer" : "not-allowed",
+                fontFamily: "inherit",
+              }}
+            >
+              Discuss five-year tradeoffs with coach →
+            </button>
+          </div>
         )}
 
         {studentSectionTab === "paths" && (

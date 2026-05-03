@@ -22,6 +22,11 @@ import {
   recordAppLandTimestamp,
   trackLandingEvent,
 } from "./utils/landingAnalytics.js";
+import {
+  OA_CONTENT_MAX_PRIMARY,
+  OA_CONTENT_MAX_SECONDARY,
+  OA_PAGE_PAD_X,
+} from "./constants/appLayout.js";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -219,14 +224,14 @@ function MarkdownText({ text, T, isDark }) {
       return <h3 key={i} style={{ fontSize: "0.92rem", fontWeight: 600, margin: "0.5rem 0 0.2rem", color: T.textSecondary }}>{line.slice(4)}</h3>;
     if (line.startsWith("- ")) {
       const c = line.slice(2).replace(/\*\*(.*?)\*\*/g, (_, t) => `<strong style="color:${T.textPrimary}">${t}</strong>`);
-      return <li key={i} style={{ margin: "0.2rem 0", color: T.textSecondary, listStyle: "none", paddingLeft: "0.8rem", borderLeft: "2px solid rgba(100,116,139,0.25)" }} dangerouslySetInnerHTML={{ __html: c }} />;
+      return <li key={i} style={{ margin: "0.28rem 0", color: T.textSecondary, listStyle: "none", paddingLeft: "0.8rem", borderLeft: "2px solid rgba(100,116,139,0.25)", fontSize: "0.92rem", lineHeight: 1.55 }} dangerouslySetInnerHTML={{ __html: c }} />;
     }
     if (line.trim() === "") return <br key={i} />;
     const c = line
       .replace(/\*\*(.*?)\*\*/g, (_, t) => `<strong style="color:${T.textPrimary}">${t}</strong>`)
       .replace(/\*(.*?)\*/g, (_, t) => `<em style="color:#7dd3fc">${t}</em>`)
       .replace(/`(.*?)`/g, (_, t) => `<code style="background:rgba(100,116,139,0.12);padding:1px 4px;border-radius:3px;font-family:monospace;color:#7dd3fc;font-size:0.8em">${t}</code>`);
-    return <p key={i} style={{ margin: "0.25rem 0", color: T.textSecondary, lineHeight: 1.65 }} dangerouslySetInnerHTML={{ __html: c }} />;
+    return <p key={i} style={{ margin: "0.25rem 0", color: T.textSecondary, lineHeight: 1.68, fontSize: "0.92rem" }} dangerouslySetInnerHTML={{ __html: c }} />;
   };
   return <div>{text.split("\n").map((l, i) => renderLine(l, i))}</div>;
 }
@@ -270,28 +275,30 @@ function ChatStrip({ onSend, loading, T, tabId }) {
     setStripInput("");
   };
   return (
-    <div style={{ borderTop: `1px solid ${T.border}`, padding: "0.65rem 1rem", background: T.headerBg }}>
-      <div style={{ fontSize: "0.63rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.4rem" }}>Ask the coach</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginBottom: "0.5rem" }}>
-        {prompts.map((p, i) => (
-          <button key={i} onClick={() => onSend(p)}
-            style={{ padding: "0.3rem 0.7rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
-            {p}
+    <div style={{ borderTop: `1px solid ${T.border}`, padding: `0.65rem ${OA_PAGE_PAD_X}`, background: T.headerBg }}>
+      <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", width: "100%" }}>
+        <div style={{ fontSize: "0.63rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.4rem" }}>Ask the coach</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginBottom: "0.5rem" }}>
+          {prompts.map((p, i) => (
+            <button key={i} onClick={() => onSend(p)}
+              style={{ padding: "0.3rem 0.7rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
+              {p}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "10px", padding: "0.4rem 0.4rem 0.4rem 0.75rem" }}>
+          <input
+            value={stripInput}
+            onChange={(e) => setStripInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+            placeholder="Ask anything about your offer..."
+            style={{ flex: 1, background: "transparent", border: "none", color: T.textPrimary, fontSize: "0.84rem", fontFamily: "inherit", outline: "none" }}
+          />
+          <button onClick={submit} disabled={!stripInput.trim() || loading}
+            style={{ width: 30, height: 30, borderRadius: "7px", border: "none", background: stripInput.trim() && !loading ? "#1d4ed8" : T.border, color: stripInput.trim() && !loading ? "white" : T.textMuted, cursor: stripInput.trim() && !loading ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "0.9rem" }}>
+            ↑
           </button>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "10px", padding: "0.4rem 0.4rem 0.4rem 0.75rem" }}>
-        <input
-          value={stripInput}
-          onChange={(e) => setStripInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
-          placeholder="Ask anything about your offer..."
-          style={{ flex: 1, background: "transparent", border: "none", color: T.textPrimary, fontSize: "0.84rem", fontFamily: "inherit", outline: "none" }}
-        />
-        <button onClick={submit} disabled={!stripInput.trim() || loading}
-          style={{ width: 30, height: 30, borderRadius: "7px", border: "none", background: stripInput.trim() && !loading ? "#1d4ed8" : T.border, color: stripInput.trim() && !loading ? "white" : T.textMuted, cursor: stripInput.trim() && !loading ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "0.9rem" }}>
-          ↑
-        </button>
+        </div>
       </div>
     </div>
   );
@@ -880,9 +887,9 @@ export default function OfferAdvisor() {
   ];
 
   // ── Shared style helpers ──────────────────────────────────────────────────────
-  const inputStyle  = { width: "100%", padding: "0.5rem 0.7rem", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: "8px", color: T.textPrimary, fontSize: "0.8rem", fontFamily: "inherit", boxSizing: "border-box" };
+  const inputStyle  = { width: "100%", padding: "0.55rem 0.78rem", background: T.inputBg, border: `1px solid ${T.border}`, borderRadius: "8px", color: T.textPrimary, fontSize: "0.86rem", fontFamily: "inherit", boxSizing: "border-box" };
   const selectStyle = { ...inputStyle };
-  const primaryBtn  = (active, grad = "#1d4ed8") => ({ padding: "0.45rem 1.1rem", borderRadius: "8px", border: "none", background: active ? grad : T.border, color: active ? "white" : T.textMuted, fontSize: "0.78rem", cursor: active ? "pointer" : "not-allowed", fontFamily: "inherit", fontWeight: 500 });
+  const primaryBtn  = (active, grad = "#1d4ed8") => ({ padding: "0.48rem 1.15rem", borderRadius: "8px", border: "none", background: active ? grad : T.border, color: active ? "white" : T.textMuted, fontSize: "0.82rem", cursor: active ? "pointer" : "not-allowed", fontFamily: "inherit", fontWeight: 500 });
   const symDisplay  = salaryData?.currencySymbol || getCurrencySymbol(selectedCurrency);
 
   // ── Paywall Modal Component ───────────────────────────────────────────────────
@@ -1044,9 +1051,9 @@ export default function OfferAdvisor() {
               <svg width="15" height="15" viewBox="0 0 32 32" fill="none"><path d="M8 21L16 10L24 21" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" /><circle cx="16" cy="10" r="2.2" fill="#60a5fa" /></svg>
             </div>
           )}
-          <div style={{ maxWidth: "82%", padding: msg.role === "user" ? "0.55rem 0.85rem" : "0.85rem 1rem", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? "#1d4ed8" : T.surfaceBg, border: msg.role === "assistant" ? `1px solid ${T.border}` : "none" }}>
+          <div style={{ maxWidth: "min(92%, 52rem)", padding: msg.role === "user" ? "0.55rem 0.85rem" : "0.85rem 1rem", borderRadius: msg.role === "user" ? "14px 14px 4px 14px" : "4px 14px 14px 14px", background: msg.role === "user" ? "#1d4ed8" : T.surfaceBg, border: msg.role === "assistant" ? `1px solid ${T.border}` : "none" }}>
             {msg.role === "user"
-              ? <p style={{ margin: 0, fontSize: "0.87rem", color: "white", lineHeight: 1.6 }}>{msg.content}</p>
+              ? <p style={{ margin: 0, fontSize: "0.92rem", color: "white", lineHeight: 1.65 }}>{msg.content}</p>
               : <MarkdownText text={msg.content} T={T} isDark={isDark} />}
           </div>
         </div>
@@ -1137,15 +1144,15 @@ export default function OfferAdvisor() {
       // ── COACH TAB — full chat ─────────────────────────────────────────────
       case "coach": return (
         <>
-          <div style={{ flex: 1, overflowY: "auto", padding: "1.1rem 1rem" }}>
-            <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: `1.15rem ${OA_PAGE_PAD_X}` }}>
+            <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.9rem" }}>
               {coachMessageList()}
             </div>
           </div>
 
           {/* Sign-in nudge — shown to guests after they've had their first exchange */}
           {!isSignedIn && messages.length >= 3 && (
-            <div style={{ margin: "0 1rem 0.75rem", maxWidth: 720, width: "calc(100% - 2rem)", alignSelf: "center" }}>
+            <div style={{ margin: "0 1rem 0.75rem", maxWidth: OA_CONTENT_MAX_PRIMARY, width: "calc(100% - 2rem)", alignSelf: "center" }}>
               <div style={{ padding: "0.85rem 1rem", background: isDark ? "rgba(29,78,216,0.08)" : "#EFF6FF", border: "1px solid rgba(29,78,216,0.2)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
                 <div>
                   <div style={{ fontSize: "0.82rem", fontWeight: 500, color: T.textPrimary, marginBottom: "2px" }}>Save your coaching session</div>
@@ -1164,7 +1171,7 @@ export default function OfferAdvisor() {
               </div>
             </div>
           )}
-          <div style={{ padding: "0 1rem 0.5rem", maxWidth: 720, margin: "0 auto", width: "100%" }}>
+          <div style={{ padding: `0 ${OA_PAGE_PAD_X} 0.5rem`, maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", width: "100%" }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
               {PROMPTS.coach.map((p, i) => (
                 <button key={i} onClick={() => sendMessage(p)}
@@ -1188,17 +1195,17 @@ export default function OfferAdvisor() {
           </div>
 
           {/* Main input */}
-          <div style={{ padding: "0.45rem 1rem 1rem", borderTop: `1px solid ${T.border}`, background: T.headerBg }}>
-            <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", gap: "0.5rem", alignItems: "flex-end", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "0.5rem 0.5rem 0.5rem 0.85rem" }}>
+          <div style={{ padding: `0.45rem ${OA_PAGE_PAD_X} 1rem`, borderTop: `1px solid ${T.border}`, background: T.headerBg }}>
+            <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", display: "flex", gap: "0.5rem", alignItems: "flex-end", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "0.5rem 0.5rem 0.5rem 0.85rem" }}>
               <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey}
                 placeholder={practiceUnlocked && mode === "roleplay" ? "Speak to the recruiter, Alex..." : "Describe your offer or ask anything..."}
                 rows={1}
-                style={{ flex: 1, background: "transparent", border: "none", color: T.textPrimary, fontSize: "0.87rem", fontFamily: "inherit", lineHeight: 1.6, maxHeight: 120, overflowY: "auto", resize: "none", outline: "none" }}
+                style={{ flex: 1, background: "transparent", border: "none", color: T.textPrimary, fontSize: "0.92rem", fontFamily: "inherit", lineHeight: 1.6, maxHeight: 120, overflowY: "auto", resize: "none", outline: "none" }}
                 onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} />
               <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
                 style={{ width: 32, height: 32, borderRadius: "8px", border: "none", background: input.trim() && !loading ? "#1d4ed8" : T.border, color: input.trim() && !loading ? "white" : T.textMuted, cursor: input.trim() && !loading ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem", flexShrink: 0 }}>↑</button>
             </div>
-            <p style={{ textAlign: "center", color: T.textHint, fontSize: "0.6rem", marginTop: "0.35rem", maxWidth: 720, margin: "0.35rem auto 0" }}>
+            <p style={{ textAlign: "center", color: T.textHint, fontSize: "0.68rem", marginTop: "0.35rem", maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0.35rem auto 0", lineHeight: 1.45 }}>
               AI coaching — not a substitute for professional financial or legal advice
             </p>
           </div>
@@ -1224,7 +1231,7 @@ export default function OfferAdvisor() {
                   borderTop: `1px solid ${T.border}`,
                   maxHeight: "min(42vh, 380px)",
                   overflowY: "auto",
-                  padding: "0.65rem 1rem",
+                  padding: `0.65rem ${OA_PAGE_PAD_X}`,
                   background: T.headerBg,
                 }}
               >
@@ -1239,7 +1246,7 @@ export default function OfferAdvisor() {
                 >
                   Coach (this tab)
                 </div>
-                <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+                <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.65rem" }}>
                   {coachMessageList()}
                 </div>
               </div>
@@ -1252,8 +1259,8 @@ export default function OfferAdvisor() {
       // ── BENCHMARK TAB ─────────────────────────────────────────────────────
       case "benchmark": return (
         <>
-          <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
-            <div style={{ maxWidth: 680, margin: "0 auto" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: `1.25rem ${OA_PAGE_PAD_X}` }}>
+            <div style={{ maxWidth: OA_CONTENT_MAX_SECONDARY, margin: "0 auto" }}>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.3rem", color: T.textPrimary, marginBottom: "0.3rem" }}>Salary benchmark</h2>
               <p style={{ fontSize: "0.82rem", color: T.textSecondary, marginBottom: "1.25rem", lineHeight: 1.6 }}>Enter your role and location to see exactly where your offer sits against real market data. Supports US (BLS), UK (ONS), India, and more. Currency is auto-detected from location.</p>
 
@@ -1322,7 +1329,7 @@ export default function OfferAdvisor() {
       case "calculate": return (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
-            <div style={{ maxWidth: 680, margin: "0 auto" }}>
+            <div style={{ maxWidth: OA_CONTENT_MAX_SECONDARY, margin: "0 auto" }}>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.3rem", color: T.textPrimary, marginBottom: "0.3rem" }}>Counter-offer calculator</h2>
               <p style={{ fontSize: "0.82rem", color: T.textSecondary, marginBottom: "1.25rem", lineHeight: 1.6 }}>Enter every component of your offer. Most people only negotiate base and leave equity, signing, and bonus on the table — this shows your full 4-year gain.</p>
 
@@ -1384,7 +1391,7 @@ export default function OfferAdvisor() {
       case "practice": return (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
-            <div style={{ maxWidth: 680, margin: "0 auto" }}>
+            <div style={{ maxWidth: OA_CONTENT_MAX_SECONDARY, margin: "0 auto" }}>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.3rem", color: T.textPrimary, marginBottom: "0.3rem" }}>Practice the conversation</h2>
               <p style={{ fontSize: "0.82rem", color: T.textSecondary, marginBottom: "1.25rem", lineHeight: 1.6 }}>The AI plays Alex, your recruiter. Have the real conversation — push back, ask questions, handle objections. After every exchange you get a coach note on what you did well and what to sharpen.</p>
               <div style={{ padding: "1rem", background: T.cardBg, borderRadius: "10px", border: `1px solid ${mode === "roleplay" ? "#7c3aed" : T.border}`, marginBottom: "1rem" }}>
@@ -1432,7 +1439,7 @@ export default function OfferAdvisor() {
       case "logwin": return (
         <>
           <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem" }}>
-            <div style={{ maxWidth: 680, margin: "0 auto" }}>
+            <div style={{ maxWidth: OA_CONTENT_MAX_SECONDARY, margin: "0 auto" }}>
               <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.3rem", color: T.textPrimary, marginBottom: "0.3rem" }}>Log your win</h2>
               <p style={{ fontSize: "0.82rem", color: T.textSecondary, marginBottom: "1.25rem", lineHeight: 1.6 }}>Record your negotiation result — whether you won big or learned something. It feeds back into your coaching and builds your personal record over time.</p>
 
@@ -1566,7 +1573,7 @@ export default function OfferAdvisor() {
                   minHeight: 0,
                   maxHeight: alexTextCoachVisible ? "min(50vh, 420px)" : "none",
                   overflowY: "auto",
-                  padding: "1rem 1rem 0",
+                  padding: `1rem ${OA_PAGE_PAD_X} 0`,
                 }}
               >
                 <AlexRoleplayTab T={T} contextualText={alexContext} />
@@ -1606,14 +1613,14 @@ export default function OfferAdvisor() {
                     flex: 1,
                     minHeight: 120,
                     overflowY: "auto",
-                    padding: "0.75rem 1rem",
+                    padding: `0.75rem ${OA_PAGE_PAD_X}`,
                     borderTop: `1px solid ${T.border}`,
                     background: T.pageBg,
                   }}
                   aria-label="Text coach replies"
                 >
                   <div style={{ fontSize: "0.63rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.5rem" }}>Text coach (this tab)</div>
-                  <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                     {coachMessageList()}
                   </div>
                 </div>
@@ -1692,6 +1699,9 @@ export default function OfferAdvisor() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
         * { box-sizing: border-box; }
+        html { font-size: 16px; }
+        @media (min-width: 900px) { html { font-size: 17px; } }
+        @media (min-width: 1280px) { html { font-size: 18px; } }
         ::-webkit-scrollbar { width: 3px; }
         ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
         textarea, input, select { outline: none; }
@@ -2227,7 +2237,7 @@ export default function OfferAdvisor() {
         </div>
       )}
 
-            <div style={{ padding: "0.7rem 1.25rem", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem 0.75rem", background: T.headerBg, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
+            <div style={{ padding: `0.7rem ${OA_PAGE_PAD_X}`, borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem 0.75rem", background: T.headerBg, position: "sticky", top: 0, zIndex: 10, flexShrink: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", minWidth: 0 }}>
           <LogoMark size={30} />
           <div>
@@ -2443,7 +2453,7 @@ export default function OfferAdvisor() {
       </div>
 
       {/* Tab nav */}
-      <div style={{ background: T.headerBg, borderBottom: `1px solid ${T.border}`, display: "flex", padding: "0 1rem", overflowX: "auto", flexShrink: 0 }}>
+      <div style={{ background: T.headerBg, borderBottom: `1px solid ${T.border}`, display: "flex", padding: `0 ${OA_PAGE_PAD_X}`, overflowX: "auto", flexShrink: 0 }}>
         {TABS.map((tab) => {
           const locked = !canAccess(userPlan, tab.id);
           const isActive = activeTab === tab.id;
@@ -2474,7 +2484,7 @@ export default function OfferAdvisor() {
                     : `Upgrade to access ${tab.label}`
                   : tab.desc
               }
-              style={{ padding: "0.65rem 0.9rem", fontSize: "0.78rem", fontWeight: isActive ? 500 : 400, color: isActive ? "#1d4ed8" : locked ? T.textHint : T.textMuted, border: "none", borderBottom: isActive ? "2px solid #1d4ed8" : "2px solid transparent", background: "transparent", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "4px", opacity: locked ? 0.6 : 1 }}>
+              style={{ padding: "0.65rem 0.9rem", fontSize: "0.82rem", fontWeight: isActive ? 500 : 400, color: isActive ? "#1d4ed8" : locked ? T.textHint : T.textMuted, border: "none", borderBottom: isActive ? "2px solid #1d4ed8" : "2px solid transparent", background: "transparent", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "4px", opacity: locked ? 0.6 : 1 }}>
               {tab.label}
               {locked && (
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>

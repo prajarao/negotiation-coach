@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useAuth } from "@clerk/clerk-react";
 import { ConversationProvider, useConversation } from "@elevenlabs/react";
+import { OA_CONTENT_MAX_PRIMARY } from "../constants/appLayout.js";
 
 /**
  * Avatar media:
@@ -282,7 +283,7 @@ function AlexRoleplayInner({ T, contextualText, micOn, setMicOn }) {
         display: "flex",
         flexDirection: "column",
         gap: "1rem",
-        maxWidth: 800,
+        maxWidth: OA_CONTENT_MAX_PRIMARY,
         margin: "0 auto",
         width: "100%",
       };

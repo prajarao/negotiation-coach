@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { OA_CONTENT_MAX_PRIMARY, OA_PAGE_PAD_X } from "../constants/appLayout.js";
 
 /** Shown in preview and appended to copy / download so the author receives credit. */
 const ATTRIBUTION_FOOTER =
@@ -212,8 +213,8 @@ Thanks for your patience,
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <div style={{ padding: "1.25rem 1rem", borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
-        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ padding: `1.25rem ${OA_PAGE_PAD_X}`, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
+        <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto" }}>
           <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.3rem", color: T.textPrimary, margin: "0 0 0.3rem" }}>
             Negotiation email templates
           </h2>
@@ -226,7 +227,7 @@ Thanks for your patience,
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 1rem", display: "flex", gap: "1rem" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: `1.25rem ${OA_PAGE_PAD_X}`, display: "flex", gap: "1rem" }}>
         <div style={{ flex: selectedTemplateId ? 0.4 : 1, minWidth: 0 }}>
           <div style={{ display: "grid", gap: "0.75rem" }}>
             {templates.map((template) => (
