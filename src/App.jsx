@@ -17,6 +17,11 @@ import {
   BRIDGE_TAB_LABEL,
   BRIDGE_TAB_SHORT_LABEL,
 } from "./constants/bridgeProgram.js";
+import {
+  maybeTrackQuickSignupAfterLand,
+  recordAppLandTimestamp,
+  trackLandingEvent,
+} from "./utils/landingAnalytics.js";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -413,6 +418,24 @@ export default function OfferAdvisor() {
     }
   }, []);
 
+  /** Land timestamp + quick signup funnel (pairs with marketing page analytics). */
+  useEffect(() => {
+    recordAppLandTimestamp();
+  }, []);
+
+  const prevSignedInForAnalyticsRef = useRef(null);
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (prevSignedInForAnalyticsRef.current === null) {
+      prevSignedInForAnalyticsRef.current = isSignedIn;
+      return;
+    }
+    if (!prevSignedInForAnalyticsRef.current && isSignedIn) {
+      maybeTrackQuickSignupAfterLand(true);
+    }
+    prevSignedInForAnalyticsRef.current = isSignedIn;
+  }, [isLoaded, isSignedIn]);
+
   // Helper — open sign-in wall when a gated action is attempted
   const requireAuth = (cb) => {
     if (!isSignedIn) { setAuthModal("signin"); return; }
@@ -445,6 +468,30 @@ export default function OfferAdvisor() {
       return fallback?.id ?? "coach";
     });
   }, [userPlan]);
+
+  /** Deep-link ?tab=student (BRIDGE) etc. — strip param after apply; respects plan locks. */
+  const tabDeepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (!isLoaded || tabDeepLinkHandledRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("tab");
+    if (raw == null || raw === "") return;
+    tabDeepLinkHandledRef.current = true;
+    const tabId = raw.trim().toLowerCase();
+    const known = TABS.some((t) => t.id === tabId);
+    params.delete("tab");
+    const rest = params.toString();
+    window.history.replaceState({}, "", `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`);
+    if (!known) return;
+    setActiveTab((prev) => {
+      if (!canAccess(userPlan, tabId)) {
+        trackLandingEvent("oa_tab_deeplink_blocked", { tab: tabId, plan: userPlan });
+        return prev;
+      }
+      trackLandingEvent("oa_tab_deeplink", { tab: tabId });
+      return tabId;
+    });
+  }, [isLoaded, userPlan]);
 
   useEffect(() => {
     if (!canPractice && mode === "roleplay") setMode("coach");

@@ -9,6 +9,7 @@ import {
   BRIDGE_PROGRAM_SUMMARY,
   BRIDGE_TAB_LABEL,
 } from "../constants/bridgeProgram.js";
+import { trackLandingEvent } from "../utils/landingAnalytics.js";
 
 /**
  * Shared benchmark result UI for single-offer and compare flows.
@@ -756,12 +757,63 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
           <h2 style={{ fontFamily: "'DM Serif Display', serif", fontSize: "1.35rem", color: T.textPrimary, marginBottom: "0.35rem" }}>
             {BRIDGE_TAB_LABEL}
           </h2>
-          <p style={{ fontSize: "0.78rem", color: T.textMuted, margin: "0 0 0.5rem", lineHeight: 1.55, fontWeight: 600, letterSpacing: "0.02em" }}>
-            {BRIDGE_EXPANDED}
+          <p style={{ fontSize: "0.82rem", color: T.textSecondary, margin: "0 0 0.65rem", lineHeight: 1.55 }}>
+            Benchmark pay, compare offers, or explore paths — tap a tab below. Expand <strong>About BRIDGE</strong> if you want the full acronym and story.
           </p>
-          <p style={{ fontSize: "0.82rem", color: T.textSecondary, margin: 0, lineHeight: 1.6 }}>
-            {BRIDGE_PROGRAM_SUMMARY} Use the sections below for benchmarks, compare offers, career path explorer, and campus verification when your school partners with us.
-          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.75rem" }}>
+            {[
+              { stage: "intern", label: "Internship offer" },
+              { stage: "new_grad", label: "New grad offer" },
+              { stage: "early_career", label: "Early career" },
+            ].map(({ stage, label }) => (
+              <button
+                key={stage}
+                type="button"
+                onClick={() => {
+                  setStudentCareerStage(/** @type {"intern" | "new_grad" | "early_career"} */ (stage));
+                  setStudentSectionTab("offers");
+                  trackLandingEvent("oa_bridge_stage_pick", { stage });
+                }}
+                style={{
+                  padding: "0.38rem 0.75rem",
+                  borderRadius: "999px",
+                  border: studentCareerStage === stage ? "2px solid #2563eb" : `1px solid ${T.border}`,
+                  background: studentCareerStage === stage ? "rgba(37, 99, 235, 0.12)" : T.surfaceBg || T.cardBg,
+                  color: T.textPrimary,
+                  fontSize: "0.74rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <details
+            style={{
+              marginBottom: "0.35rem",
+              border: `1px solid ${T.border}`,
+              borderRadius: "10px",
+              padding: "0.55rem 0.8rem",
+              background: T.cardBg,
+            }}
+          >
+            <summary
+              style={{
+                cursor: "pointer",
+                fontSize: "0.76rem",
+                fontWeight: 600,
+                color: T.textMuted,
+                listStyle: "none",
+              }}
+            >
+              About BRIDGE ({BRIDGE_EXPANDED})
+            </summary>
+            <p style={{ fontSize: "0.78rem", color: T.textSecondary, margin: "0.65rem 0 0", lineHeight: 1.55 }}>
+              {BRIDGE_PROGRAM_SUMMARY} Use the sections below for benchmarks, compare offers, career path explorer, and campus verification when your school partners with us.
+            </p>
+          </details>
         </div>
 
         <div role="tablist" aria-label={`${BRIDGE_TAB_LABEL} sections`} style={{ display: "flex", flexWrap: "wrap", gap: "0.45rem", marginBottom: "0.35rem" }}>

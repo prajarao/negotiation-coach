@@ -17,6 +17,12 @@ function marketingHomeAtRoot() {
         }
         if (pathOnly === '/' || pathOnly === '/index.html') {
           req.url = `/home.html${qs}`
+          return next()
+        }
+        if (pathOnly === '/students' || pathOnly === '/students/') {
+          const tail = qs && qs !== '?' ? `&${qs.slice(1)}` : ''
+          req.url = `/home.html?audience=student${tail}`
+          return next()
         }
         next()
       })

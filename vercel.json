@@ -1,6 +1,8 @@
 {
   "version": 2,
   "rewrites": [
+    { "source": "/students", "destination": "/home.html?audience=student" },
+    { "source": "/students/", "destination": "/home.html?audience=student" },
     { "source": "/", "destination": "/home.html" },
     { "source": "/app", "destination": "/app.html" },
     { "source": "/app/(.*)", "destination": "/app.html" }
