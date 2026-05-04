@@ -51,27 +51,29 @@ Grounding: Your reasoning should align with widely taught negotiation practice�
 Always end your responses with a clear next step the user should take.
 Format responses with clear sections when giving structured advice.`;
 
+/** Shared coach landing copy (Share offer tab + assistant welcome message). */
+const COACH_HEADING_NEW_USER = "Welcome to OfferAdvisor";
+
+const COACH_TAGLINE = `I'm your personal offer negotiation coach — the same sharp, specific advice top executives pay thousands for.`;
+
+const COACH_BODY_AFTER_CHAT = `**Professionals:** Tell me about your situation — role, company, numbers, and leverage.
+
+**Students & new grads:** Open the **${BRIDGE_TAB_LABEL}** tab.
+
+*The more you share in chat or in BRIDGE workflows, the sharper my coaching gets.*`;
+
+const composeCoachWelcomeContent = (headingPlain) =>
+  `# ${headingPlain}\n\n${COACH_TAGLINE}\n\n${COACH_BODY_AFTER_CHAT}`;
+
 const WELCOME_MESSAGE = {
   role: "assistant",
-  content: `# Welcome to OfferAdvisor
-
-I'm your personal offer negotiation coach — the same sharp, specific advice top executives pay thousands for.
-
-**Professionals:** Tell me about your situation below — role, company, numbers, and leverage.
-
-**Students & new grads:** Open the **${BRIDGE_TAB_LABEL}** tab — **${BRIDGE_EXPANDED}** — your structured pathway from campus to first role and lasting career momentum. Inside you'll find first-offer benchmarks (single or compare), a five-year cash snapshot, **Career path explorer** (skills-grounded trajectory ideas vs your default plan), and **School access** when your university partners with us (verify with your school email or invite code).
-
-*The more you share in chat or in BRIDGE workflows, the sharper my coaching gets.*`,
+  content: composeCoachWelcomeContent(COACH_HEADING_NEW_USER),
 };
 
 // Personalised version shown when we know the user's name
 const welcomeMessageFor = (name) => ({
   role: "assistant",
-  content: `# Welcome back, ${name}
-
-Ready to negotiate? Tell me about your offer — role, company, and the numbers on the table.
-
-Or jump to **${BRIDGE_TAB_LABEL}** (${BRIDGE_EXPANDED}) for benchmarks, career paths, and campus verification while you finish school.`,
+  content: composeCoachWelcomeContent(`Welcome back, ${name}`),
 });
 
 const TABS = [
@@ -1142,75 +1144,341 @@ export default function OfferAdvisor() {
 
     switch (activeTab) {
       // ── COACH TAB — full chat ─────────────────────────────────────────────
-      case "coach": return (
-        <>
-          <div style={{ flex: 1, overflowY: "auto", padding: `1.15rem ${OA_PAGE_PAD_X}` }}>
-            <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", display: "flex", flexDirection: "column", gap: "0.9rem" }}>
-              {coachMessageList()}
-            </div>
-          </div>
+      case "coach": {
+        const coachHasUserTurn = messages.some((m) => m.role === "user");
+        const heroHeadingPlain =
+          isSignedIn && userName ? `Welcome back, ${userName}` : COACH_HEADING_NEW_USER;
+        const heroTitleMarkdown = `# ${heroHeadingPlain}\n\n${COACH_TAGLINE}`;
 
-          {/* Sign-in nudge — shown to guests after they've had their first exchange */}
-          {!isSignedIn && messages.length >= 3 && (
-            <div style={{ margin: "0 1rem 0.75rem", maxWidth: OA_CONTENT_MAX_PRIMARY, width: "calc(100% - 2rem)", alignSelf: "center" }}>
-              <div style={{ padding: "0.85rem 1rem", background: isDark ? "rgba(29,78,216,0.08)" : "#EFF6FF", border: "1px solid rgba(29,78,216,0.2)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
-                <div>
-                  <div style={{ fontSize: "0.82rem", fontWeight: 500, color: T.textPrimary, marginBottom: "2px" }}>Save your coaching session</div>
-                  <div style={{ fontSize: "0.74rem", color: T.textSecondary }}>Sign up free to continue — your conversation won't be lost.</div>
-                </div>
-                <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
-                  <button onClick={() => setAuthModal("signin")}
-                    style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: `1px solid ${T.border}`, background: "transparent", color: T.textSecondary, fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit" }}>
-                    Sign in
-                  </button>
-                  <button onClick={() => setAuthModal("signup")}
-                    style={{ padding: "0.38rem 0.85rem", borderRadius: "8px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.75rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
-                    Sign up free →
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-          <div style={{ padding: `0 ${OA_PAGE_PAD_X} 0.5rem`, maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", width: "100%" }}>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
-              {PROMPTS.coach.map((p, i) => (
-                <button key={i} onClick={() => sendMessage(p)}
-                  style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit" }}>
-                  {p}
-                </button>
-              ))}
-              <button onClick={() => {
+        const promptBar = (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.4rem",
+              justifyContent: coachHasUserTurn ? "flex-start" : "center",
+            }}
+          >
+            {PROMPTS.coach.map((p, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => sendMessage(p)}
+                style={{
+                  padding: "0.42rem 0.95rem",
+                  borderRadius: "999px",
+                  border: `1px solid ${T.border}`,
+                  background: coachHasUserTurn ? "transparent" : T.cardBg,
+                  color: T.textSecondary,
+                  fontSize: "0.78rem",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontWeight: 500,
+                }}
+              >
+                {p}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
                 if (!practiceUnlocked) {
                   setAuthModal(isSignedIn ? "upgrade" : "signup");
                   return;
                 }
                 setMode((m) => (m === "roleplay" ? "coach" : "roleplay"));
-                setMessages((p) => [...p, { role: "assistant", content: mode === "coach" ? "**Role-play mode on.** I'm Alex, your recruiter. What role are we discussing?" : "**Coach mode restored.** What do you want to work on?" }]);
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    role: "assistant",
+                    content:
+                      mode === "coach"
+                        ? "**Role-play mode on.** I'm Alex, your recruiter. What role are we discussing?"
+                        : "**Coach mode restored.** What do you want to work on?",
+                  },
+                ]);
                 setActiveTab("coach");
               }}
-                style={{ padding: "0.35rem 0.75rem", borderRadius: "16px", border: `1px solid ${practiceUnlocked && mode === "roleplay" ? "#7c3aed" : T.border}`, background: practiceUnlocked && mode === "roleplay" ? "rgba(124,58,237,0.1)" : "transparent", color: practiceUnlocked && mode === "roleplay" ? "#a78bfa" : T.textMuted, fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit", fontWeight: practiceUnlocked && mode === "roleplay" ? 500 : 400 }}>
-                {practiceUnlocked && mode === "roleplay" ? "🎭 Role-play ON" : "🎭 Role-play mode"}
-              </button>
-            </div>
+              style={{
+                padding: "0.42rem 0.95rem",
+                borderRadius: "999px",
+                border: `1px solid ${practiceUnlocked && mode === "roleplay" ? "#7c3aed" : T.border}`,
+                background:
+                  practiceUnlocked && mode === "roleplay" ? "rgba(124,58,237,0.12)" : coachHasUserTurn ? "transparent" : T.cardBg,
+                color: practiceUnlocked && mode === "roleplay" ? "#a78bfa" : T.textMuted,
+                fontSize: "0.78rem",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                fontWeight: practiceUnlocked && mode === "roleplay" ? 600 : 500,
+              }}
+            >
+              {practiceUnlocked && mode === "roleplay" ? "🎭 Role-play ON" : "🎭 Role-play mode"}
+            </button>
           </div>
+        );
 
-          {/* Main input */}
-          <div style={{ padding: `0.45rem ${OA_PAGE_PAD_X} 1rem`, borderTop: `1px solid ${T.border}`, background: T.headerBg }}>
-            <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", display: "flex", gap: "0.5rem", alignItems: "flex-end", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "12px", padding: "0.5rem 0.5rem 0.5rem 0.85rem" }}>
-              <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKey}
-                placeholder={practiceUnlocked && mode === "roleplay" ? "Speak to the recruiter, Alex..." : "Describe your offer or ask anything..."}
-                rows={1}
-                style={{ flex: 1, background: "transparent", border: "none", color: T.textPrimary, fontSize: "0.92rem", fontFamily: "inherit", lineHeight: 1.6, maxHeight: 120, overflowY: "auto", resize: "none", outline: "none" }}
-                onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px"; }} />
-              <button onClick={() => sendMessage()} disabled={!input.trim() || loading}
-                style={{ width: 32, height: 32, borderRadius: "8px", border: "none", background: input.trim() && !loading ? "#1d4ed8" : T.border, color: input.trim() && !loading ? "white" : T.textMuted, cursor: input.trim() && !loading ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.9rem", flexShrink: 0 }}>↑</button>
-            </div>
-            <p style={{ textAlign: "center", color: T.textHint, fontSize: "0.68rem", marginTop: "0.35rem", maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0.35rem auto 0", lineHeight: 1.45 }}>
-              AI coaching — not a substitute for professional financial or legal advice
-            </p>
+        const composerCard = (
+          <div
+            style={{
+              maxWidth: OA_CONTENT_MAX_PRIMARY,
+              margin: "0 auto",
+              width: "100%",
+              display: "flex",
+              gap: "0.55rem",
+              alignItems: "flex-end",
+              background: T.surfaceBg,
+              border: `1px solid ${T.border}`,
+              borderRadius: coachHasUserTurn ? "12px" : "20px",
+              padding: coachHasUserTurn ? "0.5rem 0.5rem 0.5rem 0.85rem" : "0.85rem 1rem",
+              boxShadow: coachHasUserTurn
+                ? undefined
+                : isDark
+                  ? "0 20px 60px rgba(0,0,0,0.35)"
+                  : "0 16px 48px rgba(15,23,42,0.08)",
+            }}
+          >
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKey}
+              placeholder={
+                practiceUnlocked && mode === "roleplay"
+                  ? "Speak to the recruiter, Alex..."
+                  : coachHasUserTurn
+                    ? "Describe your offer or ask anything..."
+                    : "Tell me about your role, company, numbers, and leverage…"
+              }
+              rows={coachHasUserTurn ? 1 : 3}
+              style={{
+                flex: 1,
+                background: "transparent",
+                border: "none",
+                color: T.textPrimary,
+                fontSize: "0.95rem",
+                fontFamily: "inherit",
+                lineHeight: 1.55,
+                maxHeight: coachHasUserTurn ? 120 : 200,
+                minHeight: coachHasUserTurn ? undefined : "5.25rem",
+                overflowY: "auto",
+                resize: "none",
+                outline: "none",
+              }}
+              onInput={(e) => {
+                if (coachHasUserTurn) {
+                  e.target.style.height = "auto";
+                  e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => sendMessage()}
+              disabled={!input.trim() || loading}
+              style={{
+                width: coachHasUserTurn ? 32 : 44,
+                height: coachHasUserTurn ? 32 : 44,
+                borderRadius: "10px",
+                border: "none",
+                background: input.trim() && !loading ? "#1d4ed8" : T.border,
+                color: input.trim() && !loading ? "white" : T.textMuted,
+                cursor: input.trim() && !loading ? "pointer" : "not-allowed",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1rem",
+                flexShrink: 0,
+              }}
+            >
+              ↑
+            </button>
           </div>
-        </>
-      );
+        );
+
+        const legalFoot = (
+          <p
+            style={{
+              textAlign: "center",
+              color: T.textHint,
+              fontSize: "0.68rem",
+              marginTop: "0.45rem",
+              maxWidth: OA_CONTENT_MAX_PRIMARY,
+              marginLeft: "auto",
+              marginRight: "auto",
+              lineHeight: 1.45,
+            }}
+          >
+            AI coaching — not a substitute for professional financial or legal advice
+          </p>
+        );
+
+        return (
+          <>
+            {coachHasUserTurn ? (
+              <>
+                <div style={{ flex: 1, overflowY: "auto", padding: `1.15rem ${OA_PAGE_PAD_X}`, minHeight: 0 }}>
+                  <div
+                    style={{
+                      maxWidth: OA_CONTENT_MAX_PRIMARY,
+                      margin: "0 auto",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.9rem",
+                    }}
+                  >
+                    {coachMessageList()}
+                  </div>
+                </div>
+
+                {!isSignedIn && messages.length >= 3 && (
+                  <div
+                    style={{
+                      margin: "0 1rem 0.75rem",
+                      maxWidth: OA_CONTENT_MAX_PRIMARY,
+                      width: "calc(100% - 2rem)",
+                      alignSelf: "center",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "0.85rem 1rem",
+                        background: isDark ? "rgba(29,78,216,0.08)" : "#EFF6FF",
+                        border: "1px solid rgba(29,78,216,0.2)",
+                        borderRadius: "10px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.75rem",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: "0.82rem", fontWeight: 500, color: T.textPrimary, marginBottom: "2px" }}>
+                          Save your coaching session
+                        </div>
+                        <div style={{ fontSize: "0.74rem", color: T.textSecondary }}>
+                          Sign up free to continue — your conversation won't be lost.
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => setAuthModal("signin")}
+                          style={{
+                            padding: "0.38rem 0.85rem",
+                            borderRadius: "8px",
+                            border: `1px solid ${T.border}`,
+                            background: "transparent",
+                            color: T.textSecondary,
+                            fontSize: "0.75rem",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Sign in
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAuthModal("signup")}
+                          style={{
+                            padding: "0.38rem 0.85rem",
+                            borderRadius: "8px",
+                            border: "none",
+                            background: "#1d4ed8",
+                            color: "white",
+                            fontSize: "0.75rem",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            fontWeight: 500,
+                          }}
+                        >
+                          Sign up free →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ padding: `0 ${OA_PAGE_PAD_X} 0.5rem`, maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", width: "100%" }}>
+                  {promptBar}
+                </div>
+
+                <div style={{ padding: `0.45rem ${OA_PAGE_PAD_X} 1rem`, borderTop: `1px solid ${T.border}`, background: T.headerBg }}>
+                  {composerCard}
+                  {legalFoot}
+                </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  minHeight: 0,
+                  overflowY: "auto",
+                  padding: `clamp(1.25rem, 4vh, 2rem) ${OA_PAGE_PAD_X} 1.25rem`,
+                }}
+              >
+                <div
+                  style={{
+                    width: "100%",
+                    maxWidth: OA_CONTENT_MAX_PRIMARY,
+                    margin: "0 auto",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "1.25rem",
+                  }}
+                >
+                  <div style={{ width: "100%", textAlign: "center", maxWidth: "52rem" }}>
+                    <MarkdownText text={heroTitleMarkdown} T={T} isDark={isDark} />
+                  </div>
+
+                  <div style={{ width: "100%", maxWidth: "40rem", display: "flex", flexDirection: "column", gap: "0.85rem" }}>
+                    {promptBar}
+                    {composerCard}
+                  </div>
+
+                  <div
+                    style={{
+                      width: "100%",
+                      maxWidth: "38rem",
+                      textAlign: "left",
+                      marginTop: "0.25rem",
+                      color: T.textSecondary,
+                      fontSize: "0.88rem",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    <MarkdownText text={COACH_BODY_AFTER_CHAT} T={T} isDark={isDark} />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("student")}
+                    style={{
+                      padding: "0.45rem 1rem",
+                      borderRadius: "999px",
+                      border: isDark ? "1px solid rgba(45,212,191,0.5)" : "1px solid #0d9488",
+                      background: isDark ? "rgba(13,148,136,0.2)" : "rgba(13,148,136,0.12)",
+                      color: isDark ? "#5eead4" : "#0f766e",
+                      fontSize: "0.78rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      boxShadow: isDark ? "none" : "0 1px 2px rgba(15,118,110,0.08)",
+                    }}
+                  >
+                    Open {BRIDGE_TAB_LABEL} →
+                  </button>
+
+                  {legalFoot}
+                </div>
+              </div>
+            )}
+          </>
+        );
+      }
 
       // ── STUDENTS TAB — fresh grad MVP scaffold ───────────────────────────────
       case "student": return (

@@ -1,5 +1,5 @@
 /** Early-career workspace for students & new grads (nav tab id remains `student`). */
-export const BRIDGE_TAB_LABEL = "BRIDGE · students";
+export const BRIDGE_TAB_LABEL = "BRIDGE for Students";
 export const BRIDGE_TAB_SHORT_LABEL = "BRIDGE";
 
 /** Hover / picker line */
