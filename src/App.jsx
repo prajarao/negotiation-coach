@@ -427,6 +427,34 @@ export default function OfferAdvisor() {
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [accountMenuOpen]);
 
+  const [compactHeader, setCompactHeader] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const onChange = () => setCompactHeader(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  const [headerMoreMenuOpen, setHeaderMoreMenuOpen] = useState(false);
+  const headerMoreMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!headerMoreMenuOpen) return;
+    const onPointerDown = (e) => {
+      if (headerMoreMenuRef.current && !headerMoreMenuRef.current.contains(e.target)) {
+        setHeaderMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [headerMoreMenuOpen]);
+
+  useEffect(() => {
+    if (!compactHeader) setHeaderMoreMenuOpen(false);
+  }, [compactHeader]);
+
   // Stripe return — detect ?checkout=success in URL after payment
   const [checkoutSuccess, setCheckoutSuccess] = useState(null); // null | "sprint" | "pro" | "student_plus"
 
@@ -2020,6 +2048,176 @@ export default function OfferAdvisor() {
     }
   };
 
+  const headerPlanBadge = (
+    <div
+      style={{
+        fontSize: "0.65rem",
+        padding: "2px 8px",
+        borderRadius: "8px",
+        fontWeight: 600,
+        letterSpacing: "0.02em",
+        ...(userPlan === "pro"
+          ? { background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#fff", border: "1px solid #7c3aed", boxShadow: "0 0 8px rgba(124,58,237,0.35)" }
+          : userPlan === "sprint"
+            ? { background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#fff", border: "1px solid #2563eb", boxShadow: "0 0 8px rgba(37,99,235,0.35)" }
+            : userPlan === "student_plus"
+              ? { background: "linear-gradient(135deg, #0d9488, #0f766e)", color: "#fff", border: "1px solid #0d9488", boxShadow: "0 0 8px rgba(13,148,136,0.35)" }
+              : { background: T.cardBg, color: T.textMuted, border: `1px solid ${T.border}` }),
+      }}
+    >
+      {PLANS[userPlan]?.label || "Free"}
+    </div>
+  );
+
+  const headerCommunityWinsPill = stats.totalUsers > 0 ? (
+    <div style={{ fontSize: "0.68rem", color: "#34d399", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)", padding: "6px 10px", borderRadius: "10px", textAlign: "center", lineHeight: 1.35 }}>
+      {stats.totalUsers} wins · ${(stats.totalGained / 1000).toFixed(0)}K secured
+    </div>
+  ) : (
+    <div style={{ fontSize: "0.68rem", color: "#34d399", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)", padding: "6px 10px", borderRadius: "10px", textAlign: "center", lineHeight: 1.35 }}>
+      $169K secured this month
+    </div>
+  );
+
+  const headerThemeControl = (fullWidth) => (
+    <button
+      type="button"
+      onClick={() => void toggleTheme()}
+      style={{
+        padding: fullWidth ? "0.45rem 0.75rem" : "0.3rem 0.75rem",
+        borderRadius: "16px",
+        border: `1px solid ${T.border}`,
+        background: "transparent",
+        color: T.textMuted,
+        fontSize: "0.7rem",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        width: fullWidth ? "100%" : undefined,
+        boxSizing: "border-box",
+      }}
+    >
+      {isDark ? "☀ Light" : "☾ Dark"}
+    </button>
+  );
+
+  const headerRegionControl = (fullWidth) => (
+    <label
+      style={{
+        display: "flex",
+        flexDirection: fullWidth ? "column" : "row",
+        alignItems: fullWidth ? "stretch" : "center",
+        gap: "0.35rem",
+        fontSize: "0.68rem",
+        color: T.textMuted,
+        whiteSpace: fullWidth ? "normal" : "nowrap",
+      }}
+    >
+      <span>Region</span>
+      <select
+        value={regionId}
+        onChange={(e) => requestRegionChange(e.target.value)}
+        aria-label="Salary region; switching clears drafts and restarts coach"
+        style={{
+          padding: "0.35rem 0.5rem",
+          borderRadius: "8px",
+          border: `1px solid ${T.border}`,
+          background: T.surfaceBg,
+          color: T.textPrimary,
+          fontSize: "0.72rem",
+          fontFamily: "inherit",
+          cursor: "pointer",
+          width: fullWidth ? "100%" : undefined,
+          maxWidth: fullWidth ? "none" : "min(140px, 28vw)",
+          boxSizing: "border-box",
+        }}
+      >
+        {REGION_OPTIONS.map((o) => (
+          <option key={o.id} value={o.id}>{o.pickerLabel}</option>
+        ))}
+      </select>
+    </label>
+  );
+
+  const headerHelpControl = (fullWidth) => (
+    <button
+      type="button"
+      onClick={() => {
+        setShowOnboarding(true);
+        setOnboardingStep(0);
+      }}
+      style={{
+        padding: fullWidth ? "0.45rem 0.75rem" : "0.3rem 0.75rem",
+        borderRadius: "16px",
+        border: `1px solid ${T.border}`,
+        background: "transparent",
+        color: T.textMuted,
+        fontSize: "0.7rem",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        width: fullWidth ? "100%" : undefined,
+        boxSizing: "border-box",
+      }}
+    >
+      ? Help
+    </button>
+  );
+
+  const headerDropdownPanelStyle = {
+    position: "absolute",
+    right: 0,
+    top: "calc(100% + 6px)",
+    minWidth: 240,
+    maxWidth: "min(340px, calc(100vw - 20px))",
+    padding: "0.35rem 0",
+    borderRadius: "12px",
+    border: `1px solid ${T.border}`,
+    background: T.headerBg,
+    boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
+    zIndex: 10060,
+  };
+
+  const mobileSignedInMenuExtras = (
+    <div
+      style={{
+        padding: "0.5rem 0.85rem",
+        borderBottom: `1px solid ${T.border}`,
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.55rem",
+        alignItems: "stretch",
+      }}
+    >
+      <div style={{ fontSize: "0.62rem", fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+        Plan & preferences
+      </div>
+      <div style={{ alignSelf: "flex-start" }}>{headerPlanBadge}</div>
+      {headerCommunityWinsPill}
+      {headerThemeControl(true)}
+      {headerRegionControl(true)}
+      {headerHelpControl(true)}
+    </div>
+  );
+
+  const mobileGuestMenuPanel = (
+    <div
+      style={{
+        padding: "0.5rem 0.85rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.55rem",
+        alignItems: "stretch",
+      }}
+    >
+      <div style={{ fontSize: "0.62rem", fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+        Community & settings
+      </div>
+      {headerCommunityWinsPill}
+      {headerThemeControl(true)}
+      {headerRegionControl(true)}
+      {headerHelpControl(true)}
+    </div>
+  );
+
   return (
     <div style={{ minHeight: "100vh", background: T.pageBg, display: "flex", flexDirection: "column", fontFamily: "'DM Sans', system-ui, sans-serif", color: T.textPrimary }}>
       <style>{`
@@ -2574,206 +2772,300 @@ export default function OfferAdvisor() {
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.35rem", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end", minWidth: 0 }}>
-          {/* Community wins pill — always visible */}
-          {stats.totalUsers > 0 ? (
-            <div style={{ fontSize: "0.68rem", color: "#34d399", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: "10px" }}>
-              {stats.totalUsers} wins · ${(stats.totalGained / 1000).toFixed(0)}K secured
+          {compactHeader && isLoaded && isSignedIn ? (
+            <div ref={accountMenuRef} style={{ position: "relative", marginLeft: "auto" }}>
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={accountMenuOpen}
+                onClick={() => {
+                  setHeaderMoreMenuOpen(false);
+                  setAccountMenuOpen((o) => !o);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.45rem",
+                  padding: "0.3rem 0.5rem 0.3rem 0.3rem",
+                  borderRadius: "10px",
+                  border: `1px solid ${T.border}`,
+                  background: T.cardBg,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  maxWidth: "min(280px, 85vw)",
+                }}
+              >
+                {user?.imageUrl ? (
+                  <img alt="" src={user.imageUrl} width={28} height={28} style={{ borderRadius: "8px", flexShrink: 0, objectFit: "cover" }} />
+                ) : (
+                  <div style={{ width: 28, height: 28, borderRadius: "8px", flexShrink: 0, background: "#334155", color: "#e2e8f0", fontSize: "0.75rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {(accountDisplayName[0] || "?").toUpperCase()}
+                  </div>
+                )}
+                <span style={{ fontSize: "0.82rem", fontWeight: 600, color: T.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {accountDisplayName}
+                </span>
+                <span style={{ fontSize: "0.55rem", color: T.textMuted, flexShrink: 0 }}>▼</span>
+              </button>
+              {accountMenuOpen && (
+                <div role="menu" style={headerDropdownPanelStyle}>
+                  <div style={{ padding: "0.5rem 0.85rem 0.65rem", borderBottom: `1px solid ${T.border}` }}>
+                    <div style={{ fontSize: "0.72rem", fontWeight: 600, color: T.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountDisplayName}</div>
+                    {accountEmail ? (
+                      <div style={{ fontSize: "0.68rem", color: T.textMuted, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountEmail}</div>
+                    ) : null}
+                  </div>
+                  {mobileSignedInMenuExtras}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      setShowUserProfileModal(true);
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "0.55rem 0.85rem",
+                      border: "none",
+                      background: "transparent",
+                      color: T.textSecondary,
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    View / edit profile
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      setWalletModalOpen(true);
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "0.55rem 0.85rem",
+                      border: "none",
+                      background: "transparent",
+                      color: T.textSecondary,
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Wallet & plan
+                  </button>
+                  <div style={{ height: 1, background: T.border, margin: "0.25rem 0" }} />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={async () => {
+                      setAccountMenuOpen(false);
+                      await signOut({ redirectUrl: `${window.location.origin}/` });
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "0.55rem 0.85rem",
+                      border: "none",
+                      background: "transparent",
+                      color: "#f87171",
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
             </div>
-          ) : (
-            <div style={{ fontSize: "0.68rem", color: "#34d399", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: "10px" }}>
-              $169K secured this month
-            </div>
-          )}
-
-          <button onClick={toggleTheme} style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
-            {isDark ? "☀ Light" : "☾ Dark"}
-          </button>
-          <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.68rem", color: T.textMuted, whiteSpace: "nowrap" }}>
-            <span>Region</span>
-            <select
-              value={regionId}
-              onChange={(e) => requestRegionChange(e.target.value)}
-              aria-label="Salary region; switching clears drafts and restarts coach"
-              style={{
-                padding: "0.25rem 0.45rem",
-                borderRadius: "8px",
-                border: `1px solid ${T.border}`,
-                background: T.surfaceBg,
-                color: T.textPrimary,
-                fontSize: "0.72rem",
-                fontFamily: "inherit",
-                cursor: "pointer",
-                maxWidth: "min(140px, 28vw)",
-              }}
-            >
-              {REGION_OPTIONS.map((o) => (
-                <option key={o.id} value={o.id}>{o.pickerLabel}</option>
-              ))}
-            </select>
-          </label>
-          <button onClick={() => { setShowOnboarding(true); setOnboardingStep(0); }} style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
-            ? Help
-          </button>
-
-          {/* Auth section — while Clerk loads we show a hint (was null before, so Sign in vanished in dev if Clerk hung) */}
-          {!isLoaded ? (
-            <span style={{ fontSize: "0.68rem", color: T.textMuted, whiteSpace: "nowrap", padding: "0.2rem 0" }} title="Connecting to Clerk…">
-              Session…
-            </span>
-          ) : isSignedIn ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-              {/* Plan badge */}
-              <div style={{
-                fontSize: "0.65rem", padding: "2px 8px", borderRadius: "8px", fontWeight: 600, letterSpacing: "0.02em",
-                ...(userPlan === "pro"
-                  ? { background: "linear-gradient(135deg, #7c3aed, #6d28d9)", color: "#fff", border: "1px solid #7c3aed", boxShadow: "0 0 8px rgba(124,58,237,0.35)" }
-                  : userPlan === "sprint"
-                  ? { background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#fff", border: "1px solid #2563eb", boxShadow: "0 0 8px rgba(37,99,235,0.35)" }
-                  : userPlan === "student_plus"
-                  ? { background: "linear-gradient(135deg, #0d9488, #0f766e)", color: "#fff", border: "1px solid #0d9488", boxShadow: "0 0 8px rgba(13,148,136,0.35)" }
-                  : { background: T.cardBg, color: T.textMuted, border: `1px solid ${T.border}` }),
-              }}>
-                {PLANS[userPlan]?.label || "Free"}
-              </div>
-              <div ref={accountMenuRef} style={{ position: "relative" }}>
+          ) : compactHeader && isLoaded && !isSignedIn ? (
+            <>
+              <div ref={headerMoreMenuRef} style={{ position: "relative", flexShrink: 0 }}>
                 <button
                   type="button"
                   aria-haspopup="menu"
-                  aria-expanded={accountMenuOpen}
-                  onClick={() => setAccountMenuOpen((o) => !o)}
+                  aria-expanded={headerMoreMenuOpen}
+                  aria-label="Open menu — community wins, theme, region, help"
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    setHeaderMoreMenuOpen((o) => !o);
+                  }}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.45rem",
-                    padding: "0.25rem 0.45rem 0.25rem 0.25rem",
+                    padding: "0.3rem 0.65rem",
                     borderRadius: "10px",
                     border: `1px solid ${T.border}`,
-                    background: T.cardBg,
+                    background: T.surfaceBg,
+                    color: T.textSecondary,
+                    fontSize: "0.72rem",
                     cursor: "pointer",
                     fontFamily: "inherit",
-                    maxWidth: "min(200px, 42vw)",
+                    fontWeight: 600,
                   }}
                 >
-                  {user?.imageUrl ? (
-                    <img
-                      alt=""
-                      src={user.imageUrl}
-                      width={28}
-                      height={28}
-                      style={{ borderRadius: "8px", flexShrink: 0, objectFit: "cover" }}
-                    />
-                  ) : (
-                    <div style={{ width: 28, height: 28, borderRadius: "8px", flexShrink: 0, background: "#334155", color: "#e2e8f0", fontSize: "0.75rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {(accountDisplayName[0] || "?").toUpperCase()}
-                    </div>
-                  )}
-                  <span style={{ fontSize: "0.78rem", fontWeight: 500, color: T.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {accountDisplayName}
-                  </span>
-                  <span style={{ fontSize: "0.55rem", color: T.textMuted, flexShrink: 0 }}>▼</span>
+                  More ▾
                 </button>
-                {accountMenuOpen && (
-                  <div
-                    role="menu"
-                    style={{
-                      position: "absolute",
-                      right: 0,
-                      top: "calc(100% + 6px)",
-                      minWidth: 240,
-                      maxWidth: 300,
-                      padding: "0.35rem 0",
-                      borderRadius: "12px",
-                      border: `1px solid ${T.border}`,
-                      background: T.headerBg,
-                      boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
-                      zIndex: 10060,
-                    }}
-                  >
-                    <div style={{ padding: "0.5rem 0.85rem 0.65rem", borderBottom: `1px solid ${T.border}` }}>
-                      <div style={{ fontSize: "0.72rem", fontWeight: 600, color: T.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountDisplayName}</div>
-                      {accountEmail ? (
-                        <div style={{ fontSize: "0.68rem", color: T.textMuted, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountEmail}</div>
-                      ) : null}
-                    </div>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setAccountMenuOpen(false);
-                        setShowUserProfileModal(true);
-                      }}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "0.55rem 0.85rem",
-                        border: "none",
-                        background: "transparent",
-                        color: T.textSecondary,
-                        fontSize: "0.8rem",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      View / edit profile
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setAccountMenuOpen(false);
-                        setWalletModalOpen(true);
-                      }}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "0.55rem 0.85rem",
-                        border: "none",
-                        background: "transparent",
-                        color: T.textSecondary,
-                        fontSize: "0.8rem",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      Wallet & plan
-                    </button>
-                    <div style={{ height: 1, background: T.border, margin: "0.25rem 0" }} />
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={async () => {
-                        setAccountMenuOpen(false);
-                        await signOut({ redirectUrl: `${window.location.origin}/` });
-                      }}
-                      style={{
-                        width: "100%",
-                        textAlign: "left",
-                        padding: "0.55rem 0.85rem",
-                        border: "none",
-                        background: "transparent",
-                        color: "#f87171",
-                        fontSize: "0.8rem",
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      Sign out
-                    </button>
+                {headerMoreMenuOpen && (
+                  <div role="menu" style={headerDropdownPanelStyle}>
+                    {mobileGuestMenuPanel}
                   </div>
                 )}
               </div>
-            </div>
+              <div style={{ display: "flex", gap: "0.3rem", marginLeft: "auto", flexShrink: 0 }}>
+                <button onClick={() => setAuthModal("signin")}
+                  style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
+                  Sign in
+                </button>
+                <button onClick={() => setAuthModal("signup")}
+                  style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
+                  Sign up free
+                </button>
+              </div>
+            </>
+          ) : compactHeader && !isLoaded ? (
+            <span style={{ fontSize: "0.68rem", color: T.textMuted, whiteSpace: "nowrap", padding: "0.2rem 0", marginLeft: "auto" }} title="Connecting to Clerk…">
+              Session…
+            </span>
           ) : (
-            <div style={{ display: "flex", gap: "0.3rem" }}>
-              <button onClick={() => setAuthModal("signin")}
-                style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
-                Sign in
-              </button>
-              <button onClick={() => setAuthModal("signup")}
-                style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
-                Sign up free
-              </button>
-            </div>
+            <>
+              {headerCommunityWinsPill}
+              {headerThemeControl(false)}
+              {headerRegionControl(false)}
+              {headerHelpControl(false)}
+              {!isLoaded ? (
+                <span style={{ fontSize: "0.68rem", color: T.textMuted, whiteSpace: "nowrap", padding: "0.2rem 0" }} title="Connecting to Clerk…">
+                  Session…
+                </span>
+              ) : isSignedIn ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                  {headerPlanBadge}
+                  <div ref={accountMenuRef} style={{ position: "relative" }}>
+                    <button
+                      type="button"
+                      aria-haspopup="menu"
+                      aria-expanded={accountMenuOpen}
+                      onClick={() => {
+                        setHeaderMoreMenuOpen(false);
+                        setAccountMenuOpen((o) => !o);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.45rem",
+                        padding: "0.25rem 0.45rem 0.25rem 0.25rem",
+                        borderRadius: "10px",
+                        border: `1px solid ${T.border}`,
+                        background: T.cardBg,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                        maxWidth: "min(200px, 42vw)",
+                      }}
+                    >
+                      {user?.imageUrl ? (
+                        <img alt="" src={user.imageUrl} width={28} height={28} style={{ borderRadius: "8px", flexShrink: 0, objectFit: "cover" }} />
+                      ) : (
+                        <div style={{ width: 28, height: 28, borderRadius: "8px", flexShrink: 0, background: "#334155", color: "#e2e8f0", fontSize: "0.75rem", fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          {(accountDisplayName[0] || "?").toUpperCase()}
+                        </div>
+                      )}
+                      <span style={{ fontSize: "0.78rem", fontWeight: 500, color: T.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {accountDisplayName}
+                      </span>
+                      <span style={{ fontSize: "0.55rem", color: T.textMuted, flexShrink: 0 }}>▼</span>
+                    </button>
+                    {accountMenuOpen && (
+                      <div role="menu" style={headerDropdownPanelStyle}>
+                        <div style={{ padding: "0.5rem 0.85rem 0.65rem", borderBottom: `1px solid ${T.border}` }}>
+                          <div style={{ fontSize: "0.72rem", fontWeight: 600, color: T.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountDisplayName}</div>
+                          {accountEmail ? (
+                            <div style={{ fontSize: "0.68rem", color: T.textMuted, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{accountEmail}</div>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setAccountMenuOpen(false);
+                            setShowUserProfileModal(true);
+                          }}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "0.55rem 0.85rem",
+                            border: "none",
+                            background: "transparent",
+                            color: T.textSecondary,
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          View / edit profile
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setAccountMenuOpen(false);
+                            setWalletModalOpen(true);
+                          }}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "0.55rem 0.85rem",
+                            border: "none",
+                            background: "transparent",
+                            color: T.textSecondary,
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Wallet & plan
+                        </button>
+                        <div style={{ height: 1, background: T.border, margin: "0.25rem 0" }} />
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={async () => {
+                            setAccountMenuOpen(false);
+                            await signOut({ redirectUrl: `${window.location.origin}/` });
+                          }}
+                          style={{
+                            width: "100%",
+                            textAlign: "left",
+                            padding: "0.55rem 0.85rem",
+                            border: "none",
+                            background: "transparent",
+                            color: "#f87171",
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Sign out
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: "0.3rem" }}>
+                  <button onClick={() => setAuthModal("signin")}
+                    style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
+                    Sign in
+                  </button>
+                  <button onClick={() => setAuthModal("signup")}
+                    style={{ padding: "0.3rem 0.75rem", borderRadius: "16px", border: "none", background: "#1d4ed8", color: "white", fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}>
+                    Sign up free
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
