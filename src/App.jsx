@@ -29,8 +29,8 @@ import {
   OA_PAGE_PAD_X,
 } from "./constants/appLayout.js";
 import {
-  guestSignalRoomCoachUsed,
-  markGuestSignalRoomCoachUsed,
+  guestCareerBlueprintCoachUsed,
+  markGuestCareerBlueprintCoachUsed,
 } from "./utils/bridgeSnapshotCoachQuota.js";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
@@ -84,10 +84,10 @@ const welcomeMessageFor = (name) => ({
 const TABS = [
   { id: "coach",     label: "Share offer", shortLabel: "Coach",     icon: "coach",     desc: "Tell me about your offer" },
   {
-    id: "signal_room",
-    label: "Signal Room",
-    shortLabel: "Signals",
-    icon: "signal_room",
+    id: "career_blueprint",
+    label: "Career Blueprint",
+    shortLabel: "Blueprint",
+    icon: "career_blueprint",
     desc: "Where your work energy points—quick prompts, zero jargon",
   },
   { id: "student", label: BRIDGE_TAB_LABEL, shortLabel: BRIDGE_TAB_SHORT_LABEL, icon: "student", desc: BRIDGE_TAB_DESC },
@@ -146,12 +146,15 @@ const PROMPTS = {
     "How do I compare two new-grad offers side by side?",
     "What could this offer mean for my salary in 5 years?",
   ],
-  signal_room: [
-    "What do my Signal Room scores suggest I double down on?",
+  career_blueprint: [
+    "What do my Career Blueprint scores suggest I double down on?",
     "How do I test these themes in my next internship or job?",
     "How should I talk about my strengths in an interview?",
   ],
 };
+
+/** Legacy deep links: ?tab=signal_room opens Career Blueprint */
+const TAB_DEEP_LINK_ALIASES = Object.freeze({ signal_room: "career_blueprint" });
 
 const CURRENCIES = [
   { code: "USD", symbol: "$", label: "USD ($)" },
@@ -178,10 +181,10 @@ const PLANS = {
 // Features each plan can access (tab ids). Pathway guardrails:
 // — Student Plus → Students hub only · Sprint/Pro → professional tools only (no Students tab). Free keeps both for exploration.
 const PLAN_FEATURES = {
-  free:   ["coach", "signal_room", "student"],
-  sprint: ["coach", "signal_room", "benchmark", "calculate", "practice", "logwin"],
-  student_plus: ["student", "signal_room"],
-  pro:    ["coach", "signal_room", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
+  free:   ["coach", "career_blueprint", "student"],
+  sprint: ["coach", "career_blueprint", "benchmark", "calculate", "practice", "logwin"],
+  student_plus: ["student", "career_blueprint"],
+  pro:    ["coach", "career_blueprint", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
 };
 
 /** Paid plans scoped to salary negotiation tooling (no Students tab). */
@@ -198,7 +201,7 @@ function isStudentPaidPlan(plan) {
 function pathwayTabBlocked(plan, tabId) {
   if (!plan || plan === "free") return false;
   if (isProfessionalPaidPlan(plan) && tabId === "student") return true;
-  if (isStudentPaidPlan(plan) && tabId !== "student" && tabId !== "signal_room") return true;
+  if (isStudentPaidPlan(plan) && tabId !== "student" && tabId !== "career_blueprint") return true;
   return false;
 }
 
@@ -503,7 +506,8 @@ export default function OfferAdvisor() {
     const raw = params.get("tab");
     if (raw == null || raw === "") return;
     tabDeepLinkHandledRef.current = true;
-    const tabId = raw.trim().toLowerCase();
+    const normalized = raw.trim().toLowerCase().replace(/-/g, "_");
+    const tabId = TAB_DEEP_LINK_ALIASES[normalized] ?? normalized;
     const known = TABS.some((t) => t.id === tabId);
     params.delete("tab");
     const rest = params.toString();
@@ -739,14 +743,14 @@ export default function OfferAdvisor() {
     return sendMessage(text);
   };
 
-  /** Signal Room tab: guests get one coach reply per browser; then sign-in CTA (mirrors Free one-reply UX). */
-  const sendSignalRoomCoach = async (text) => {
-    if (!isSignedIn && guestSignalRoomCoachUsed()) {
+  /** Career Blueprint tab: guests get one coach reply per browser; then sign-in CTA (mirrors Free one-reply UX). */
+  const sendCareerBlueprintCoach = async (text) => {
+    if (!isSignedIn && guestCareerBlueprintCoachUsed()) {
       setAuthModal("signin");
       return false;
     }
     const ok = await sendCoachFromStudentHub(text);
-    if (!isSignedIn && ok) markGuestSignalRoomCoachUsed();
+    if (!isSignedIn && ok) markGuestCareerBlueprintCoachUsed();
     return ok;
   };
 
@@ -1140,7 +1144,7 @@ export default function OfferAdvisor() {
       } else if (pathway && isStudentPaidPlan(userPlan)) {
         title = `Student Plus — ${BRIDGE_TAB_LABEL} only`;
         description =
-          `Your plan unlocks ${BRIDGE_TAB_LABEL} and Signal Room (benchmarks, compare offers, paths, campus verification). Upgrade to Offer Sprint or Offer in Hand for Share offer, Benchmark, Calculator, Practice, Log win, and Pro-only tools.`;
+          `Your plan unlocks ${BRIDGE_TAB_LABEL} and Career Blueprint (benchmarks, compare offers, paths, campus verification). Upgrade to Offer Sprint or Offer in Hand for Share offer, Benchmark, Calculator, Practice, Log win, and Pro-only tools.`;
         primaryAction = {
           label: "View upgrade options →",
           onClick: () => setAuthModal("upgrade"),
@@ -1151,7 +1155,7 @@ export default function OfferAdvisor() {
           : "Sign in, then upgrade to Offer in Hand (Pro) to use the voice mock interview with Alex.";
       } else if (!isSignedIn) {
         description =
-          `Create a free account. Student Plus ($19.99) unlocks ${BRIDGE_TAB_LABEL}; Offer Sprint ($29) unlocks Share offer and negotiation tools; Pro ($49) adds lifetime professional tools. Free accounts can explore Share offer, Signal Room, and ${BRIDGE_TAB_LABEL} at starter limits.`;
+          `Create a free account. Student Plus ($19.99) unlocks ${BRIDGE_TAB_LABEL}; Offer Sprint ($29) unlocks Share offer and negotiation tools; Pro ($49) adds lifetime professional tools. Free accounts can explore Share offer, Career Blueprint, and ${BRIDGE_TAB_LABEL} at starter limits.`;
       } else {
         description =
           `Offer Sprint ($29) or Pro ($49) unlock Benchmark, Calculator, Practice, Log win, and Pro extras. Student Plus is for students — ${BRIDGE_TAB_SHORT_LABEL} workspace only — upgrade if you need professional negotiation tabs.`;
@@ -1989,7 +1993,7 @@ export default function OfferAdvisor() {
         );
       }
 
-      case "signal_room":
+      case "career_blueprint":
         return (
           <>
             <div style={{ flex: 1, overflowY: "auto", padding: `1.25rem ${OA_PAGE_PAD_X}` }}>
@@ -1999,16 +2003,16 @@ export default function OfferAdvisor() {
                   userPlan={userPlan}
                   userId={user?.id ?? null}
                   isSignedIn={isSignedIn}
-                  guestSignalRoomCoachExhausted={
-                    Boolean(!isSignedIn && guestSignalRoomCoachUsed())
+                  guestCareerBlueprintCoachExhausted={
+                    Boolean(!isSignedIn && guestCareerBlueprintCoachUsed())
                   }
                   onSignIn={() => setAuthModal("signin")}
                   onViewPlans={() => setAuthModal("upgrade")}
-                  onDiscussWithCoach={sendSignalRoomCoach}
+                  onDiscussWithCoach={sendCareerBlueprintCoach}
                 />
               </div>
             </div>
-            <ChatStrip onSend={sendSignalRoomCoach} loading={loading} T={T} tabId="signal_room" />
+            <ChatStrip onSend={sendCareerBlueprintCoach} loading={loading} T={T} tabId="career_blueprint" />
           </>
         );
 

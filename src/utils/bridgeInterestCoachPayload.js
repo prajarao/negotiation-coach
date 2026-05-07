@@ -11,9 +11,9 @@ export function formatBridgeInterestCoachMessage(opts) {
   const { scored, ranked, userNote } = opts;
   const top3 = ranked.slice(0, 3).map((r) => themeLabel(r.themeId));
   const lines = [
-    "I'd like your take on my Signal Room work-style snapshot.",
+    "I'd like your take on my Career Blueprint work-style snapshot.",
     "",
-    "Signal Room is OfferAdvisor’s short self-check (original prompts)—exploratory only, not a licensed or normed psychological test.",
+    "Career Blueprint is OfferAdvisor’s short self-check (original prompts)—exploratory only, not a licensed or normed psychological test.",
     "",
     "--- My theme scores ---",
     "Scale per theme: sum of ratings 1–5 across 7 prompts (possible range 7–35); percentage is a convenience display (≈ strength within that snapshot).",

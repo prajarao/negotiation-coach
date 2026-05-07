@@ -2,8 +2,9 @@
 
 const STORAGE_KEY = "offeradvisor_bridge_snap_coach_free_v1";
 
-/** Signed-out users: one Signal Room–tab coach send per browser (shared with strip + “Discuss” CTA). */
-const GUEST_SIGNAL_ROOM_KEY = "offeradvisor_signal_room_guest_coach_v1";
+/** Signed-out users: one Career Blueprint–tab coach send per browser (shared with strip + “Discuss” CTA). */
+const GUEST_LEGACY_SIGNAL_ROOM_KEY = "offeradvisor_signal_room_guest_coach_v1";
+const GUEST_CAREER_BLUEPRINT_KEY = "offeradvisor_career_blueprint_guest_coach_v1";
 
 /** @returns {Record<string, true>} */
 function readMap() {
@@ -34,17 +35,20 @@ export function markFreeSnapshotCoachUsed(userId) {
   }
 }
 
-export function guestSignalRoomCoachUsed() {
+export function guestCareerBlueprintCoachUsed() {
   try {
-    return localStorage.getItem(GUEST_SIGNAL_ROOM_KEY) === "1";
+    return (
+      localStorage.getItem(GUEST_CAREER_BLUEPRINT_KEY) === "1" ||
+      localStorage.getItem(GUEST_LEGACY_SIGNAL_ROOM_KEY) === "1"
+    );
   } catch {
     return false;
   }
 }
 
-export function markGuestSignalRoomCoachUsed() {
+export function markGuestCareerBlueprintCoachUsed() {
   try {
-    localStorage.setItem(GUEST_SIGNAL_ROOM_KEY, "1");
+    localStorage.setItem(GUEST_CAREER_BLUEPRINT_KEY, "1");
   } catch {
     /* ignore */
   }

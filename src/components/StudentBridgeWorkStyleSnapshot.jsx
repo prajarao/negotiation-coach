@@ -26,13 +26,13 @@ const LIKERT = [
 const PAGE_SIZE = 6;
 
 /**
- * OfferAdvisor Signal Room — original prompts, no third-party inventories.
+ * OfferAdvisor Career Blueprint — original prompts, no third-party inventories.
  *
  * @param {object} props
  * @param {object} props.T
  * @param {(text: string) => boolean | void | Promise<boolean | void>} [props.onDiscussWithCoach]
  * @param {boolean} [props.isSignedIn]
- * @param {boolean} [props.guestSignalRoomCoachExhausted] — signed-out visitor used one try-on reply (browser)
+ * @param {boolean} [props.guestCareerBlueprintCoachExhausted] — signed-out visitor used one try-on reply (browser)
  * @param {string | null | undefined} [props.userId] — Clerk user id for free-tier quota
  * @param {string} [props.userPlan]
  * @param {() => void} [props.onSignIn]
@@ -42,7 +42,7 @@ export default function StudentBridgeWorkStyleSnapshot({
   T,
   onDiscussWithCoach,
   isSignedIn = false,
-  guestSignalRoomCoachExhausted = false,
+  guestCareerBlueprintCoachExhausted = false,
   userId = null,
   userPlan = "free",
   onSignIn,
@@ -122,7 +122,7 @@ export default function StudentBridgeWorkStyleSnapshot({
     if (!complete || typeof onDiscussWithCoach !== "function") return;
 
     if (!isSignedIn) {
-      if (guestSignalRoomCoachExhausted) {
+      if (guestCareerBlueprintCoachExhausted) {
         onSignIn?.();
         return;
       }
@@ -167,14 +167,14 @@ export default function StudentBridgeWorkStyleSnapshot({
     return (
       <div style={card}>
         <h3 style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary, margin: "0 0 0.35rem" }}>
-          Signal Room
+          Career Blueprint
         </h3>
         <p style={{ fontSize: "0.78rem", color: T.textSecondary, margin: "0 0 0.85rem", lineHeight: 1.55 }}>
           A quick {items.length}-prompt pulse on where your work energy points. Rate each line on your terms—use it for reflection or to seed a coach thread.
         </p>
         {!isSignedIn && (
           <p style={{ fontSize: "0.74rem", color: T.textMuted, margin: "0 0 0.85rem", lineHeight: 1.55 }}>
-            Without signing in you can try <strong style={{ color: T.textSecondary }}>one complimentary AI reply</strong> when you send your Signal Room to the coach (this device). Then create a free account for another complimentary reply from Signal Room plus the rest of the app.
+            Without signing in you can try <strong style={{ color: T.textSecondary }}>one complimentary AI reply</strong> when you send your Career Blueprint to the coach (this device). Then create a free account for another complimentary reply from Career Blueprint plus the rest of the app.
           </p>
         )}
         {isSignedIn && isFreePlan && (
@@ -225,7 +225,7 @@ export default function StudentBridgeWorkStyleSnapshot({
               fontFamily: "inherit",
             }}
           >
-            Start Signal Room
+            Start Career Blueprint
           </button>
           {Object.keys(responses).length > 0 && (
             <button
@@ -256,12 +256,12 @@ export default function StudentBridgeWorkStyleSnapshot({
   if (phase === "results" && complete) {
     const topThree = ranked.slice(0, 3);
     const coachNoteDisabled =
-      (!isSignedIn && guestSignalRoomCoachExhausted) ||
+      (!isSignedIn && guestCareerBlueprintCoachExhausted) ||
       (isFreePlan && isSignedIn && freeCoachExhausted);
     return (
       <div style={{ ...card, display: "flex", flexDirection: "column", gap: "1rem" }}>
         <div>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary, margin: "0 0 0.35rem" }}>Your Signal Room readout</h3>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary, margin: "0 0 0.35rem" }}>Your Career Blueprint readout</h3>
           <p style={{ fontSize: "0.78rem", color: T.textMuted, margin: 0, lineHeight: 1.5 }}>
             Strongest currents in this snapshot (by total score)—use as a hypothesis, not a verdict.
           </p>
@@ -315,7 +315,7 @@ export default function StudentBridgeWorkStyleSnapshot({
           />
         </label>
 
-        {!isSignedIn && guestSignalRoomCoachExhausted && (
+        {!isSignedIn && guestCareerBlueprintCoachExhausted && (
           <div
             style={{
               padding: "0.75rem 0.95rem",
@@ -327,7 +327,7 @@ export default function StudentBridgeWorkStyleSnapshot({
               lineHeight: 1.55,
             }}
           >
-            You’ve used your try-on coach reply from Signal Room on this browser.{" "}
+            You’ve used your try-on coach reply from Career Blueprint on this browser.{" "}
             <strong style={{ color: T.textPrimary }}>Sign in or create a free account</strong> to get another complimentary reply and keep going.
           </div>
         )}
@@ -344,13 +344,13 @@ export default function StudentBridgeWorkStyleSnapshot({
               lineHeight: 1.55,
             }}
           >
-            You’ve already used your <strong style={{ color: T.textPrimary }}>complimentary coach reply</strong> from Signal Room on the Free plan.
+            You’ve already used your <strong style={{ color: T.textPrimary }}>complimentary coach reply</strong> from Career Blueprint on the Free plan.
             Upgrade to keep working with the coach on your interests, offers, and next steps.
           </div>
         )}
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
-          {!isSignedIn && guestSignalRoomCoachExhausted ? (
+          {!isSignedIn && guestCareerBlueprintCoachExhausted ? (
             <button
               type="button"
               onClick={() => onSignIn?.()}
@@ -387,7 +387,7 @@ export default function StudentBridgeWorkStyleSnapshot({
                 fontFamily: "inherit",
               }}
             >
-              {coachSending ? "Opening coach…" : "Discuss Signal Room with coach →"}
+              {coachSending ? "Opening coach…" : "Discuss Career Blueprint with coach →"}
             </button>
           ) : isFreePlan && freeCoachExhausted ? (
             <button
@@ -425,17 +425,17 @@ export default function StudentBridgeWorkStyleSnapshot({
                 fontFamily: "inherit",
               }}
             >
-              {coachSending ? "Opening coach…" : "Discuss Signal Room with coach →"}
+              {coachSending ? "Opening coach…" : "Discuss Career Blueprint with coach →"}
             </button>
           )}
-          {!isSignedIn && !guestSignalRoomCoachExhausted && (
+          {!isSignedIn && !guestCareerBlueprintCoachExhausted && (
             <span style={{ fontSize: "0.7rem", color: T.textHint, maxWidth: "280px", lineHeight: 1.45 }}>
               Try-on: one AI reply without an account—then sign in when you’re ready for more.
             </span>
           )}
           {isFreePlan && isSignedIn && !freeCoachExhausted && (
             <span style={{ fontSize: "0.7rem", color: T.textHint, maxWidth: "280px", lineHeight: 1.45 }}>
-              Free plan: one AI reply after you send Signal Room. Tap when you’re ready.
+              Free plan: one AI reply after you send Career Blueprint. Tap when you’re ready.
             </span>
           )}
           <button
@@ -454,7 +454,7 @@ export default function StudentBridgeWorkStyleSnapshot({
               fontFamily: "inherit",
             }}
           >
-            Retake Signal Room
+            Retake Career Blueprint
           </button>
           <button
             type="button"
@@ -482,7 +482,7 @@ export default function StudentBridgeWorkStyleSnapshot({
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: "1rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}>
         <div>
-          <h3 style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary, margin: "0 0 0.35rem" }}>Signal Room prompts</h3>
+          <h3 style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary, margin: "0 0 0.35rem" }}>Career Blueprint prompts</h3>
           <p style={{ fontSize: "0.74rem", color: T.textMuted, margin: 0, lineHeight: 1.5 }}>
             Page {page + 1} of {totalPages}. Use the “How to answer” scale above each group of prompts.
           </p>
@@ -501,7 +501,7 @@ export default function StudentBridgeWorkStyleSnapshot({
             fontFamily: "inherit",
           }}
         >
-          About Signal Room
+          About Career Blueprint
         </button>
       </div>
 
