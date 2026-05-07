@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { WORK_STYLE_THEMES } from "../constants/workStyleThemes.js";
 import { BRIDGE_VOCATIONAL_INTEREST_ITEMS } from "../data/bridgeVocationalInterestItems.js";
 import { formatBridgeInterestCoachMessage } from "../utils/bridgeInterestCoachPayload.js";
@@ -23,7 +23,18 @@ const LIKERT = [
   { v: 5, short: "Yes", long: "Very much yes" },
 ];
 
-const PAGE_SIZE = 6;
+/** Desktop/tablet: several prompts per page; mobile (narrow): one prompt at a time. */
+const CAREER_BLUEPRINT_DESKTOP_PAGE_SIZE = 6;
+const CAREER_BLUEPRINT_MOBILE_PAGE_SIZE = 1;
+const CAREER_BLUEPRINT_MOBILE_MQ = "(max-width: 639px)";
+
+/** @returns {number} */
+function getCareerBlueprintPageSize() {
+  if (typeof window === "undefined") return CAREER_BLUEPRINT_DESKTOP_PAGE_SIZE;
+  return window.matchMedia(CAREER_BLUEPRINT_MOBILE_MQ).matches
+    ? CAREER_BLUEPRINT_MOBILE_PAGE_SIZE
+    : CAREER_BLUEPRINT_DESKTOP_PAGE_SIZE;
+}
 
 /**
  * OfferAdvisor Career Blueprint — original prompts, no third-party inventories.
@@ -56,6 +67,9 @@ export default function StudentBridgeWorkStyleSnapshot({
   const [coachNote, setCoachNote] = useState("");
   const [coachSending, setCoachSending] = useState(false);
   const [freeCoachExhausted, setFreeCoachExhausted] = useState(false);
+  /** Steps per swipe/page: 1 on small phones, 6 on wider viewports */
+  const [pageSize, setPageSize] = useState(() => getCareerBlueprintPageSize());
+  const prevPageSizeRef = useRef(pageSize);
 
   const isFreePlan = userPlan === "free";
 
@@ -67,8 +81,27 @@ export default function StudentBridgeWorkStyleSnapshot({
     setFreeCoachExhausted(freeSnapshotCoachUsed(userId));
   }, [isSignedIn, userId, isFreePlan]);
 
+  useEffect(() => {
+    const mq = window.matchMedia(CAREER_BLUEPRINT_MOBILE_MQ);
+    const sync = () => setPageSize(getCareerBlueprintPageSize());
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+
   const items = BRIDGE_VOCATIONAL_INTEREST_ITEMS;
-  const totalPages = Math.ceil(items.length / PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+
+  useEffect(() => {
+    const prev = prevPageSizeRef.current;
+    if (prev === pageSize || items.length === 0) return;
+    setPage((p) => {
+      const sliceStart = p * prev;
+      const maxPage = Math.max(0, Math.ceil(items.length / pageSize) - 1);
+      return Math.min(Math.max(0, Math.floor(sliceStart / pageSize)), maxPage);
+    });
+    prevPageSizeRef.current = pageSize;
+  }, [pageSize, items.length]);
 
   useEffect(() => {
     try {
@@ -96,7 +129,7 @@ export default function StudentBridgeWorkStyleSnapshot({
   const ranked = useMemo(() => rankThemes(scored), [scored]);
   const complete = useMemo(() => isCompleteAssessment(items, responses), [items, responses]);
 
-  const pageSlice = items.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const pageSlice = items.slice(page * pageSize, page * pageSize + pageSize);
 
   const startFresh = useCallback(() => {
     setResponses({});
@@ -478,13 +511,103 @@ export default function StudentBridgeWorkStyleSnapshot({
   }
 
   /** flow phase */
+  const isCompactBlueprintFlow = pageSize === CAREER_BLUEPRINT_MOBILE_PAGE_SIZE;
+  const likertBtnPadding =
+    isCompactBlueprintFlow
+      ? { padding: "0.42rem 0.7rem", fontSize: "0.78rem" }
+      : { padding: "0.32rem 0.55rem", fontSize: "0.7rem" };
+
+  const blueprintHowToBlock = (
+    <div
+      style={{
+        padding: "0.75rem 0.95rem",
+        borderRadius: "10px",
+        border: `1px solid ${T.border}`,
+        background: T.surfaceBg || T.cardBg,
+      }}
+    >
+      <div style={{ fontSize: "0.72rem", fontWeight: 600, color: T.textMuted, marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+        How to answer
+      </div>
+      <p style={{ fontSize: "0.8rem", color: T.textPrimary, margin: "0 0 0.55rem", lineHeight: 1.5 }}>
+        {isCompactBlueprintFlow ? (
+          <>For this prompt, rate <strong>how much you’d enjoy</strong> spending time on that kind of work—not whether you’ve done it before.</>
+        ) : (
+          <>For each prompt below, rate <strong>how much you’d enjoy</strong> spending time on that kind of work—not whether you’ve done it before.</>
+        )}
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", alignItems: "center", fontSize: "0.7rem", color: T.textMuted }}>
+        {LIKERT.map((opt) => (
+          <span key={opt.v} style={{ padding: "0.2rem 0.45rem", borderRadius: "6px", border: `1px solid ${T.border}`, background: T.cardBg }}>
+            <strong style={{ color: T.textSecondary }}>{opt.short}</strong> · {opt.long}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+
+  const blueprintPromptCards = pageSlice.map((row) => (
+    <div
+      key={row.id}
+      style={{
+        padding: "0.65rem",
+        borderRadius: "10px",
+        border: `1px solid ${T.border}`,
+        background: T.surfaceBg || T.cardBg,
+      }}
+    >
+      <p style={{ fontSize: "0.82rem", color: T.textPrimary, margin: "0 0 0.6rem", lineHeight: 1.5 }}>
+        <strong>{row.text}</strong>
+      </p>
+      <div
+        role="radiogroup"
+        aria-label={`Enjoyment rating for prompt ${row.id}`}
+        style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}
+      >
+        {LIKERT.map((opt) => {
+          const selected = responses[row.id] === opt.v;
+          return (
+            <button
+              key={opt.v}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => handleLikert(row.id, opt.v)}
+              title={opt.long}
+              style={{
+                ...likertBtnPadding,
+                borderRadius: "8px",
+                border: selected ? "2px solid #2563eb" : `1px solid ${T.border}`,
+                background: selected ? "rgba(37, 99, 235, 0.14)" : T.cardBg,
+                color: selected ? "#1e40af" : T.textSecondary,
+                fontWeight: selected ? 600 : 500,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {opt.short}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  ));
+
   return (
     <div style={{ ...card, display: "flex", flexDirection: "column", gap: "1rem" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.75rem", flexWrap: "wrap" }}>
         <div>
           <h3 style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary, margin: "0 0 0.35rem" }}>Career Blueprint prompts</h3>
           <p style={{ fontSize: "0.74rem", color: T.textMuted, margin: 0, lineHeight: 1.5 }}>
-            Page {page + 1} of {totalPages}. Use the “How to answer” scale above each group of prompts.
+            {isCompactBlueprintFlow ? (
+              <>
+                Prompt {page + 1} of {items.length}. Answer on this prompt, then <strong style={{ color: T.textSecondary }}>Next prompt</strong> to continue.
+              </>
+            ) : (
+              <>
+                Page {page + 1} of {totalPages}. Use the “How to answer” scale above each group of prompts.
+              </>
+            )}
           </p>
         </div>
         <button
@@ -505,77 +628,17 @@ export default function StudentBridgeWorkStyleSnapshot({
         </button>
       </div>
 
-      {/* Shared rating instruction (not repeated on every prompt). */}
-      <div
-        style={{
-          padding: "0.75rem 0.95rem",
-          borderRadius: "10px",
-          border: `1px solid ${T.border}`,
-          background: T.surfaceBg || T.cardBg,
-        }}
-      >
-        <div style={{ fontSize: "0.72rem", fontWeight: 600, color: T.textMuted, marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          How to answer
-        </div>
-        <p style={{ fontSize: "0.8rem", color: T.textPrimary, margin: "0 0 0.55rem", lineHeight: 1.5 }}>
-          For each prompt below, rate <strong>how much you’d enjoy</strong> spending time on that kind of work—not whether you’ve done it before.
-        </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", alignItems: "center", fontSize: "0.7rem", color: T.textMuted }}>
-          {LIKERT.map((opt) => (
-            <span key={opt.v} style={{ padding: "0.2rem 0.45rem", borderRadius: "6px", border: `1px solid ${T.border}`, background: T.cardBg }}>
-              <strong style={{ color: T.textSecondary }}>{opt.short}</strong> · {opt.long}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {pageSlice.map((row) => (
-        <div
-          key={row.id}
-          style={{
-            padding: "0.65rem",
-            borderRadius: "10px",
-            border: `1px solid ${T.border}`,
-            background: T.surfaceBg || T.cardBg,
-          }}
-        >
-          <p style={{ fontSize: "0.82rem", color: T.textPrimary, margin: "0 0 0.6rem", lineHeight: 1.5 }}>
-            <strong>{row.text}</strong>
-          </p>
-          <div
-            role="radiogroup"
-            aria-label={`Enjoyment rating for prompt ${row.id}`}
-            style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}
-          >
-            {LIKERT.map((opt) => {
-              const selected = responses[row.id] === opt.v;
-              return (
-                <button
-                  key={opt.v}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => handleLikert(row.id, opt.v)}
-                  title={opt.long}
-                  style={{
-                    padding: "0.32rem 0.55rem",
-                    borderRadius: "8px",
-                    border: selected ? "2px solid #2563eb" : `1px solid ${T.border}`,
-                    background: selected ? "rgba(37, 99, 235, 0.14)" : T.cardBg,
-                    color: selected ? "#1e40af" : T.textSecondary,
-                    fontSize: "0.7rem",
-                    fontWeight: selected ? 600 : 500,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  {opt.short}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      ))}
+      {isCompactBlueprintFlow ? (
+        <>
+          {blueprintPromptCards}
+          {blueprintHowToBlock}
+        </>
+      ) : (
+        <>
+          {blueprintHowToBlock}
+          {blueprintPromptCards}
+        </>
+      )}
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: "0.45rem" }}>
@@ -611,7 +674,7 @@ export default function StudentBridgeWorkStyleSnapshot({
               fontFamily: "inherit",
             }}
           >
-            Next page
+            Next {isCompactBlueprintFlow ? "prompt" : "page"}
           </button>
         </div>
         <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
