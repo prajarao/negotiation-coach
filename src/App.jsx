@@ -288,36 +288,41 @@ function LockScreen({ title, description, T, onUpgrade, isSignedIn, primaryActio
 }
 
 // ── Compact chat strip used in tool tabs ──────────────────────────────────────
-function ChatStrip({ onSend, loading, T, tabId }) {
+function ChatStrip({ onSend, loading, T, tabId, stripDisabled, stripDisabledHint }) {
+  const locked = Boolean(stripDisabled);
   const [stripInput, setStripInput] = useState("");
   const prompts = PROMPTS[tabId] || [];
   const submit = () => {
-    if (!stripInput.trim() || loading) return;
+    if (locked || !stripInput.trim() || loading) return;
     onSend(stripInput.trim());
     setStripInput("");
   };
   return (
     <div style={{ borderTop: `1px solid ${T.border}`, padding: `0.65rem ${OA_PAGE_PAD_X}`, background: T.headerBg }}>
       <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto", width: "100%" }}>
+        {locked && stripDisabledHint ? (
+          <div style={{ fontSize: "0.72rem", color: T.textMuted, marginBottom: "0.45rem", lineHeight: 1.45 }}>{stripDisabledHint}</div>
+        ) : null}
         <div style={{ fontSize: "0.63rem", color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "0.4rem" }}>Ask the coach</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginBottom: "0.5rem" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginBottom: "0.5rem", opacity: locked ? 0.45 : 1, pointerEvents: locked ? "none" : "auto" }}>
           {prompts.map((p, i) => (
-            <button key={i} onClick={() => onSend(p)}
-              style={{ padding: "0.3rem 0.7rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: "pointer", fontFamily: "inherit" }}>
+            <button key={i} type="button" disabled={locked} onClick={() => { if (!locked) onSend(p); }}
+              style={{ padding: "0.3rem 0.7rem", borderRadius: "16px", border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, fontSize: "0.7rem", cursor: locked ? "not-allowed" : "pointer", fontFamily: "inherit" }}>
               {p}
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "10px", padding: "0.4rem 0.4rem 0.4rem 0.75rem" }}>
+        <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", background: T.surfaceBg, border: `1px solid ${T.border}`, borderRadius: "10px", padding: "0.4rem 0.4rem 0.4rem 0.75rem", opacity: locked ? 0.45 : 1 }}>
           <input
             value={stripInput}
             onChange={(e) => setStripInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
-            placeholder="Ask anything about your offer..."
+            disabled={locked}
+            placeholder={locked ? "Complete Career Blueprint results first…" : "Ask anything about your offer..."}
             style={{ flex: 1, background: "transparent", border: "none", color: T.textPrimary, fontSize: "0.84rem", fontFamily: "inherit", outline: "none" }}
           />
-          <button onClick={submit} disabled={!stripInput.trim() || loading}
-            style={{ width: 30, height: 30, borderRadius: "7px", border: "none", background: stripInput.trim() && !loading ? "#1d4ed8" : T.border, color: stripInput.trim() && !loading ? "white" : T.textMuted, cursor: stripInput.trim() && !loading ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "0.9rem" }}>
+          <button type="button" onClick={submit} disabled={locked || !stripInput.trim() || loading}
+            style={{ width: 30, height: 30, borderRadius: "7px", border: "none", background: !locked && stripInput.trim() && !loading ? "#1d4ed8" : T.border, color: !locked && stripInput.trim() && !loading ? "white" : T.textMuted, cursor: !locked && stripInput.trim() && !loading ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: "0.9rem" }}>
             ↑
           </button>
         </div>
@@ -510,6 +515,8 @@ export default function OfferAdvisor() {
     cb();
   };
   const [activeTab, setActiveTab] = useState("coach");
+  /** Career Blueprint: enable bottom coach strip only on the results phase (after “See results”). */
+  const [careerBlueprintCoachStripEnabled, setCareerBlueprintCoachStripEnabled] = useState(false);
   /** Mock interview: hide text coach + input strip to give the camera/interview more room (esp. mobile). */
   const [alexTextCoachVisible, setAlexTextCoachVisible] = useState(true);
   const [messages, setMessages] = useState([WELCOME_MESSAGE]);
@@ -525,6 +532,10 @@ export default function OfferAdvisor() {
       return fallback?.id ?? "coach";
     });
   }, [userPlan]);
+
+  useEffect(() => {
+    if (activeTab !== "career_blueprint") setCareerBlueprintCoachStripEnabled(false);
+  }, [activeTab]);
 
   /** Deep-link ?tab=student (BRIDGE) etc. — strip param after apply; respects plan locks. */
   const tabDeepLinkHandledRef = useRef(false);
@@ -2037,10 +2048,18 @@ export default function OfferAdvisor() {
                   onSignIn={() => setAuthModal("signin")}
                   onViewPlans={() => setAuthModal("upgrade")}
                   onDiscussWithCoach={sendCareerBlueprintCoach}
+                  onCoachStripAvailabilityChange={setCareerBlueprintCoachStripEnabled}
                 />
               </div>
             </div>
-            <ChatStrip onSend={sendCareerBlueprintCoach} loading={loading} T={T} tabId="career_blueprint" />
+            <ChatStrip
+              onSend={sendCareerBlueprintCoach}
+              loading={loading}
+              T={T}
+              tabId="career_blueprint"
+              stripDisabled={!careerBlueprintCoachStripEnabled}
+              stripDisabledHint='Finish all prompts, tap “See results,” then you can use Ask the coach below.'
+            />
           </>
         );
 

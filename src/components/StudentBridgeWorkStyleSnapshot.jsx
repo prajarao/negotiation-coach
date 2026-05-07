@@ -48,6 +48,7 @@ function getCareerBlueprintPageSize() {
  * @param {string} [props.userPlan]
  * @param {() => void} [props.onSignIn]
  * @param {() => void} [props.onViewPlans] — opens plan / upgrade modal when free quota exhausted
+ * @param {(enabled: boolean) => void} [props.onCoachStripAvailabilityChange] — `true` when results phase (coach strip may show)
  */
 export default function StudentBridgeWorkStyleSnapshot({
   T,
@@ -58,6 +59,7 @@ export default function StudentBridgeWorkStyleSnapshot({
   userPlan = "free",
   onSignIn,
   onViewPlans,
+  onCoachStripAvailabilityChange,
 }) {
   /** @type {Record<string, number>} */
   const [responses, setResponses] = useState({});
@@ -70,8 +72,14 @@ export default function StudentBridgeWorkStyleSnapshot({
   /** Steps per swipe/page: 1 on small phones, 6 on wider viewports */
   const [pageSize, setPageSize] = useState(() => getCareerBlueprintPageSize());
   const prevPageSizeRef = useRef(pageSize);
+  /** Pages after the first: “How to answer” is a collapsible hint (default closed). */
+  const [howToHintOpen, setHowToHintOpen] = useState(false);
 
   const isFreePlan = userPlan === "free";
+
+  useEffect(() => {
+    if (page > 0) setHowToHintOpen(false);
+  }, [page]);
 
   useEffect(() => {
     if (!isSignedIn || !userId || !isFreePlan) {
@@ -116,6 +124,10 @@ export default function StudentBridgeWorkStyleSnapshot({
       /* ignore */
     }
   }, []);
+
+  useEffect(() => {
+    onCoachStripAvailabilityChange?.(phase === "results");
+  }, [phase, onCoachStripAvailabilityChange]);
 
   useEffect(() => {
     try {
@@ -517,15 +529,11 @@ export default function StudentBridgeWorkStyleSnapshot({
       ? { padding: "0.42rem 0.7rem", fontSize: "0.78rem" }
       : { padding: "0.32rem 0.55rem", fontSize: "0.7rem" };
 
-  const blueprintHowToBlock = (
-    <div
-      style={{
-        padding: "0.75rem 0.95rem",
-        borderRadius: "10px",
-        border: `1px solid ${T.border}`,
-        background: T.surfaceBg || T.cardBg,
-      }}
-    >
+  /** First pagination page (shows full How to answer); later pages use a collapsible hint. */
+  const isFirstPromptPage = page === 0;
+
+  const howToAnswerScaleBody = (
+    <>
       <div style={{ fontSize: "0.72rem", fontWeight: 600, color: T.textMuted, marginBottom: "0.35rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
         How to answer
       </div>
@@ -543,8 +551,60 @@ export default function StudentBridgeWorkStyleSnapshot({
           </span>
         ))}
       </div>
+    </>
+  );
+
+  const blueprintHowToBlock = (
+    <div
+      style={{
+        padding: "0.75rem 0.95rem",
+        borderRadius: "10px",
+        border: `1px solid ${T.border}`,
+        background: T.surfaceBg || T.cardBg,
+      }}
+    >
+      {howToAnswerScaleBody}
     </div>
   );
+
+  const howToAnswerLaterPage = !isFirstPromptPage ? (
+    <div
+      style={{
+        borderRadius: "10px",
+        border: `1px solid ${T.border}`,
+        background: T.surfaceBg || T.cardBg,
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setHowToHintOpen((o) => !o)}
+        aria-expanded={howToHintOpen}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "0.5rem",
+          padding: "0.55rem 0.75rem",
+          border: "none",
+          background: "transparent",
+          color: T.textSecondary,
+          fontSize: "0.78rem",
+          fontWeight: 600,
+          cursor: "pointer",
+          fontFamily: "inherit",
+          textAlign: "left",
+        }}
+      >
+        <span>How to answer (rating scale)</span>
+        <span style={{ fontSize: "0.65rem", color: T.textMuted }}>{howToHintOpen ? "Hide ▲" : "Show ▼"}</span>
+      </button>
+      {howToHintOpen ? (
+        <div style={{ padding: "0.75rem 0.95rem", borderTop: `1px solid ${T.border}` }}>{howToAnswerScaleBody}</div>
+      ) : null}
+    </div>
+  ) : null;
 
   const blueprintPromptCards = pageSlice.map((row) => (
     <div
@@ -600,12 +660,22 @@ export default function StudentBridgeWorkStyleSnapshot({
           <h3 style={{ fontSize: "1rem", fontWeight: 600, color: T.textPrimary, margin: "0 0 0.35rem" }}>Career Blueprint prompts</h3>
           <p style={{ fontSize: "0.74rem", color: T.textMuted, margin: 0, lineHeight: 1.5 }}>
             {isCompactBlueprintFlow ? (
+              isFirstPromptPage ? (
+                <>
+                  Prompt {page + 1} of {items.length}. Answer on this prompt, then <strong style={{ color: T.textSecondary }}>Next prompt</strong> to continue.
+                </>
+              ) : (
+                <>
+                  Prompt {page + 1} of {items.length}. Open <strong>How to answer</strong> below if you need the rating scale.
+                </>
+              )
+            ) : isFirstPromptPage ? (
               <>
-                Prompt {page + 1} of {items.length}. Answer on this prompt, then <strong style={{ color: T.textSecondary }}>Next prompt</strong> to continue.
+                Page {page + 1} of {totalPages}. Use the “How to answer” guide above this page’s prompts.
               </>
             ) : (
               <>
-                Page {page + 1} of {totalPages}. Use the “How to answer” scale above each group of prompts.
+                Page {page + 1} of {totalPages}. Rate each prompt on this page—open <strong>How to answer</strong> above if you need the scale.
               </>
             )}
           </p>
@@ -631,11 +701,11 @@ export default function StudentBridgeWorkStyleSnapshot({
       {isCompactBlueprintFlow ? (
         <>
           {blueprintPromptCards}
-          {blueprintHowToBlock}
+          {isFirstPromptPage ? blueprintHowToBlock : howToAnswerLaterPage}
         </>
       ) : (
         <>
-          {blueprintHowToBlock}
+          {isFirstPromptPage ? blueprintHowToBlock : howToAnswerLaterPage}
           {blueprintPromptCards}
         </>
       )}
