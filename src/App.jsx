@@ -8,6 +8,7 @@ import TemplatesTab from "./components/TemplatesTab.jsx";
 import PlaybookTab from "./components/PlaybookTab.jsx";
 import AlexRoleplayTab from "./components/AlexRoleplayTab.jsx";
 import StudentMvpTab from "./components/StudentMvpTab.jsx";
+import StudentBridgeWorkStyleSnapshot from "./components/StudentBridgeWorkStyleSnapshot.jsx";
 import { salaryBenchmarkMethodologyLine } from "./utils/salaryBenchmarkMethodology.js";
 import { useRegionPreferences } from "./context/RegionPreferencesContext.jsx";
 import { REGION_OPTIONS, getPreset } from "./utils/regionPresets.js";
@@ -27,6 +28,10 @@ import {
   OA_CONTENT_MAX_SECONDARY,
   OA_PAGE_PAD_X,
 } from "./constants/appLayout.js";
+import {
+  guestSignalRoomCoachUsed,
+  markGuestSignalRoomCoachUsed,
+} from "./utils/bridgeSnapshotCoachQuota.js";
 
 const SYSTEM_PROMPT = `You are an elite salary and compensation negotiation coach with 15+ years of experience as a recruiter, HR director, and career strategist at top-tier companies (FAANG, Wall Street, consulting firms). You have helped thousands of professionals negotiate offers worth millions in additional lifetime earnings.
 
@@ -78,6 +83,13 @@ const welcomeMessageFor = (name) => ({
 
 const TABS = [
   { id: "coach",     label: "Share offer", shortLabel: "Coach",     icon: "coach",     desc: "Tell me about your offer" },
+  {
+    id: "signal_room",
+    label: "Signal Room",
+    shortLabel: "Signals",
+    icon: "signal_room",
+    desc: "Where your work energy points—quick prompts, zero jargon",
+  },
   { id: "student", label: BRIDGE_TAB_LABEL, shortLabel: BRIDGE_TAB_SHORT_LABEL, icon: "student", desc: BRIDGE_TAB_DESC },
   { id: "benchmark", label: "Benchmark",   shortLabel: "Benchmark", icon: "benchmark", desc: "Compare to market data" },
   { id: "calculate", label: "Calculate",   shortLabel: "Calculate", icon: "calculate", desc: "Build your counter-offer" },
@@ -134,6 +146,11 @@ const PROMPTS = {
     "How do I compare two new-grad offers side by side?",
     "What could this offer mean for my salary in 5 years?",
   ],
+  signal_room: [
+    "What do my Signal Room scores suggest I double down on?",
+    "How do I test these themes in my next internship or job?",
+    "How should I talk about my strengths in an interview?",
+  ],
 };
 
 const CURRENCIES = [
@@ -161,10 +178,10 @@ const PLANS = {
 // Features each plan can access (tab ids). Pathway guardrails:
 // — Student Plus → Students hub only · Sprint/Pro → professional tools only (no Students tab). Free keeps both for exploration.
 const PLAN_FEATURES = {
-  free:   ["coach", "student"],
-  sprint: ["coach", "benchmark", "calculate", "practice", "logwin"],
-  student_plus: ["student"],
-  pro:    ["coach", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
+  free:   ["coach", "signal_room", "student"],
+  sprint: ["coach", "signal_room", "benchmark", "calculate", "practice", "logwin"],
+  student_plus: ["student", "signal_room"],
+  pro:    ["coach", "signal_room", "benchmark", "calculate", "practice", "logwin", "templates", "playbook", "history", "alex"],
 };
 
 /** Paid plans scoped to salary negotiation tooling (no Students tab). */
@@ -181,7 +198,7 @@ function isStudentPaidPlan(plan) {
 function pathwayTabBlocked(plan, tabId) {
   if (!plan || plan === "free") return false;
   if (isProfessionalPaidPlan(plan) && tabId === "student") return true;
-  if (isStudentPaidPlan(plan) && tabId !== "student") return true;
+  if (isStudentPaidPlan(plan) && tabId !== "student" && tabId !== "signal_room") return true;
   return false;
 }
 
@@ -524,7 +541,7 @@ export default function OfferAdvisor() {
 
   const [isDark, setIsDark] = useState(() => {
     const s = localStorage.getItem("offeradvisor_theme");
-    return s ? s === "dark" : true;
+    return s ? s === "dark" : false;
   });
 
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -648,7 +665,7 @@ export default function OfferAdvisor() {
   // ── Core send message ────────────────────────────────────────────────────────
   const sendMessage = async (text) => {
     const userText = (text || input || "").trim();
-    if (!userText || loading) return;
+    if (!userText || loading) return false;
     setInput("");
 
     const newMessages = [...messages, { role: "user", content: userText }];
@@ -671,6 +688,7 @@ export default function OfferAdvisor() {
 
     const messagesToSend = apiMessages.length > 0 ? apiMessages : [{ role: "user", content: userText }];
 
+    let succeeded = false;
     try {
       const headers = { "Content-Type": "application/json" };
       if (isSignedIn) {
@@ -696,27 +714,40 @@ export default function OfferAdvisor() {
               : "You've reached your free coaching limit. Upgrade to continue.";
           setMessages([...newMessages, { role: "assistant", content: msg }]);
           setAuthModal("upgrade");
-          return;
+          return false;
         }
         throw new Error(`HTTP ${response.status}`);
       }
       const data = await response.json();
       const reply = data.content?.[0]?.text || "Something went wrong. Please try again.";
       setMessages([...newMessages, { role: "assistant", content: reply }]);
+      succeeded = true;
     } catch (e) {
       setMessages([...newMessages, { role: "assistant", content: "Something went wrong. Please try again." }]);
     } finally {
       setLoading(false);
       if (activeTab === "coach") inputRef.current?.focus();
     }
+    return succeeded;
   };
 
-  /** Students hub CTAs call this so replies are visible (Coach tab or inline transcript for Student Plus). */
+  /** Students hub CTAs call this so replies are visible (Coach tab or inline transcript for Student Plus). Returns whether the assistant reply succeeded. */
   const sendCoachFromStudentHub = async (text) => {
     if (canAccess(userPlan, "coach")) {
       setActiveTab("coach");
     }
-    await sendMessage(text);
+    return sendMessage(text);
+  };
+
+  /** Signal Room tab: guests get one coach reply per browser; then sign-in CTA (mirrors Free one-reply UX). */
+  const sendSignalRoomCoach = async (text) => {
+    if (!isSignedIn && guestSignalRoomCoachUsed()) {
+      setAuthModal("signin");
+      return false;
+    }
+    const ok = await sendCoachFromStudentHub(text);
+    if (!isSignedIn && ok) markGuestSignalRoomCoachUsed();
+    return ok;
   };
 
   const handleKey = (e) => {
@@ -1109,7 +1140,7 @@ export default function OfferAdvisor() {
       } else if (pathway && isStudentPaidPlan(userPlan)) {
         title = `Student Plus — ${BRIDGE_TAB_LABEL} only`;
         description =
-          `Your plan unlocks ${BRIDGE_TAB_LABEL} (benchmarks, compare offers, paths, campus verification). Upgrade to Offer Sprint or Offer in Hand for Share offer, Benchmark, Calculator, Practice, Log win, and Pro-only tools.`;
+          `Your plan unlocks ${BRIDGE_TAB_LABEL} and Signal Room (benchmarks, compare offers, paths, campus verification). Upgrade to Offer Sprint or Offer in Hand for Share offer, Benchmark, Calculator, Practice, Log win, and Pro-only tools.`;
         primaryAction = {
           label: "View upgrade options →",
           onClick: () => setAuthModal("upgrade"),
@@ -1120,7 +1151,7 @@ export default function OfferAdvisor() {
           : "Sign in, then upgrade to Offer in Hand (Pro) to use the voice mock interview with Alex.";
       } else if (!isSignedIn) {
         description =
-          `Create a free account. Student Plus ($19.99) unlocks ${BRIDGE_TAB_LABEL}; Offer Sprint ($29) unlocks Share offer and negotiation tools; Pro ($49) adds lifetime professional tools. Free accounts can explore both ${BRIDGE_TAB_LABEL} and Share offer at starter limits.`;
+          `Create a free account. Student Plus ($19.99) unlocks ${BRIDGE_TAB_LABEL}; Offer Sprint ($29) unlocks Share offer and negotiation tools; Pro ($49) adds lifetime professional tools. Free accounts can explore Share offer, Signal Room, and ${BRIDGE_TAB_LABEL} at starter limits.`;
       } else {
         description =
           `Offer Sprint ($29) or Pro ($49) unlock Benchmark, Calculator, Practice, Log win, and Pro extras. Student Plus is for students — ${BRIDGE_TAB_SHORT_LABEL} workspace only — upgrade if you need professional negotiation tabs.`;
@@ -1957,6 +1988,29 @@ export default function OfferAdvisor() {
           </>
         );
       }
+
+      case "signal_room":
+        return (
+          <>
+            <div style={{ flex: 1, overflowY: "auto", padding: `1.25rem ${OA_PAGE_PAD_X}` }}>
+              <div style={{ maxWidth: OA_CONTENT_MAX_PRIMARY, margin: "0 auto" }}>
+                <StudentBridgeWorkStyleSnapshot
+                  T={T}
+                  userPlan={userPlan}
+                  userId={user?.id ?? null}
+                  isSignedIn={isSignedIn}
+                  guestSignalRoomCoachExhausted={
+                    Boolean(!isSignedIn && guestSignalRoomCoachUsed())
+                  }
+                  onSignIn={() => setAuthModal("signin")}
+                  onViewPlans={() => setAuthModal("upgrade")}
+                  onDiscussWithCoach={sendSignalRoomCoach}
+                />
+              </div>
+            </div>
+            <ChatStrip onSend={sendSignalRoomCoach} loading={loading} T={T} tabId="signal_room" />
+          </>
+        );
 
       default: return null;
     }
