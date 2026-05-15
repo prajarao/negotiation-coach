@@ -1,0 +1,24 @@
+# OfferAdvisor — AI Salary Negotiation Coach
+> OfferAdvisor helps job seekers benchmark their salary offer against BLS, ONS, and real market data, build a counter-offer strategy, and practice negotiating with an AI recruiter before the real conversation.
+
+## Key pages
+- Homepage: https://offeradvisor.ai/
+- App: https://offeradvisor.ai/app
+- Pricing: https://offeradvisor.ai/#pricing
+- Machine-readable pricing: https://offeradvisor.ai/pricing.md
+- Privacy Policy: https://offeradvisor.ai/ (see inline modal)
+- Terms of Service: https://offeradvisor.ai/ (see inline modal)
+
+## Product summary
+OfferAdvisor is an AI-powered salary negotiation SaaS. Users input their job offer details; the platform benchmarks the offer against official salary data (US Bureau of Labor Statistics, UK ONS ASHE, AI-estimated data for India and 40+ other markets), generates a specific counter-offer amount with exact talking points, and provides AI recruiter role-play practice. Average user negotiates an additional $14,200.
+
+## Audience
+- Professionals evaluating a job offer or seeking a raise
+- Students and new grads (BRIDGE workspace)
+- Career services teams at partner universities
+
+## Pricing (one-time, no subscription)
+- Free: 1 AI session + 1 email script
+- Student Plus: $19.99 USD — BRIDGE student workspace, 30 days
+- Offer Sprint: $29 USD — Full professional toolkit, 30 days
+- Offer in Hand: $49 USD — Lifetime Pro access, voice mock interview
