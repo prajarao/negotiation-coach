@@ -142,6 +142,8 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState(null);
   const [verifySuccess, setVerifySuccess] = useState(null);
+  /** Non-fatal pilot entitlement sync message from API */
+  const [verifyPilotWarning, setVerifyPilotWarning] = useState(null);
 
   const STORAGE_KEY_STUDENT_BENCHMARK = "offeradvisor_student_benchmark_v1";
   const STORAGE_KEY_STUDENT_FIVE_YEAR = "offeradvisor_student_five_year_v1";
@@ -402,10 +404,12 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
   const resetUniversityVerifyState = () => {
     setVerifyError(null);
     setVerifySuccess(null);
+    setVerifyPilotWarning(null);
   };
 
   const handleVerifyUniversity = async () => {
     setVerifyError(null);
+    setVerifyPilotWarning(null);
     if (!isSignedIn) return;
     setVerifyLoading(true);
     try {
@@ -442,6 +446,14 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
           slug: j.university.slug,
           alreadyVerified: Boolean(j.alreadyVerified),
         });
+        if (typeof j.pilotEntitlementWarning === "string" && j.pilotEntitlementWarning.trim()) {
+          setVerifyPilotWarning(j.pilotEntitlementWarning.trim());
+        }
+        try {
+          if (typeof user?.reload === "function") await user.reload();
+        } catch {
+          /* ignore */
+        }
       }
     } catch (e) {
       setVerifyError(e?.message || "Network error");
@@ -1671,7 +1683,8 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
               )}
               {univVerifyMode === "invite_only" && (
                 <p style={{ fontSize: "0.74rem", color: T.textMuted, margin: 0, lineHeight: 1.5 }}>
-                  No school inbox required — your code maps to one partner school on the server.
+                  No college email required — use the invite code from your career center. The code maps to one partner
+                  school on the server.
                 </p>
               )}
               <label>
@@ -1795,6 +1808,11 @@ export default function StudentMvpTab({ T, onSignIn, onDiscussWithCoach, userPla
                     <strong>{verifySuccess.name}</strong>
                     {verifySuccess.slug ? ` (${verifySuccess.slug})` : ""}.
                   </p>
+                  {verifyPilotWarning ? (
+                    <p style={{ fontSize: "0.74rem", color: "#fbbf24", margin: "0.5rem 0 0", lineHeight: 1.55 }}>
+                      {verifyPilotWarning}
+                    </p>
+                  ) : null}
                 </div>
               )}
             </div>

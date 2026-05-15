@@ -9,7 +9,7 @@ create table if not exists public.users (
   clerk_id        text unique not null,
   email           text,
   plan            text not null default 'free'
-                    check (plan in ('free', 'sprint', 'pro')),
+                    check (plan in ('free', 'sprint', 'pro', 'student_plus')),
   usage_count     integer not null default 0,
   student_offer_compare_count integer not null default 0,
   plan_expires_at timestamptz,
@@ -24,7 +24,7 @@ create index if not exists idx_users_clerk_id on public.users (clerk_id);
 create table if not exists public.subscriptions (
   id                uuid default gen_random_uuid() primary key,
   clerk_id          text not null references public.users (clerk_id) on delete cascade,
-  plan              text not null check (plan in ('free', 'sprint', 'pro')),
+  plan              text not null check (plan in ('free', 'sprint', 'pro', 'student_plus')),
   status            text not null default 'active'
                       check (status in ('active', 'expired', 'cancelled')),
   stripe_session_id text,

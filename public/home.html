@@ -11,6 +11,12 @@
 <meta property="og:image" content="https://offeradvisor.ai/og-image.png"/>
 <meta property="og:url" content="https://offeradvisor.ai"/>
 <meta name="twitter:card" content="summary_large_image"/>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":["SoftwareApplication","Product"],"name":"OfferAdvisor","applicationCategory":"BusinessApplication","operatingSystem":"Web","description":"OfferAdvisor is an AI-powered salary negotiation coach that benchmarks job offers against BLS and ONS data, generates counter-offer scripts, and provides AI recruiter role-play practice.","url":"https://offeradvisor.ai","offers":[{"@type":"Offer","name":"Free","price":"0","priceCurrency":"USD"},{"@type":"Offer","name":"Student Plus","price":"19.99","priceCurrency":"USD"},{"@type":"Offer","name":"Offer Sprint","price":"29.00","priceCurrency":"USD"},{"@type":"Offer","name":"Offer in Hand","price":"49.00","priceCurrency":"USD"}]}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How does OfferAdvisor benchmark my salary?","acceptedAnswer":{"@type":"Answer","text":"Uses BLS for US, ONS ASHE for UK, AI-estimated data for India + 40 other markets. Shows 25th/50th/75th percentile."}},{"@type":"Question","name":"What is the average salary increase from negotiating?","acceptedAnswer":{"@type":"Answer","text":"OfferAdvisor users negotiate an average of $14,200 more. 87% of job offers have flexibility per our platform data."}},{"@type":"Question","name":"How is OfferAdvisor different from Glassdoor or Levels.fyi?","acceptedAnswer":{"@type":"Answer","text":"Those are salary databases; OfferAdvisor generates a specific counter-offer strategy with exact words to say, a role-play simulator, and a 4-year earnings projection."}},{"@type":"Question","name":"Does OfferAdvisor work for international salaries?","acceptedAnswer":{"@type":"Answer","text":"Yes — USD, GBP, INR, EUR, CAD, AUD, SGD, AED; auto-detects currency."}},{"@type":"Question","name":"What is BRIDGE for students?","acceptedAnswer":{"@type":"Answer","text":"A dedicated workspace for interns and new grads. Benchmarks first offers, compares two offers side-by-side, shows 5-year earnings snapshots, and offers career path exploration."}},{"@type":"Question","name":"Is OfferAdvisor a subscription?","acceptedAnswer":{"@type":"Answer","text":"No — one-time payments only. Free tier, $19.99 (Student Plus), $29 (Sprint), $49 (Pro/lifetime)."}}]}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet"/>
@@ -86,7 +92,7 @@ nav{
 .nav-cta:hover{background:#1e40af}
 
 /* Anchor offset for fixed nav */
-#students,#pricing,#how-it-works,#features{scroll-margin-top:72px}
+#what-is-offeradvisor,#students,#pricing,#how-it-works,#features,#faq{scroll-margin-top:72px}
 
 /* ── Sections ── */
 section{position:relative;z-index:1}
@@ -170,6 +176,50 @@ a.btn-secondary{text-decoration:none;display:inline-flex;align-items:center;just
   animation:fadeUp .6s .4s ease both;
 }
 .hero-proof-stars{color:var(--gold);letter-spacing:1px;font-size:.9rem}
+
+/* ── Product definition (early, extractable summary for search & assistants) ── */
+.product-def{
+  padding:clamp(1.75rem,4vw,2.75rem) clamp(1.5rem,6vw,4rem);
+  max-width:820px;margin:0 auto;
+  text-align:center;border-bottom:1px solid var(--border);
+  background:rgba(10,20,40,.5);
+}
+.product-def-heading{
+  font-size:.72rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-dim);margin-bottom:.85rem;
+}
+.product-def p{
+  font-size:.9rem;line-height:1.7;color:var(--text-muted);
+  margin:0;
+}
+
+/* ── FAQ (salary negotiation queries) ── */
+.faq-section{
+  padding:clamp(3rem,8vw,5rem) clamp(1.5rem,6vw,4rem);
+  background:var(--navy);
+  border-top:1px solid var(--border);
+}
+.faq-inner{max-width:720px;margin:0 auto;}
+.faq-list{margin-top:2rem;display:flex;flex-direction:column;gap:.65rem;}
+.faq-item{
+  border:1px solid var(--border);border-radius:12px;
+  background:var(--navy2);overflow:hidden;
+}
+.faq-item summary{
+  cursor:pointer;padding:1rem 1.25rem;font-weight:600;font-size:.92rem;color:var(--text);
+  list-style:none;display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;
+  line-height:1.4;
+}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary::after{
+  content:"+";flex-shrink:0;font-size:1.05rem;line-height:1.2;opacity:.7;color:var(--blue-light);
+}
+.faq-item[open] summary::after{content:"–"}
+.faq-a{
+  padding:0 1.25rem 1.2rem;font-size:.9rem;color:var(--text-muted);line-height:1.68;
+  border-top:1px solid var(--border);
+}
+.faq-item:not([open]) .faq-a{border-top:none;padding:0}
 
 /* ── Number strip ── */
 .numbers{
@@ -585,6 +635,7 @@ html[data-audience="student"] .hero-link-student{display:inline-flex!important;a
         <a href="#how-it-works" role="menuitem">How it works</a>
         <a href="#features" role="menuitem">Features</a>
         <a href="#pricing" role="menuitem">Pricing</a>
+        <a href="#faq" role="menuitem">FAQ</a>
       </div>
     </div>
   </div>
@@ -658,6 +709,11 @@ html[data-audience="student"] .hero-link-student{display:inline-flex!important;a
       </div>
     </div>
   </div>
+</section>
+
+<section class="product-def" id="what-is-offeradvisor" aria-labelledby="what-is-offeradvisor-heading">
+  <h2 id="what-is-offeradvisor-heading" class="product-def-heading">What is OfferAdvisor?</h2>
+  <p>OfferAdvisor is an AI-powered salary negotiation coach that benchmarks job offers against BLS and ONS data, generates counter-offer scripts, and provides AI recruiter role-play practice.</p>
 </section>
 
 <!-- NUMBERS -->
@@ -1003,6 +1059,41 @@ html[data-audience="student"] .hero-link-student{display:inline-flex!important;a
     This launch is yours. Thank you. ❤️
   </p>
 
+</section>
+
+<!-- FAQ — salary negotiation & product questions -->
+<section class="faq-section" id="faq" aria-labelledby="faq-heading">
+  <div class="faq-inner">
+    <div class="section-label">How to negotiate salary</div>
+    <h2 id="faq-heading" class="section-heading" style="margin-bottom:0">Questions &amp; answers</h2>
+    <p class="hero-sub reveal" style="max-width:100%;margin:1rem auto 0;text-align:left;font-size:.9rem">Common searches about benchmarking offers, negotiation outcomes, and how OfferAdvisor compares to salary sites.</p>
+    <div class="faq-list reveal">
+      <details class="faq-item">
+        <summary>How does OfferAdvisor benchmark my salary?</summary>
+        <div class="faq-a">Uses BLS for US, ONS ASHE for UK, AI-estimated data for India + 40 other markets. Shows 25th/50th/75th percentile.</div>
+      </details>
+      <details class="faq-item">
+        <summary>What is the average salary increase from negotiating?</summary>
+        <div class="faq-a">OfferAdvisor users negotiate an average of $14,200 more. 87% of job offers have flexibility per our platform data.</div>
+      </details>
+      <details class="faq-item">
+        <summary>How is OfferAdvisor different from Glassdoor or Levels.fyi?</summary>
+        <div class="faq-a">Those are salary databases; OfferAdvisor generates a specific counter-offer strategy with exact words to say, a role-play simulator, and a 4-year earnings projection.</div>
+      </details>
+      <details class="faq-item">
+        <summary>Does OfferAdvisor work for international salaries?</summary>
+        <div class="faq-a">Yes — USD, GBP, INR, EUR, CAD, AUD, SGD, AED; auto-detects currency.</div>
+      </details>
+      <details class="faq-item">
+        <summary>What is BRIDGE for students?</summary>
+        <div class="faq-a">A dedicated workspace for interns and new grads. Benchmarks first offers, compares two offers side-by-side, shows 5-year earnings snapshots, and offers career path exploration.</div>
+      </details>
+      <details class="faq-item">
+        <summary>Is OfferAdvisor a subscription?</summary>
+        <div class="faq-a">No — one-time payments only. Free tier, $19.99 (Student Plus), $29 (Sprint), $49 (Pro/lifetime).</div>
+      </details>
+    </div>
+  </div>
 </section>
 
 <!-- FOOTER -->

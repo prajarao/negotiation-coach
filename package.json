@@ -9,7 +9,7 @@
     "report:users": "node scripts/user-billing-report.mjs",
     "fix:tslib": "node scripts/ensure-tslib.cjs",
     "postinstall": "node scripts/ensure-tslib.cjs",
-    "test:student-verify": "node scripts/test-student-verify.mjs",
+    "hash:invite": "node scripts/hash-university-invite.mjs",
     "diagnose:supabase-university": "node scripts/diagnose-supabase-university.mjs",
     "extract:brahmasutras": "node scripts/extract-brahmasutras.mjs",
     "dev": "vite",

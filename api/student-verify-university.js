@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { extractClerkId } from "./_student-verify-auth.js";
+import { applyPilotFreeStudentPlus } from "./_pilot-free-entitlement.js";
 import { supabase, supabaseUrlMisconfigured } from "./_supabase.js";
 
 /**
@@ -10,6 +11,9 @@ import { supabase, supabaseUrlMisconfigured } from "./_supabase.js";
  * - Invite-only (no school inbox): { mode: "invite_only", inviteCode: string }
  *
  * Auth: see `./_student-verify-auth.js`
+ *
+ * Pilot (free Student Plus): set env `PILOT_FREE_UNIVERSITY_IDS` (comma-separated university UUIDs);
+ * optional `PILOT_FREE_PLAN_EXPIRES_AT` (ISO). See `./_pilot-free-entitlement.js`.
  */
 
 /** Local/preview: attach Supabase message so failures are actionable (hidden when NODE_ENV=production). */
@@ -125,6 +129,8 @@ async function finalizeVerification(clerkId, universityId, inviteRow, uni, verif
     };
   }
 
+  const pilotEntitlement = await applyPilotFreeStudentPlus({ clerkId, universityId });
+
   return {
     status: 200,
     body: {
@@ -132,6 +138,12 @@ async function finalizeVerification(clerkId, universityId, inviteRow, uni, verif
       alreadyVerified: false,
       verificationMode,
       university: { id: uni.id, slug: uni.slug, name: uni.name },
+      ...(pilotEntitlement?.applied || pilotEntitlement?.warning
+        ? {
+            pilotEntitlementApplied: Boolean(pilotEntitlement.applied),
+            ...(pilotEntitlement.warning ? { pilotEntitlementWarning: pilotEntitlement.warning } : {}),
+          }
+        : {}),
     },
   };
 }
